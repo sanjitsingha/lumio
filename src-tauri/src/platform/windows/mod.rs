@@ -17,11 +17,15 @@ use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
 
 use super::PlatformInfo;
 
-pub fn is_hidden(entry: &std::fs::DirEntry, _name: &str) -> bool {
-    entry
-        .metadata()
-        .map(|m| m.file_attributes() & (FILE_ATTRIBUTE_HIDDEN.0 | FILE_ATTRIBUTE_SYSTEM.0) != 0)
-        .unwrap_or(false)
+/// Hidden or system attribute, or a dot-name: developer tools (`.vscode`,
+/// `.cargo`, `.npm`, …) create dot-folders in Windows home folders too, and
+/// they are as unwanted in search there as on Linux.
+pub fn is_hidden(entry: &std::fs::DirEntry, name: &str) -> bool {
+    name.starts_with('.')
+        || entry
+            .metadata()
+            .map(|m| m.file_attributes() & (FILE_ATTRIBUTE_HIDDEN.0 | FILE_ATTRIBUTE_SYSTEM.0) != 0)
+            .unwrap_or(false)
 }
 
 const CURRENT_VERSION: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";

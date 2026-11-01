@@ -430,6 +430,24 @@ mod tests {
         assert_eq!(data.lookup(&dir.path().join("nope.txt").to_string_lossy()), None);
     }
 
+    /// Windows marks hidden files with an attribute rather than a dot-name.
+    #[cfg(windows)]
+    #[test]
+    fn hidden_attribute_is_respected_on_windows() {
+        use windows::core::HSTRING;
+        use windows::Win32::Storage::FileSystem::{SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN};
+        let dir = tempfile::tempdir().unwrap();
+        let secret = dir.path().join("Private Notes");
+        fs::create_dir_all(&secret).unwrap();
+        fs::write(secret.join("diary.txt"), b"x").unwrap();
+        fs::write(dir.path().join("visible.txt"), b"x").unwrap();
+        unsafe { SetFileAttributesW(&HSTRING::from(secret.as_os_str()), FILE_ATTRIBUTE_HIDDEN) }.unwrap();
+        let data = IndexData::build(&config(dir.path()), &|| false);
+        let all: HashSet<String> = data.entries.iter().map(|e| e.name.to_string()).collect();
+        assert!(all.contains("visible.txt"));
+        assert!(!all.contains("Private Notes") && !all.contains("diary.txt"));
+    }
+
     #[test]
     fn scattered_letter_matches_are_not_file_results() {
         let dir = tempfile::tempdir().unwrap();
