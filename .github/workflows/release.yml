@@ -36,16 +36,6 @@ jobs:
             exit 1
           fi
 
-      - name: Signing key must be configured
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing. Add the content of ~/.tauri/lumio.key under Settings > Secrets and variables > Actions (docs/RELEASING.md, step 3)."
-            exit 1
-          fi
-
       - name: Release notes from the tag message
         id: notes
         shell: bash
@@ -77,6 +67,24 @@ jobs:
 
       - run: npm ci
 
+      - name: Signing key must work
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing. Add the content of ~/.tauri/lumio.key under Settings > Secrets and variables > Actions (docs/RELEASING.md, step 3)."
+            exit 1
+          fi
+          echo "signing test" > "$RUNNER_TEMP/sign-test.txt"
+          if ! out=$(npx tauri signer sign "$RUNNER_TEMP/sign-test.txt" 2>&1 < /dev/null); then
+            reason=$(echo "$out" | sed -E 's/\x1b\[[0-9;]*m//g' | grep -iE "error|password|failed" | tail -1)
+            echo "::error::The signing key secret does not work: ${reason}. TAURI_SIGNING_PRIVATE_KEY must be the full content of ~/.tauri/lumio.key; delete the TAURI_SIGNING_PRIVATE_KEY_PASSWORD secret if the key has no password."
+            exit 1
+          fi
+          echo "Signing key OK"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,4 +99,6 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+          # wrapper that surfaces build errors as annotations on the run page
+          tauriScript: bash scripts/ci-tauri.sh
           args: --bundles ${{ matrix.bundles }}
