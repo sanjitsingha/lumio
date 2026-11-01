@@ -35,6 +35,7 @@ const COMPONENT: &str = "org.a11y.atspi.Component";
 const TEXT: &str = "org.a11y.atspi.Text";
 const COLLECTION: &str = "org.a11y.atspi.Collection";
 const COORD_SCREEN: u32 = 0;
+const COORD_WINDOW: u32 = 1;
 const MATCH_ALL: i32 = 1;
 const SORT_CANONICAL: u32 = 1;
 
@@ -51,7 +52,7 @@ const CALL_TIMEOUT_MS: i32 = 150;
 /// Bounds for the search of the focused object inside one window.
 const MAX_NODES: usize = 3000;
 const MAX_DEPTH: usize = 60;
-const MAX_SEARCH_TIME: Duration = Duration::from_millis(300);
+const MAX_SEARCH_TIME: Duration = Duration::from_millis(700);
 /// Objects that manage their descendants (documents, lists, tables) are
 /// searched only up to this many children: a LibreOffice document holds its
 /// visible paragraphs, a large list could hold thousands of rows.
@@ -60,6 +61,8 @@ const MAX_MANAGED_CHILDREN: i32 = 500;
 const GALA_MAX_DEPTH: usize = 4;
 /// Largest client-side shadow plus resize border around a window frame.
 const MAX_SHADOW: i32 = 200;
+/// Fields up to this height (logical px) are single-line.
+const SINGLE_LINE_MAX: i32 = 48;
 
 pub fn support() -> Result<&'static str, String> {
     let session = session::session_type();
@@ -127,6 +130,9 @@ pub struct CaretTracker {
     wayland: bool,
     gala: Option<Obj>,
     target: Option<Target>,
+    /// The last focused field and its path from its window: checked first,
+    /// so toggling again in the same field needs no search.
+    last_path: Option<Vec<Obj>>,
 }
 
 impl CaretTracker {
@@ -138,6 +144,7 @@ impl CaretTracker {
             wayland: session::is_wayland(),
             gala: None,
             target: None,
+            last_path: None,
         })
     }
 
@@ -188,7 +195,11 @@ impl CaretTracker {
             }
         }
         windows.into_iter().find_map(|window| {
-            let path = self.focused_by_collection(&window).or_else(|| self.find_focused(&window))?;
+            let path = self
+                .remembered_path(&window)
+                .or_else(|| self.focused_by_collection(&window))
+                .or_else(|| self.find_focused(&window))?;
+            self.last_path = Some(path.clone());
             let field = path.last()?.clone();
             if !self.is_text_field(&field) {
                 log::debug!("the focused object is not a text field");
@@ -218,6 +229,13 @@ impl CaretTracker {
             return None;
         };
         Some((actor.x - surface.x, actor.y - surface.y))
+    }
+
+    /// The path found last time, if its field in this window still has focus.
+    fn remembered_path(&self, window: &Obj) -> Option<Vec<Obj>> {
+        let path = self.last_path.as_ref()?;
+        let still_focused = path.first() == Some(window) && has(self.state(path.last()?), FOCUSED);
+        still_focused.then(|| path.clone())
     }
 
     /// The focused descendant in one `Collection.GetMatches` call, which GTK 3,
@@ -311,7 +329,18 @@ impl CaretTracker {
                 return Some(Rect { x: c.x + c.width, y: c.y, width: 1, height: c.height });
             }
         }
-        empty_field_caret(self.extents(field)?)
+        field_caret(self.field_extents(field)?, count == 0 && offset == 0)
+    }
+
+    /// GTK 4.14 reports (0, 0) for every screen position but correct window
+    /// positions, which are what the other toolkits' screen positions are on
+    /// Wayland too.
+    fn field_extents(&self, field: &Obj) -> Option<Rect> {
+        let screen = self.extents(field)?;
+        if (screen.x, screen.y) != (0, 0) {
+            return Some(screen);
+        }
+        Some(self.extents_in(field, COORD_WINDOW).filter(|w| (w.x, w.y) != (0, 0)).unwrap_or(screen))
     }
 
     fn char_extents(&self, field: &Obj, offset: i32) -> Option<Rect> {
@@ -321,7 +350,11 @@ impl CaretTracker {
     }
 
     fn extents(&self, obj: &Obj) -> Option<Rect> {
-        let reply = self.call(obj, COMPONENT, "GetExtents", Some((COORD_SCREEN,).to_variant()), "((iiii))")?;
+        self.extents_in(obj, COORD_SCREEN)
+    }
+
+    fn extents_in(&self, obj: &Obj, coords: u32) -> Option<Rect> {
+        let reply = self.call(obj, COMPONENT, "GetExtents", Some((coords,).to_variant()), "((iiii))")?;
         let ((x, y, width, height),) = reply.get::<((i32, i32, i32, i32),)>()?;
         Some(Rect { x, y, width, height })
     }
@@ -446,15 +479,18 @@ fn embedded_toolkit_shift(extents: &[Option<Rect>]) -> (i32, i32) {
     })
 }
 
-/// The caret of an empty field sits at its start: top-left in a multi-line
-/// field, vertically centred in a single-line one.
-fn empty_field_caret(field: Rect) -> Option<Rect> {
+/// Without character positions (an empty field, or GTK 4.14, which does not
+/// report them) only the field is known. A single-line field is the caret's
+/// line, so the caret spans it at its start; in a multi-line field only the
+/// caret of an empty field is known (top-left).
+fn field_caret(field: Rect, empty: bool) -> Option<Rect> {
     if field.width <= 0 || field.height <= 0 {
         return None;
     }
-    let height = field.height.min(20);
-    let y = if field.height > 48 { field.y + 4 } else { field.y + (field.height - height) / 2 };
-    Some(Rect { x: field.x + 4, y, width: 1, height })
+    if field.height <= SINGLE_LINE_MAX {
+        return Some(Rect { x: field.x + 4, y: field.y + 2, width: 1, height: (field.height - 4).max(1) });
+    }
+    empty.then_some(Rect { x: field.x + 4, y: field.y + 4, width: 1, height: 20 })
 }
 
 /// Picks the actor of the focused window among Gala's visible actors
@@ -462,7 +498,12 @@ fn empty_field_caret(field: Rect) -> Option<Rect> {
 /// shallowest depth whose size equals the window surface, or else (toolkits
 /// that scale their window size, like Chromium with text scaling) one that
 /// surrounds the frame Gala reports with the surface's aspect ratio.
+///
+/// A toolkit that reports exactly the frame (GTK 4) in a window with a
+/// shadow has no matching actor: its frame sits inside the actor at an
+/// unknown, uneven inset, so no position is better than a wrong one.
 fn pick_window_actor(actors: &[(usize, Rect)], surface: (i32, i32), frame: Option<(i32, i32)>) -> Option<Rect> {
+    let frame = frame.filter(|f| *f != surface);
     let exact = |r: &Rect| (r.width, r.height) == surface;
     let around_frame = |r: &Rect| {
         let Some((fw, fh)) = frame else { return false };
@@ -563,8 +604,26 @@ mod tests {
 
     #[test]
     fn empty_fields_put_the_caret_at_their_start() {
-        assert_eq!(empty_field_caret(r(10, 10, 200, 30)), Some(r(14, 15, 1, 20)));
-        assert_eq!(empty_field_caret(r(10, 10, 400, 300)), Some(r(14, 14, 1, 20)));
-        assert_eq!(empty_field_caret(r(10, 10, 0, 0)), None);
+        assert_eq!(field_caret(r(10, 10, 200, 30), true), Some(r(14, 12, 1, 26)));
+        assert_eq!(field_caret(r(10, 10, 400, 300), true), Some(r(14, 14, 1, 20)));
+        assert_eq!(field_caret(r(10, 10, 0, 0), true), None);
+    }
+
+    #[test]
+    fn fields_without_character_positions() {
+        // GTK 4.14 search entry with text: the caret's line is the field
+        assert_eq!(field_caret(r(629, 7, 665, 24), false), Some(r(633, 9, 1, 20)));
+        // multi-line text with an unknown caret position
+        assert_eq!(field_caret(r(10, 10, 400, 300), false), None);
+    }
+
+    #[test]
+    fn gtk4_frames_need_an_exact_actor() {
+        // maximized GTK 4 window: the frame is the actor
+        let mut actors = desktop();
+        actors.push((3, r(0, 30, 1920, 1050)));
+        assert_eq!(pick_window_actor(&actors, (1920, 1050), Some((1920, 1050))), Some(r(0, 30, 1920, 1050)));
+        // floating GTK 4 window with a shadow: 797x778 frame in an 851x832 actor
+        assert_eq!(pick_window_actor(&desktop(), (797, 778), Some((797, 778))), None);
     }
 }
