@@ -35,7 +35,7 @@ function diagnosticsText(d) {
     ...d.shortcuts.slots.map(
       (s) => `  ${s.id}: ${s.accelerator ?? "none"} ${s.accelerator ? (s.registered ? "[registered]" : `[failed: ${s.error?.message ?? "?"}]`) : ""}`,
     ),
-    `Caps Lock: mode=${d.capsLock.mode} detection=${d.capsLock.detection.method} pointer=${d.capsLock.cursor.method} overlay=${d.capsLock.overlay.method} monitoring=${d.capsLock.monitoring}`,
+    `Caps Lock: mode=${d.capsLock.mode} detection=${d.capsLock.detection.method} caret=${d.capsLock.caret.method} pointer=${d.capsLock.cursor.method} overlay=${d.capsLock.overlay.method} monitoring=${d.capsLock.monitoring}`,
     `Index: ${d.index.files} files, ${d.index.folders} folders, ${d.index.apps} apps, indexing=${d.index.indexing}, watching=${d.index.watching}, limitReached=${d.index.limitReached}`,
     `History entries: ${d.historyEntries}`,
     ...d.paths.map(([k, v]) => `${k}: ${v}`),

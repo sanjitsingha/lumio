@@ -22,12 +22,23 @@ On Wayland, focus is granted only for shortcut presses that the compositor saw. 
 - Check Settings → Caps Lock Indicator → *Compatibility*:
   - *Caps Lock detection ✕* on Wayland means no keyboard exposes a Caps Lock LED (check `ls /sys/class/leds | grep capslock`).
   - *Pointer position ✕* on Wayland means XWayland is not running. Lumio then uses the system on-screen display on elementary OS.
+  - *Text cursor position ✕* means the accessibility bus is not running (`at-spi2-core`).
+- Check *Without a text cursor*: with *Don't show*, nothing appears outside text fields.
 - Use **Show Preview** to see the real indicator at your pointer.
+- Lumio 0.1.3 and earlier showed the indicator only the first time on elementary OS (Gala treated it as a notification). Update to 0.1.4 or later.
 - On X11 a compositing window manager is required. Gala and Mutter always composite.
+
+## The indicator appears at the pointer instead of the text cursor
+
+The focused app did not report a text cursor, so the *Without a text cursor* setting applied.
+
+- The focus is not in a text field (for example a button or a list).
+- The app does not expose text accessibility. **Chrome, VS Code and other Chromium or Electron apps** do so only when started with `--force-renderer-accessibility`, for example `flatpak run com.google.Chrome --force-renderer-accessibility`. Add the flag to the app's launcher to make it permanent.
+- To see what Lumio finds, quit it and start it from a terminal with `LUMIO_LOG=debug lumio`, toggle Caps Lock in the app, and look for `text cursor lookup` lines (also shown in Settings → Advanced → Application logs).
 
 ## Hover effects flicker while the indicator is visible (Wayland)
 
-This is expected while the pointer *moves* during the indicator's display time. It comes from following the pointer through XWayland. Turn off *Follow the pointer* to keep the indicator still and avoid it.
+This can happen only when the indicator is shown at the pointer (*Show next to: Mouse pointer*, or the pointer fallback) and the pointer *moves* during the display time. It comes from following the pointer through XWayland. Turn off *Follow the pointer* to keep the indicator still and avoid it.
 
 ## A file is not found
 

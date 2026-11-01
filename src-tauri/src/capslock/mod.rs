@@ -1,6 +1,6 @@
 //! Caps Lock indicator: detection (platform monitor) -> state machine ->
-//! animated overlay next to the pointer (or the compositor OSD where the
-//! pointer position is unavailable, i.e. Wayland).
+//! animated overlay at the text cursor of the focused field or next to the
+//! pointer (or the compositor OSD where neither position is available).
 
 pub mod geometry;
 pub mod render;
@@ -15,7 +15,9 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 use crate::platform;
-use crate::storage::settings::{AppearanceMode, CapsLockSettings, WaylandFallback};
+use crate::storage::settings::{
+    AppearanceMode, CapsLockSettings, CaretFallback, IndicatorAnchor, IndicatorPosition, WaylandFallback,
+};
 use geometry::Rect;
 use render::{Frame, Style};
 use state::{Behavior, Command, IndicatorState};
@@ -23,11 +25,13 @@ use state::{Behavior, Command, IndicatorState};
 const FRAME: Duration = Duration::from_millis(16);
 const IDLE_POLL: Duration = Duration::from_millis(100);
 const MOVE_WINDOW: Duration = Duration::from_millis(500);
+/// How often the text cursor is re-read while the indicator follows it.
+const CARET_POLL: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
-    /// Floating indicator anchored to the mouse pointer.
+    /// Floating indicator at the text cursor or the mouse pointer.
     Cursor,
     /// Compositor on-screen display (fixed position; Wayland fallback).
     Osd,
@@ -47,6 +51,7 @@ pub struct Capability {
 pub struct CapsLockSupport {
     pub mode: Mode,
     pub detection: Capability,
+    pub caret: Capability,
     pub cursor: Capability,
     pub overlay: Capability,
     pub osd_available: bool,
@@ -82,17 +87,34 @@ fn capability(result: Result<&'static str, String>, ok_detail: &str) -> Capabili
 pub fn probe_support() -> CapsLockSupport {
     let d = platform::capslock::support();
     let detection = Capability { available: d.available, method: d.method.into(), detail: d.detail };
+    let caret = capability(
+        platform::caret::support(),
+        "Read from the focused text field only when Caps Lock changes and while the indicator is visible.",
+    );
     let cursor = capability(platform::cursor::support(), "The pointer position is read only while the indicator is visible.");
     let overlay = capability(platform::overlay::support(), "Transparent, click-through and never takes keyboard focus.");
     let osd_available = platform::overlay::osd_available();
-    let (mode, summary, alternatives) = if detection.available && cursor.available && overlay.available {
-        let summary = if cursor.method.contains("XWayland") {
-            "The indicator appears next to the mouse pointer. Wayland hides the pointer from apps, so while the \
-             indicator is visible Lumio locates it through XWayland with an invisible, click-through layer."
+    let floating = detection.available && overlay.available && (caret.available || cursor.available);
+    let (mode, summary, alternatives) = if floating {
+        let mut summary = String::from(if caret.available {
+            "The indicator appears at the blinking text cursor of the field you are typing in, and next to the mouse \
+             pointer (or as you choose below) in apps that do not report their text cursor."
         } else {
             "The indicator appears next to the mouse pointer."
-        };
-        (Mode::Cursor, summary.to_string(), Vec::new())
+        });
+        if cfg!(target_os = "linux") && caret.available {
+            summary.push_str(
+                " Chrome, VS Code and other Chromium or Electron apps report it only when started with \
+                 --force-renderer-accessibility.",
+            );
+        }
+        if cursor.method.contains("XWayland") {
+            summary.push_str(
+                " Wayland hides the pointer from apps, so for the pointer position Lumio briefly uses an invisible, \
+                 click-through XWayland layer.",
+            );
+        }
+        (Mode::Cursor, summary, Vec::new())
     } else if detection.available && osd_available {
         (
             Mode::Osd,
@@ -117,6 +139,7 @@ pub fn probe_support() -> CapsLockSupport {
     CapsLockSupport {
         mode,
         detection,
+        caret,
         cursor,
         overlay,
         osd_available,
@@ -219,6 +242,32 @@ fn behavior(s: &CapsLockSettings) -> Behavior {
     }
 }
 
+/// What the indicator is placed next to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Anchor {
+    /// The text cursor's rectangle.
+    Caret(Rect),
+    /// The pointer's hot spot.
+    Pointer(i32, i32),
+}
+
+impl Anchor {
+    fn point(self) -> (i32, i32) {
+        match self {
+            Anchor::Caret(r) => (r.x, r.y),
+            Anchor::Pointer(x, y) => (x, y),
+        }
+    }
+
+    /// Top-left of the indicator body.
+    fn place(self, body: i32, monitor: &MonitorGeom, position: IndicatorPosition) -> (i32, i32) {
+        match self {
+            Anchor::Caret(r) => geometry::place_at_caret(r, body, monitor.work, position, monitor.scale),
+            Anchor::Pointer(x, y) => geometry::place_body((x, y), body, monitor.work, position, monitor.scale),
+        }
+    }
+}
+
 fn ease_out_cubic(t: f32) -> f32 {
     1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
 }
@@ -250,9 +299,15 @@ struct Runner {
     caps_state: Arc<Mutex<Option<bool>>>,
     overlay: Option<platform::overlay::Overlay>,
     tracker: Option<platform::cursor::Tracker>,
+    caret: Option<platform::caret::CaretTracker>,
+    caret_unavailable: bool,
+    /// Settings "Show Preview": the pointer is where the user is looking (the
+    /// focused element is the button, which has no text cursor).
+    previewing: bool,
     visual: Option<Visual>,
-    last_cursor: Option<(i32, i32)>,
+    anchor: Option<Anchor>,
     last_move: Instant,
+    last_caret_poll: Instant,
 }
 
 impl Runner {
@@ -265,9 +320,13 @@ impl Runner {
             caps_state,
             overlay: None,
             tracker: None,
+            caret: None,
+            caret_unavailable: false,
+            previewing: false,
             visual: None,
-            last_cursor: None,
+            anchor: None,
             last_move: Instant::now(),
+            last_caret_poll: Instant::now(),
         }
     }
 
@@ -281,6 +340,7 @@ impl Runner {
             let now = Instant::now();
             let command = match msg {
                 Ok(Msg::Caps(on)) => {
+                    self.previewing = false;
                     *self.caps_state.lock().unwrap_or_else(|e| e.into_inner()) = Some(on);
                     log::debug!("caps lock {}", if on { "on" } else { "off" });
                     self.state.on_caps(on, now, &behavior(&self.settings))
@@ -295,7 +355,10 @@ impl Runner {
                     }
                     self.state.on_settings(now, &behavior(&self.settings))
                 }
-                Ok(Msg::Preview(on)) => self.state.preview(on, now),
+                Ok(Msg::Preview(on)) => {
+                    self.previewing = true;
+                    self.state.preview(on, now)
+                }
                 Ok(Msg::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
                     self.hide_now();
                     break;
@@ -316,10 +379,15 @@ impl Runner {
         let deadline = self.state.deadline().map(|d| d.saturating_duration_since(now));
         let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to);
         let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
-        let frame = if animating || (follow && self.last_move.elapsed() < MOVE_WINDOW) {
+        let follow_poll = match self.anchor {
+            Some(Anchor::Caret(_)) => CARET_POLL,
+            _ if self.last_move.elapsed() < MOVE_WINDOW => FRAME,
+            _ => IDLE_POLL,
+        };
+        let frame = if animating {
             Some(FRAME)
         } else if follow {
-            Some(IDLE_POLL)
+            Some(follow_poll)
         } else {
             None
         };
@@ -360,38 +428,27 @@ impl Runner {
                 }
             }
         }
-        if self.tracker.is_none() {
-            match platform::cursor::Tracker::new() {
-                Ok(t) => self.tracker = Some(t),
-                Err(e) => {
-                    log::error!("pointer tracking unavailable: {e}");
-                    return;
-                }
-            }
-        }
-        let Some(cursor) = self.tracker.as_mut().and_then(|t| t.position()) else {
-            // e.g. a client holds a pointer grab: still tell the user, via the OSD
-            log::warn!("could not read the pointer position; using the system OSD");
-            if platform::overlay::osd_available() {
-                let _ = platform::overlay::show_osd(on);
-            }
-            return;
+        // already visible (e.g. on -> off flash): if the anchor cannot be found
+        // again, keep the indicator where it is instead of switching to the OSD
+        let visible = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
+        let anchor = match self.find_anchor(on, !visible) {
+            Some(a) => a,
+            None => match self.anchor.filter(|_| visible) {
+                Some(a) => a,
+                None => return,
+            },
         };
-        if !self.settings.follow_cursor {
-            if let Some(t) = self.tracker.as_mut() {
-                t.release();
-            }
-        }
         let dark = self.dark();
-        let monitor = self.monitor_for(cursor);
+        let monitor = self.monitor_for(anchor.point());
         let body = (self.settings.size as f64 * monitor.scale).round() as i32;
-        let body_pos = geometry::place_body(cursor, body, monitor.work, self.settings.position, monitor.scale);
-        log::debug!("caps lock indicator at {body_pos:?} for pointer {cursor:?}");
-        self.last_cursor = Some(cursor);
+        let body_pos = anchor.place(body, &monitor, self.settings.position);
+        log::debug!("caps lock indicator at {body_pos:?} for {anchor:?}");
+        self.anchor = Some(anchor);
         self.last_move = now;
+        self.last_caret_poll = now;
         let animate = self.settings.animation.duration_ms() > 0;
         match self.visual.as_mut() {
-            // already visible (e.g. on -> off flash): swap the artwork, keep opacity
+            // already visible: swap the artwork, keep opacity
             Some(v) if v.to > 0.0 => {
                 v.on = on;
                 v.dark = dark;
@@ -415,6 +472,103 @@ impl Runner {
         }
     }
 
+    /// Where the indicator goes: the text cursor if that is the anchor and
+    /// the focused app reports one, otherwise as the fallback setting says.
+    /// `None` when nothing floating should be shown (an OSD may have been
+    /// shown instead, if `allow_osd`).
+    fn find_anchor(&mut self, on: bool, allow_osd: bool) -> Option<Anchor> {
+        if self.settings.anchor == IndicatorAnchor::Caret && !self.previewing {
+            if let Some(caret) = self.caret_tracker().and_then(|c| c.locate()) {
+                self.release_pointer();
+                return Some(Anchor::Caret(caret));
+            }
+            match self.settings.caret_fallback {
+                CaretFallback::Pointer => log::debug!("no text cursor found; using the pointer"),
+                CaretFallback::Osd => {
+                    log::debug!("no text cursor found; using the system OSD");
+                    if allow_osd {
+                        self.show_osd(on);
+                    }
+                    return None;
+                }
+                CaretFallback::Hide => {
+                    log::debug!("no text cursor found; not showing the indicator");
+                    return None;
+                }
+            }
+        } else if let Some(c) = self.caret.as_mut() {
+            c.release();
+        }
+        let Some((x, y)) = self.pointer_tracker().and_then(|t| t.position()) else {
+            // e.g. a client holds a pointer grab: still tell the user, via the OSD
+            log::warn!("could not read the pointer position; using the system OSD");
+            if allow_osd {
+                self.show_osd(on);
+            }
+            return None;
+        };
+        if !self.settings.follow_cursor {
+            self.release_pointer();
+        }
+        Some(Anchor::Pointer(x, y))
+    }
+
+    fn caret_tracker(&mut self) -> Option<&mut platform::caret::CaretTracker> {
+        if self.caret.is_none() && !self.caret_unavailable {
+            match platform::caret::CaretTracker::new() {
+                Ok(c) => self.caret = Some(c),
+                Err(e) => {
+                    log::info!("text cursor positions are unavailable: {e}");
+                    self.caret_unavailable = true;
+                }
+            }
+        }
+        self.caret.as_mut()
+    }
+
+    fn pointer_tracker(&mut self) -> Option<&mut platform::cursor::Tracker> {
+        if self.tracker.is_none() {
+            match platform::cursor::Tracker::new() {
+                Ok(t) => self.tracker = Some(t),
+                Err(e) => {
+                    log::error!("pointer tracking unavailable: {e}");
+                    return None;
+                }
+            }
+        }
+        self.tracker.as_mut()
+    }
+
+    fn release_pointer(&mut self) {
+        if let Some(t) = self.tracker.as_mut() {
+            t.release();
+        }
+    }
+
+    fn show_osd(&self, on: bool) {
+        if platform::overlay::osd_available() {
+            if let Err(e) = platform::overlay::show_osd(on) {
+                log::warn!("could not show the Caps Lock OSD: {e}");
+            }
+        }
+    }
+
+    /// The anchor's new position while following, if it moved.
+    fn poll_anchor(&mut self, now: Instant) -> Option<Anchor> {
+        let next = match self.anchor? {
+            Anchor::Pointer(..) => self.tracker.as_mut()?.position().map(|(x, y)| Anchor::Pointer(x, y)),
+            Anchor::Caret(_) => {
+                if now.duration_since(self.last_caret_poll) < CARET_POLL {
+                    return None;
+                }
+                self.last_caret_poll = now;
+                // a field that lost focus keeps the indicator where it was
+                self.caret.as_mut()?.refresh().map(Anchor::Caret)
+            }
+        };
+        next.filter(|a| Some(*a) != self.anchor)
+    }
+
     fn begin_hide(&mut self, now: Instant) {
         let animate = self.settings.animation.duration_ms() > 0;
         match self.visual.as_mut() {
@@ -430,15 +584,17 @@ impl Runner {
 
     fn hide_now(&mut self) {
         self.visual = None;
+        self.anchor = None;
         if let Some(o) = self.overlay.as_mut() {
             o.hide();
         }
-        if let Some(t) = self.tracker.as_mut() {
-            t.release();
+        self.release_pointer();
+        if let Some(c) = self.caret.as_mut() {
+            c.release();
         }
     }
 
-    /// Advances animation and pointer following, then presents the frame.
+    /// Advances animation and anchor following, then presents the frame.
     fn step(&mut self, now: Instant) {
         let duration = Duration::from_millis(self.settings.animation.duration_ms().max(1));
         let follow = self.settings.follow_cursor;
@@ -446,18 +602,15 @@ impl Runner {
         let size = self.settings.size;
         let opacity = self.settings.opacity;
 
-        let moved_to = if follow && self.visual.is_some() {
-            self.tracker.as_mut().and_then(|t| t.position()).filter(|c| Some(*c) != self.last_cursor)
-        } else {
-            None
-        };
-        if let Some(c) = moved_to {
-            self.last_cursor = Some(c);
+        let moved_to = if follow && self.visual.is_some() { self.poll_anchor(now) } else { None };
+        if let Some(a) = moved_to {
+            self.anchor = Some(a);
             self.last_move = now;
         }
-        let new_monitor = moved_to.and_then(|c| {
+        let new_monitor = moved_to.and_then(|a| {
+            let (x, y) = a.point();
             let current = self.visual.as_ref()?.monitor;
-            (!current.bounds.contains(c.0, c.1)).then(|| self.monitor_for(c))
+            (!current.bounds.contains(x, y)).then(|| self.monitor_for((x, y)))
         });
 
         let (progress, progress_changed, finished) = {
@@ -466,9 +619,10 @@ impl Runner {
                 v.monitor = m;
                 v.frame = None; // scale may differ between monitors
             }
-            if let Some(c) = moved_to {
+            if let Some(a) = moved_to {
                 let body = (size as f64 * v.monitor.scale).round() as i32;
-                v.body_pos = geometry::place_body(c, body, v.monitor.work, position, v.monitor.scale);
+                v.body_pos = a.place(body, &v.monitor, position);
+                log::debug!("caps lock indicator follows to {:?} for {a:?}", v.body_pos);
             }
             let t = (now.duration_since(v.start).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
             let progress = if v.from == v.to { v.to } else { v.from + (v.to - v.from) * ease_out_cubic(t) };

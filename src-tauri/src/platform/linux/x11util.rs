@@ -46,6 +46,10 @@ impl ArgbContext {
 
     /// An override-redirect (unmanaged: never focused, decorated or listed)
     /// transparent window.
+    ///
+    /// It deliberately has no `_NET_WM_WINDOW_TYPE`: Gala moves windows typed
+    /// `NOTIFICATION` into its notification stack, which animates the first
+    /// one and leaves every later map invisible.
     pub fn create_window(&self, x: i16, y: i16, w: u16, h: u16, events: EventMask) -> Result<Window, String> {
         let win = self.conn.generate_id().map_err(err)?;
         self.conn
@@ -71,15 +75,7 @@ impl ArgbContext {
         self.conn
             .change_property8(PropMode::REPLACE, win, AtomEnum::WM_CLASS, AtomEnum::STRING, b"lumio\0Lumio\0")
             .map_err(err)?;
-        self.set_window_type(win, b"_NET_WM_WINDOW_TYPE_NOTIFICATION")?;
         Ok(win)
-    }
-
-    fn set_window_type(&self, win: Window, kind: &[u8]) -> Result<(), String> {
-        let prop = self.conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE").map_err(err)?.reply().map_err(err)?.atom;
-        let value = self.conn.intern_atom(false, kind).map_err(err)?.reply().map_err(err)?.atom;
-        self.conn.change_property32(PropMode::REPLACE, win, prop, AtomEnum::ATOM, &[value]).map_err(err)?;
-        Ok(())
     }
 
     /// Sets where the window accepts pointer input; an empty list makes it

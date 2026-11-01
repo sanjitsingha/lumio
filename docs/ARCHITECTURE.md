@@ -80,7 +80,8 @@ A new binding is registered before the old one is released, so a refusal never l
 ```
 platform monitor ──state──▶ IndicatorState (pure) ──Show/Hide──▶ controller thread
                                                                       │  animation (fade + pop)
-pointer tracker ─position─▶ geometry::place_body (edge flipping) ─────┤  follow pointer
+caret tracker ──caret rect─▶ geometry::place_at_caret ───────────────┤  follow caret (50 ms)
+pointer tracker ─position──▶ geometry::place_body (edge flipping) ────┤  follow pointer
                                                                       ▼
                                                      render::render (tiny-skia) ─▶ platform overlay
 ```
@@ -88,8 +89,17 @@ pointer tracker ─position─▶ geometry::place_body (edge flipping) ───
 | | Windows | Linux X11 | Linux Wayland (elementary) |
 |---|---|---|---|
 | State | low-level keyboard hook + `GetKeyState` | XKB `StateNotify` events | keyboard LED via sysfs (150 ms read) |
+| Text cursor | `GetGUIThreadInfo` system caret, then MSAA `OBJID_CARET` | AT-SPI `Text` caret extents | AT-SPI, plus the window origin from Gala's actors (below) |
 | Pointer | `GetCursorPos` | `QueryPointer` | XWayland tracker window (below) |
 | Overlay | layered `WS_EX_LAYERED|TRANSPARENT|NOACTIVATE|TOPMOST` window | override-redirect ARGB X window, empty input shape | the same, via XWayland |
+
+**Text cursor on Linux.** When Caps Lock changes, `platform/linux/caret.rs` reads the accessibility bus (AT-SPI, the bus screen readers use). It picks the active window whose title matches the window Gala reports as focused, searches its visible tree for the focused object, and accepts it if it is editable (or a terminal). The caret is the left edge of the character at the caret offset (or the right edge of the previous one at the end of the text). Nothing is registered with the accessibility registry, so no app starts sending events because of Lumio. While the indicator is visible, only that field's caret is re-read every 50 ms.
+
+On X11, and for XWayland apps, toolkits report screen coordinates. Native Wayland apps cannot know where their window is and report positions relative to their window surface. Gala exposes its window actors on the same bus (Clutter accessibility) with their real screen rectangles. The actor whose size equals the window surface, or else one that surrounds the frame Gala reports with the same aspect ratio (Chromium scales its window size with the text scaling factor), supplies the origin. A typical lookup takes 10–35 ms.
+
+Apps that do not expose text accessibility report no caret, and the *Without a text cursor* setting applies (pointer, system OSD, or nothing). Chromium and Electron apps (Chrome, VS Code, Slack…) build their accessibility tree only when started with `--force-renderer-accessibility`; the desktop accessibility switch alone does not enable it.
+
+**Override-redirect windows have no window type.** Gala moves windows typed `_NET_WM_WINDOW_TYPE_NOTIFICATION` into its notification stack, which animated the first indicator and left every later one invisible (0.1.3 and earlier). The indicator and tracker windows therefore set only `WM_CLASS`.
 
 **Wayland pointer tracking.** Wayland deliberately hides the pointer from ordinary clients. XWayland, however, receives real pointer events for X11 windows. While the indicator is visible, Lumio maps a transparent, never-focused override-redirect X window over the screen, and Mutter reports the real pointer position to it. Its input region excludes a square around the pointer, so clicks at the pointer always reach the app underneath. When the pointer leaves that square, the window receives a motion event, and the square and the indicator follow. The window is unmapped as soon as the indicator hides. If the pointer cannot be located, for example because another client grabs the pointer, Lumio falls back to Gala's on-screen display.
 

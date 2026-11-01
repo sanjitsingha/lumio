@@ -218,7 +218,7 @@ pub fn run() {
             Target::new(TargetKind::Stdout),
             Target::new(TargetKind::LogDir { file_name: Some("lumio".into()) }),
         ])
-        .level(if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info })
+        .level(log_level())
         .level_for("tao", log::LevelFilter::Warn)
         .level_for("notify", log::LevelFilter::Warn)
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -328,4 +328,13 @@ pub fn run() {
         }
         _ => {}
     });
+}
+
+/// `LUMIO_LOG=debug` (or `trace`, `warn`, …) overrides the default level:
+/// debug in development builds, info in releases.
+fn log_level() -> log::LevelFilter {
+    std::env::var("LUMIO_LOG")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info })
 }

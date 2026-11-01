@@ -76,6 +76,50 @@ pub fn show_osd(conn: &gio::DBusConnection, icon: &str, label: &str) -> Result<(
     call_shell(conn, "ShowOSD", args, "()").map(|_| ())
 }
 
+/// The window that has keyboard focus, as Gala reports it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FocusedWindow {
+    pub title: String,
+    /// Frame size (without client-side shadows), in logical pixels.
+    pub width: i32,
+    pub height: i32,
+    /// An X11 client (through XWayland), which knows its screen position.
+    pub x11: bool,
+}
+
+/// Reads the focused window from Gala's `DesktopIntegration` interface (the
+/// one the dock uses). It reports sizes but not positions.
+pub fn focused_window(conn: &gio::DBusConnection) -> Option<FocusedWindow> {
+    let reply = conn
+        .call_sync(
+            Some("org.pantheon.gala"),
+            "/org/pantheon/gala/DesktopInterface",
+            "org.pantheon.gala.DesktopIntegration",
+            "GetWindows",
+            None,
+            Some(glib::VariantTy::new("(a(ta{sv}))").expect("valid type")),
+            gio::DBusCallFlags::NO_AUTO_START,
+            500,
+            gio::Cancellable::NONE,
+        )
+        .ok()?;
+    let windows = reply.child_value(0);
+    (0..windows.n_children()).find_map(|i| {
+        let props = glib::VariantDict::new(Some(&windows.child_value(i).child_value(1)));
+        let get = |key: &str| props.lookup_value(key, None);
+        if !get("has-focus").and_then(|v| v.get::<bool>()).unwrap_or(false) {
+            return None;
+        }
+        Some(FocusedWindow {
+            title: get("title").and_then(|v| v.get::<String>()).unwrap_or_default(),
+            width: get("width").and_then(|v| v.get::<u32>()).unwrap_or(0) as i32,
+            height: get("height").and_then(|v| v.get::<u32>()).unwrap_or(0) as i32,
+            // Meta.WindowClientType: 0 = Wayland, 1 = X11
+            x11: get("client-type").and_then(|v| v.get::<u32>()) == Some(1),
+        })
+    })
+}
+
 /// Subscribes to `AcceleratorActivated(action, {timestamp, ...})`. The callback
 /// runs on the GLib main context of the calling thread (call from the main thread).
 pub fn on_accelerator_activated(

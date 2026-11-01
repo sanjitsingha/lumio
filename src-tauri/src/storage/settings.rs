@@ -140,6 +140,29 @@ pub enum IndicatorPosition {
     Above,
 }
 
+/// What the indicator is placed next to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IndicatorAnchor {
+    /// The blinking text cursor (insertion point) of the focused text field.
+    Caret,
+    /// The mouse pointer.
+    Pointer,
+}
+
+/// What happens when the indicator is anchored to the text cursor but the
+/// focused app does not report one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CaretFallback {
+    /// Show it next to the mouse pointer instead.
+    Pointer,
+    /// Use the system on-screen display (elementary OS); nothing elsewhere.
+    Osd,
+    /// Do not show the indicator.
+    Hide,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AnimationSpeed {
@@ -180,6 +203,8 @@ pub enum WaylandFallback {
 #[serde(rename_all = "camelCase", default)]
 pub struct CapsLockSettings {
     pub enabled: bool,
+    pub anchor: IndicatorAnchor,
+    pub caret_fallback: CaretFallback,
     pub position: IndicatorPosition,
     /// Edge length of the indicator in logical pixels.
     pub size: u32,
@@ -202,6 +227,8 @@ impl Default for CapsLockSettings {
     fn default() -> Self {
         Self {
             enabled: true,
+            anchor: IndicatorAnchor::Caret,
+            caret_fallback: CaretFallback::Pointer,
             position: IndicatorPosition::Near,
             size: 40,
             opacity: 0.96,
@@ -510,6 +537,8 @@ mod tests {
         let value = serde_json::to_value(Settings::default()).unwrap();
         assert_eq!(value["schemaVersion"], SCHEMA_VERSION);
         assert_eq!(value["capsLock"]["position"], "near");
+        assert_eq!(value["capsLock"]["anchor"], "caret");
+        assert_eq!(value["capsLock"]["caretFallback"], "pointer");
         assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggle"], "Alt+Space");
         assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggleAlternate"], "Ctrl+Space");
     }
@@ -520,6 +549,17 @@ mod tests {
         assert!(warnings.is_empty());
         assert!(settings.general.launch_at_startup);
         assert_eq!(settings.spotlight, SpotlightSettings::default());
+    }
+
+    #[test]
+    fn settings_from_0_1_anchor_the_indicator_to_the_text_cursor() {
+        let (settings, warnings) =
+            Settings::from_value_lenient(&json!({ "capsLock": { "position": "below", "followCursor": false } }));
+        assert!(warnings.is_empty());
+        assert_eq!(settings.caps_lock.anchor, IndicatorAnchor::Caret);
+        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Pointer);
+        assert_eq!(settings.caps_lock.position, IndicatorPosition::Below);
+        assert!(!settings.caps_lock.follow_cursor);
     }
 
     #[test]

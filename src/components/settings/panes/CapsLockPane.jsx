@@ -8,7 +8,7 @@ import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
 
 const MODE = {
-  cursor: { tone: "ok", title: "Follows the mouse pointer" },
+  cursor: { tone: "ok", title: "Floating indicator" },
   osd: { tone: "warn", title: "Shown as a system on-screen display" },
   unavailable: { tone: "error", title: "Not available in this session" },
 };
@@ -64,10 +64,18 @@ export default function CapsLockPane({ appearance }) {
     : [...DURATIONS, { value: String(c.durationMs), label: `${c.durationMs / 1000} seconds` }];
   const cursorMode = support?.mode === "cursor";
   const mode = support ? MODE[support.mode] : null;
+  const caretAvailable = support?.caret?.available ?? true;
+  const atCaret = c.anchor === "caret" && caretAvailable;
+  const anchorName = atCaret ? "text cursor" : "pointer";
+  const fallbackOptions = [
+    { value: "pointer", label: "Mouse pointer" },
+    ...(support?.osdAvailable ? [{ value: "osd", label: "System OSD" }] : []),
+    { value: "hide", label: "Don’t show" },
+  ];
 
   return (
     <>
-      <PaneHeader pane="capslock" subtitle="A small indicator next to the pointer when Caps Lock is turned on." />
+      <PaneHeader pane="capslock" subtitle="A small indicator at the text cursor when Caps Lock is turned on." />
 
       {support && (
         <Group title="Compatibility">
@@ -90,6 +98,7 @@ export default function CapsLockPane({ appearance }) {
             )}
           </div>
           <CapabilityLine label="Caps Lock detection" cap={support.detection} />
+          <CapabilityLine label="Text cursor position" cap={support.caret} />
           <CapabilityLine label="Pointer position" cap={support.cursor} />
           <CapabilityLine label="Floating overlay" cap={support.overlay} />
         </Group>
@@ -98,10 +107,10 @@ export default function CapsLockPane({ appearance }) {
       <Group>
         <ToggleRow label="Show Caps Lock indicator" checked={c.enabled} onChange={(v) => set({ enabled: v })} />
         <div className="px-3.5 py-3">
-          <IndicatorPreview settings={{ ...c, size, opacity: opacity / 100 }} dark={previewDark} />
+          <IndicatorPreview settings={{ ...c, anchor: atCaret ? "caret" : "pointer", size, opacity: opacity / 100 }} dark={previewDark} />
           <div className="mt-2.5 flex items-center justify-between">
             <span className="text-[11.5px] text-secondary">
-              {cursorMode ? "Preview shows the real indicator at your pointer." : "Preview uses the system display."}
+              {cursorMode ? "The preview shows the real indicator at your pointer." : "The preview uses the system display."}
             </span>
             <Button icon={Eye} disabled={!support || support.mode === "unavailable"} onClick={() => api.previewCapsLock(true)}>
               Show Preview
@@ -110,22 +119,58 @@ export default function CapsLockPane({ appearance }) {
         </div>
       </Group>
 
-      <Group title="Placement" footer={!cursorMode && support ? "Placement options apply when the pointer position is available (Windows, X11)." : undefined}>
-        <Row label="Position" description="Relative to the mouse pointer." disabled={!cursorMode}>
+      <Group
+        title="Placement"
+        footer={!cursorMode && support ? "Placement options apply when a floating indicator is available." : undefined}
+      >
+        <Row
+          label="Show next to"
+          description={
+            caretAvailable
+              ? "The blinking text cursor of the field you are typing in, or the mouse pointer."
+              : support?.caret?.detail
+          }
+          disabled={!cursorMode}
+        >
+          <Segmented
+            value={atCaret ? "caret" : "pointer"}
+            disabled={!cursorMode || !caretAvailable}
+            onChange={(v) => set({ anchor: v })}
+            options={[
+              { value: "caret", label: "Text cursor" },
+              { value: "pointer", label: "Mouse pointer" },
+            ]}
+          />
+        </Row>
+        {atCaret && (
+          <Row
+            label="Without a text cursor"
+            description="When the focused app reports no text cursor (not a text field, or an app without accessibility support)."
+            disabled={!cursorMode}
+          >
+            <Segmented
+              value={fallbackOptions.some((o) => o.value === c.caretFallback) ? c.caretFallback : "pointer"}
+              disabled={!cursorMode}
+              onChange={(v) => set({ caretFallback: v })}
+              options={fallbackOptions}
+            />
+          </Row>
+        )}
+        <Row label="Position" description={`Relative to the ${anchorName}.`} disabled={!cursorMode}>
           <Segmented
             value={c.position}
             disabled={!cursorMode}
             onChange={(v) => set({ position: v })}
             options={[
-              { value: "near", label: "Near cursor" },
-              { value: "below", label: "Below cursor" },
-              { value: "above", label: "Above cursor" },
+              { value: "near", label: "Near" },
+              { value: "below", label: "Below" },
+              { value: "above", label: "Above" },
             ]}
           />
         </Row>
         <ToggleRow
-          label="Follow the pointer"
-          description="Keep the indicator next to the pointer while it moves."
+          label={atCaret ? "Follow the text cursor" : "Follow the pointer"}
+          description={`Keep the indicator next to the ${anchorName} while it moves.`}
           checked={c.followCursor}
           disabled={!cursorMode}
           onChange={(v) => set({ followCursor: v })}
@@ -177,7 +222,7 @@ export default function CapsLockPane({ appearance }) {
       </Group>
 
       {support?.osdAvailable && (
-        <Group title="Wayland" footer="Used only when the pointer position is unavailable.">
+        <Group title="Wayland" footer="Used only when neither the text cursor nor the pointer position is available.">
           <Row label="Fallback display">
             <Segmented
               value={c.waylandFallback}

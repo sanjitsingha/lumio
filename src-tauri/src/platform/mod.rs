@@ -1,5 +1,5 @@
 //! Operating-system integration. Each platform module exposes the same
-//! submodules (`apps`, `launch`, `quick_actions`, `capslock`, `cursor`,
+//! submodules (`apps`, `launch`, `quick_actions`, `capslock`, `caret`, `cursor`,
 //! `overlay`, `autostart`, `appearance`) so the rest of the app is platform
 //! neutral.
 
@@ -18,7 +18,7 @@ use self::windows as imp;
 #[cfg(not(any(target_os = "linux", windows)))]
 compile_error!("Lumio supports Linux and Windows only.");
 
-pub use imp::{appearance, apps, autostart, capslock, cursor, launch, overlay, quick_actions};
+pub use imp::{appearance, apps, autostart, capslock, caret, cursor, launch, overlay, quick_actions};
 
 /// Whether a directory entry is hidden (dot-files on Linux, the hidden or
 /// system attribute on Windows).

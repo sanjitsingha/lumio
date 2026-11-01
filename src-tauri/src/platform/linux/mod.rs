@@ -4,6 +4,7 @@ pub mod appearance;
 pub mod apps;
 pub mod autostart;
 pub mod capslock;
+pub mod caret;
 pub mod cursor;
 pub mod desktop_entry;
 pub mod gala;
