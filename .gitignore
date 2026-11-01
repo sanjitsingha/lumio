@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# update signing keys must never be committed
+*.key
+*.key.pub

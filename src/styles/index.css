@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Design tokens. Values come from the Lumio palette; components only use the
+   semantic names below so light/dark/accent switch instantly. */
+:root {
+  --lm-bg: #f5f5f7;
+  --lm-surface: #ffffff;
+  --lm-surface-raised: #ffffff;
+  --lm-sidebar: rgba(236, 236, 240, 0.86);
+  --lm-label: #1d1d1f;
+  --lm-secondary: #86868b;
+  --lm-tertiary: #aeaeb2;
+  --lm-separator: rgba(0, 0, 0, 0.08);
+  --lm-separator-strong: rgba(0, 0, 0, 0.14);
+  --lm-fill: rgba(0, 0, 0, 0.045);
+  --lm-fill-strong: rgba(0, 0, 0, 0.08);
+  --lm-accent: #007aff;
+  --lm-accent-contrast: #ffffff;
+  --lm-danger: #ff3b30;
+  --lm-success: #34c759;
+  --lm-warning: #ff9500;
+  --lm-panel: rgba(255, 255, 255, 0.96);
+  --lm-panel-border: rgba(0, 0, 0, 0.1);
+  --lm-shadow: 0 22px 48px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
+  --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --lm-bg: #171719;
+  --lm-surface: #252528;
+  --lm-surface-raised: #2e2e32;
+  --lm-sidebar: rgba(30, 30, 33, 0.9);
+  --lm-label: #f5f5f7;
+  --lm-secondary: #98989d;
+  --lm-tertiary: #636366;
+  --lm-separator: rgba(255, 255, 255, 0.08);
+  --lm-separator-strong: rgba(255, 255, 255, 0.14);
+  --lm-fill: rgba(255, 255, 255, 0.06);
+  --lm-fill-strong: rgba(255, 255, 255, 0.11);
+  --lm-accent: #0a84ff;
+  --lm-danger: #ff453a;
+  --lm-success: #30d158;
+  --lm-warning: #ff9f0a;
+  --lm-panel: rgba(37, 37, 40, 0.97);
+  --lm-panel-border: rgba(255, 255, 255, 0.1);
+  --lm-shadow: 0 22px 48px -10px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
+  --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+@theme {
+  --color-bg: var(--lm-bg);
+  --color-surface: var(--lm-surface);
+  --color-raised: var(--lm-surface-raised);
+  --color-sidebar: var(--lm-sidebar);
+  --color-label: var(--lm-label);
+  --color-secondary: var(--lm-secondary);
+  --color-tertiary: var(--lm-tertiary);
+  --color-separator: var(--lm-separator);
+  --color-separator-strong: var(--lm-separator-strong);
+  --color-fill: var(--lm-fill);
+  --color-fill-strong: var(--lm-fill-strong);
+  --color-accent: var(--lm-accent);
+  --color-on-accent: var(--lm-accent-contrast);
+  --color-danger: var(--lm-danger);
+  --color-success: var(--lm-success);
+  --color-warning: var(--lm-warning);
+  --color-panel: var(--lm-panel);
+  --color-panel-border: var(--lm-panel-border);
+
+  --font-sans: system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+
+  --shadow-panel: var(--lm-shadow);
+  --shadow-control: var(--lm-control-shadow);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--lm-label);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+    overflow: hidden;
+  }
+
+  /* The Spotlight window is transparent; Settings paints its own background. */
+  html[data-window="spotlight"],
+  html[data-window="spotlight"] body {
+    background: transparent;
+  }
+
+  html[data-window="settings"] body {
+    background: var(--lm-bg);
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  input,
+  textarea,
+  .selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--lm-accent) 45%, transparent);
+    outline-offset: 1px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--lm-accent) 30%, transparent);
+  }
+}
+
+@layer components {
+  .scroll-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--lm-separator-strong) transparent;
+  }
+  .scroll-area::-webkit-scrollbar {
+    width: 10px;
+  }
+  .scroll-area::-webkit-scrollbar-thumb {
+    background: var(--lm-separator-strong);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .hairline-b {
+    box-shadow: inset 0 -0.5px 0 var(--lm-separator-strong);
+  }
+
+  .lm-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--lm-accent) var(--pct), var(--lm-fill-strong) var(--pct));
+    outline: none;
+  }
+  .lm-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  }
+  .lm-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  .lm-range:disabled {
+    filter: grayscale(1);
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "spotlight",
+  "description": "Search window: query, open results, read appearance. No settings or filesystem access.",
+  "windows": ["spotlight"],
+  "permissions": [
+    "core:event:default",
+    "core:app:allow-version",
+    "core:app:allow-name",
+    "log:allow-log",
+    "allow-get-settings",
+    "allow-search",
+    "allow-execute-result",
+    "allow-get-recent-items",
+    "allow-get-index-status",
+    "allow-hide-spotlight",
+    "allow-set-spotlight-height",
+    "allow-open-settings-window",
+    "allow-get-platform-info",
+    "allow-get-system-appearance"
+  ]
+}

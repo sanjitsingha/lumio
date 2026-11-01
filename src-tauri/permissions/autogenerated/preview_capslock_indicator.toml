@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-capslock-indicator"
+description = "Enables the preview_capslock_indicator command without any pre-configured scope."
+commands.allow = ["preview_capslock_indicator"]
+
+[[permission]]
+identifier = "deny-preview-capslock-indicator"
+description = "Denies the preview_capslock_indicator command without any pre-configured scope."
+commands.deny = ["preview_capslock_indicator"]

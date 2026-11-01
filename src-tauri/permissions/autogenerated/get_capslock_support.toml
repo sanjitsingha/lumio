@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-capslock-support"
+description = "Enables the get_capslock_support command without any pre-configured scope."
+commands.allow = ["get_capslock_support"]
+
+[[permission]]
+identifier = "deny-get-capslock-support"
+description = "Denies the get_capslock_support command without any pre-configured scope."
+commands.deny = ["get_capslock_support"]

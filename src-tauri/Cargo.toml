@@ -1,0 +1,72 @@
+[package]
+name = "lumio"
+version = "0.1.0"
+description = "Spotlight-style search and a cursor-anchored Caps Lock indicator"
+authors = ["Lumio contributors"]
+license = "MIT"
+# GitHub repository: source of updates (releases/latest/download/latest.json) and the About links.
+repository = "https://github.com/sanjitsingha/lumio"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "lumio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Developer aid (never enabled in releases): `lumio --dev-snapshot <dir>` writes PNG
+# snapshots of Lumio's own webviews and `lumio --dev-eval <window> <js>` drives the UI.
+dev-snapshot = ["dep:webkit2gtk", "dep:cairo-rs"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2.4"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-log = "2.10"
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+thiserror = "2"
+notify = "8"
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "simd"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-updater = "2"
+gtk = "0.18"
+x11rb = { version = "0.13", features = ["xkb", "shape"] }
+webkit2gtk = { version = "2.0", optional = true }
+cairo-rs = { version = "0.18", features = ["png"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# Schannel (Windows' own TLS and certificate store) instead of rustls/ring
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy", "zip"] }
+png = "0.17"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Registry",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Threading",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+# PNG export is only used by the render preview test
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "png-format"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+opt-level = 3

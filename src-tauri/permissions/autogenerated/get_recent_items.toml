@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-recent-items"
+description = "Enables the get_recent_items command without any pre-configured scope."
+commands.allow = ["get_recent_items"]
+
+[[permission]]
+identifier = "deny-get-recent-items"
+description = "Denies the get_recent_items command without any pre-configured scope."
+commands.deny = ["get_recent_items"]
