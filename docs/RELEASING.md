@@ -59,8 +59,20 @@ GitHub → your repository → **Settings → Secrets and variables → Actions 
 
 | Name | Value |
 |---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | the full content of `~/.tauri/lumio.key` (`cat ~/.tauri/lumio.key`) |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | only if you set a password when generating the key |
+| `TAURI_SIGNING_PRIVATE_KEY` | the full content of `~/.tauri/lumio.key`: one line of 348 characters |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | only if you set a password when generating the key (this project's key has none, so do not create it) |
+
+Copy the key from an editor, not from terminal output, where line-wrapping can change characters. In VS Code use **File → Open File… → `~/.tauri/lumio.key`**, then **Ctrl+A, Ctrl+C**, and paste into the secret's value box without adding spaces or line breaks.
+
+The release workflow tests the key first. If it fails, the run page names the problem:
+
+| Message | Meaning |
+|---|---|
+| *secret is missing* | `TAURI_SIGNING_PRIVATE_KEY` is not set |
+| *Invalid input for the given encoding* / *Invalid symbol* / *Invalid padding* | the pasted key was altered, wrapped or cut off; paste it again |
+| *Wrong password for that key* | the `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secret does not match (delete it if the key has no password) |
+
+After fixing a secret, open the failed run and click **Re-run all jobs**; no new version is needed.
 
 ### 4. Push the code
 
