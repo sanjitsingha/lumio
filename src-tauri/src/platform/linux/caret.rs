@@ -3,8 +3,8 @@
 //! apps (the latter only when started with `--force-renderer-accessibility`)
 //! report their text fields on.
 //!
-//! 1. The focused window is the active AT-SPI window whose title matches the
-//!    window Gala reports as focused (on other desktops: any active window).
+//! 1. The focused window is the AT-SPI window whose title matches the window
+//!    Gala reports as focused (on other desktops: any active window).
 //! 2. Its focused descendant must be an editable text field or a terminal;
 //!    the caret is the left edge of the character at the caret offset.
 //! 3. On **X11**, and for XWayland apps, these are screen coordinates. Native
@@ -178,22 +178,20 @@ impl CaretTracker {
 
     fn find_target(&mut self) -> Option<Target> {
         let focus = self.session_bus.as_ref().and_then(gala::focused_window);
-        let mut windows = Vec::new();
-        for app in self.children(&Obj::root()) {
-            for window in self.children(&app) {
-                if !has(self.state(&window), ACTIVE) {
-                    continue;
-                }
-                // Several apps can claim an active window (Chromium keeps the
-                // flag on background windows); Gala knows the real one.
-                if let Some(f) = &focus {
-                    if !same_window(&self.name(&window), &f.title) {
-                        continue;
-                    }
-                }
-                windows.push(window);
+        // Gala knows the focused window, so match its title: Chromium sets
+        // the active flag late after a window is focused and keeps it on
+        // background windows. Active windows are tried first.
+        let all: Vec<Obj> = self.children(&Obj::root()).iter().flat_map(|app| self.children(app)).collect();
+        let (active, inactive): (Vec<Obj>, Vec<Obj>) = all.into_iter().partition(|w| has(self.state(w), ACTIVE));
+        let windows: Vec<Obj> = match &focus {
+            Some(f) => {
+                // titles are read only where needed: some apps answer slowly
+                let matches = |w: &Obj| same_window(&self.name(w), &f.title);
+                let found: Vec<Obj> = active.into_iter().filter(|w| matches(w)).collect();
+                if found.is_empty() { inactive.into_iter().filter(|w| matches(w)).collect() } else { found }
             }
-        }
+            None => active,
+        };
         windows.into_iter().find_map(|window| {
             let path = self
                 .remembered_path(&window)
@@ -318,8 +316,11 @@ impl CaretTracker {
             return None;
         }
         let count = self.property(field, TEXT, "CharacterCount").and_then(|v| v.get::<i32>()).unwrap_or(0);
-        if offset < count {
-            if let Some(c) = self.char_extents(field, offset) {
+        // GTK and LibreOffice also answer for the offset right after the last
+        // character, which is where the caret of an empty field sits
+        if offset <= count {
+            // past the end only a caret-sized answer is a caret position
+            if let Some(c) = self.char_extents(field, offset).filter(|c| offset < count || c.width <= 4) {
                 return Some(Rect { width: 1, ..c });
             }
         }

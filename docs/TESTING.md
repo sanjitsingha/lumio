@@ -64,6 +64,8 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | Indicator follows the text cursor | ✅ every caret position along a line, at the line end and on the next line, equal to the characters' extents |
 | Chrome started with `--force-renderer-accessibility` | ✅ caret found in a `<textarea>`; screen position within 2 px of the drawn caret (prototype of the same lookup; the scaled-window matching is unit-tested with the measured values) |
 | Indicator at the text cursor in LibreOffice Writer | ✅ just below the caret at the end of the typed text; lookup 32–59 ms (0.1.5 showed nothing: the search skipped the document's paragraphs) |
+| Chrome (test profile; the flags file adds `--force-renderer-accessibility`) | ✅ indicator just below the textarea's caret, 93–122 ms (0.1.7 missed it: Chrome sets its window's active flag late, so the focused window is now found by Gala's title) |
+| LibreOffice Writer, empty paragraph | ✅ below the caret at the text start (0.1.7 used the page edge) |
 | GTK 4 search field (System Settings, maximized) | ✅ indicator below the field; first press 310 ms, then 30 ms |
 | GTK 4 Terminal | ✅ no indicator (VTE for GTK 4 reports no text) |
 | No text cursor (VS Code, Chrome without the flag) | ✅ lookup returns nothing in 10–18 ms; no indicator (default since 0.1.5; 0.1.4 used the pointer) |
