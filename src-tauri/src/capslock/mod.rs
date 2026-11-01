@@ -97,8 +97,8 @@ pub fn probe_support() -> CapsLockSupport {
     let floating = detection.available && overlay.available && (caret.available || cursor.available);
     let (mode, summary, alternatives) = if floating {
         let mut summary = String::from(if caret.available {
-            "The indicator appears at the blinking text cursor of the field you are typing in, and next to the mouse \
-             pointer (or as you choose below) in apps that do not report their text cursor."
+            "The indicator appears at the blinking text cursor of the field you are typing in. Where there is no \
+             text cursor it is not shown, unless you choose a fallback below."
         } else {
             "The indicator appears next to the mouse pointer."
         });

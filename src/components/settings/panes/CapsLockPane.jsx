@@ -68,9 +68,9 @@ export default function CapsLockPane({ appearance }) {
   const atCaret = c.anchor === "caret" && caretAvailable;
   const anchorName = atCaret ? "text cursor" : "pointer";
   const fallbackOptions = [
+    { value: "hide", label: "Don’t show" },
     { value: "pointer", label: "Mouse pointer" },
     ...(support?.osdAvailable ? [{ value: "osd", label: "System OSD" }] : []),
-    { value: "hide", label: "Don’t show" },
   ];
 
   return (
@@ -145,11 +145,11 @@ export default function CapsLockPane({ appearance }) {
         {atCaret && (
           <Row
             label="Without a text cursor"
-            description="When the focused app reports no text cursor (not a text field, or an app without accessibility support)."
+            description="When nothing is being typed into, or the app does not report its text cursor (Chrome and VS Code, for example)."
             disabled={!cursorMode}
           >
             <Segmented
-              value={fallbackOptions.some((o) => o.value === c.caretFallback) ? c.caretFallback : "pointer"}
+              value={fallbackOptions.some((o) => o.value === c.caretFallback) ? c.caretFallback : "hide"}
               disabled={!cursorMode}
               onChange={(v) => set({ caretFallback: v })}
               options={fallbackOptions}

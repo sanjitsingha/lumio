@@ -97,7 +97,7 @@ pointer tracker ─position──▶ geometry::place_body (edge flipping) ──
 
 On X11, and for XWayland apps, toolkits report screen coordinates. Native Wayland apps cannot know where their window is and report positions relative to their window surface. Gala exposes its window actors on the same bus (Clutter accessibility) with their real screen rectangles. The actor whose size equals the window surface, or else one that surrounds the frame Gala reports with the same aspect ratio (Chromium scales its window size with the text scaling factor), supplies the origin. A typical lookup takes 10–35 ms.
 
-Apps that do not expose text accessibility report no caret, and the *Without a text cursor* setting applies (pointer, system OSD, or nothing). Chromium and Electron apps (Chrome, VS Code, Slack…) build their accessibility tree only when started with `--force-renderer-accessibility`; the desktop accessibility switch alone does not enable it.
+Apps that do not expose text accessibility report no caret, and the *Without a text cursor* setting applies: nothing (default), the pointer, or the system OSD. Chromium and Electron apps (Chrome, VS Code, Slack…) build their accessibility tree only when started with `--force-renderer-accessibility`; the desktop accessibility switch alone does not enable it.
 
 **Override-redirect windows have no window type.** Gala moves windows typed `_NET_WM_WINDOW_TYPE_NOTIFICATION` into its notification stack, which animated the first indicator and left every later one invisible (0.1.3 and earlier). The indicator and tracker windows therefore set only `WM_CLASS`.
 

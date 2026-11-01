@@ -155,12 +155,12 @@ pub enum IndicatorAnchor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CaretFallback {
+    /// Do not show the indicator (like macOS: it belongs to text fields).
+    Hide,
     /// Show it next to the mouse pointer instead.
     Pointer,
     /// Use the system on-screen display (elementary OS); nothing elsewhere.
     Osd,
-    /// Do not show the indicator.
-    Hide,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,7 +228,7 @@ impl Default for CapsLockSettings {
         Self {
             enabled: true,
             anchor: IndicatorAnchor::Caret,
-            caret_fallback: CaretFallback::Pointer,
+            caret_fallback: CaretFallback::Hide,
             position: IndicatorPosition::Near,
             size: 40,
             opacity: 0.96,
@@ -538,7 +538,7 @@ mod tests {
         assert_eq!(value["schemaVersion"], SCHEMA_VERSION);
         assert_eq!(value["capsLock"]["position"], "near");
         assert_eq!(value["capsLock"]["anchor"], "caret");
-        assert_eq!(value["capsLock"]["caretFallback"], "pointer");
+        assert_eq!(value["capsLock"]["caretFallback"], "hide");
         assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggle"], "Alt+Space");
         assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggleAlternate"], "Ctrl+Space");
     }
@@ -552,14 +552,20 @@ mod tests {
     }
 
     #[test]
-    fn settings_from_0_1_anchor_the_indicator_to_the_text_cursor() {
+    fn settings_from_0_1_show_the_indicator_only_at_the_text_cursor() {
         let (settings, warnings) =
             Settings::from_value_lenient(&json!({ "capsLock": { "position": "below", "followCursor": false } }));
         assert!(warnings.is_empty());
         assert_eq!(settings.caps_lock.anchor, IndicatorAnchor::Caret);
-        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Pointer);
+        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Hide);
         assert_eq!(settings.caps_lock.position, IndicatorPosition::Below);
         assert!(!settings.caps_lock.follow_cursor);
+    }
+
+    #[test]
+    fn a_chosen_pointer_fallback_is_kept() {
+        let (settings, _) = Settings::from_value_lenient(&json!({ "capsLock": { "caretFallback": "pointer" } }));
+        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Pointer);
     }
 
     #[test]

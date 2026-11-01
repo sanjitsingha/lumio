@@ -23,14 +23,14 @@ On Wayland, focus is granted only for shortcut presses that the compositor saw. 
   - *Caps Lock detection ✕* on Wayland means no keyboard exposes a Caps Lock LED (check `ls /sys/class/leds | grep capslock`).
   - *Pointer position ✕* on Wayland means XWayland is not running. Lumio then uses the system on-screen display on elementary OS.
   - *Text cursor position ✕* means the accessibility bus is not running (`at-spi2-core`).
-- Check *Without a text cursor*: with *Don't show*, nothing appears outside text fields.
+- By default the indicator appears only in text fields. If nothing appears while you type, the app does not report its text cursor (see below); *Without a text cursor* lets you show it at the pointer or as the system OSD there instead.
 - Use **Show Preview** to see the real indicator at your pointer.
 - Lumio 0.1.3 and earlier showed the indicator only the first time on elementary OS (Gala treated it as a notification). Update to 0.1.4 or later.
 - On X11 a compositing window manager is required. Gala and Mutter always composite.
 
-## The indicator appears at the pointer instead of the text cursor
+## No indicator in a text field (or it appears at the pointer)
 
-The focused app did not report a text cursor, so the *Without a text cursor* setting applied.
+The focused app did not report a text cursor, so the *Without a text cursor* setting applied (by default: no indicator).
 
 - The focus is not in a text field (for example a button or a list).
 - The app does not expose text accessibility. **Chrome, VS Code and other Chromium or Electron apps** do so only when started with `--force-renderer-accessibility`, for example `flatpak run com.google.Chrome --force-renderer-accessibility`. Add the flag to the app's launcher to make it permanent.
