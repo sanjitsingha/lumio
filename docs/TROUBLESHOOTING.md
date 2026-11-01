@@ -33,7 +33,7 @@ On Wayland, focus is granted only for shortcut presses that the compositor saw. 
 The focused app did not report a text cursor, so the *Without a text cursor* setting applied (by default: no indicator).
 
 - The focus is not in a text field (for example a button or a list).
-- The app does not expose text accessibility. **Chrome, VS Code and other Chromium or Electron apps** do so only when started with `--force-renderer-accessibility`, for example `flatpak run com.google.Chrome --force-renderer-accessibility`. Add the flag to the app's launcher to make it permanent.
+- The app does not expose text accessibility. **Chrome, VS Code and other Chromium or Electron apps** do so only when started with `--force-renderer-accessibility`, for example `flatpak run com.google.Chrome --force-renderer-accessibility`. To make it permanent: for Flatpak Chrome add the line `--force-renderer-accessibility` to `~/.var/app/com.google.Chrome/config/chrome-flags.conf`; for VS Code add `"force-renderer-accessibility": true` to `~/.vscode/argv.json`. VS Code then switches to *Screen Reader Optimized* mode (sound cues, changed editor behaviour), which gives the exact position; with `"editor.accessibilitySupport": "off"` it stays normal but only the cursor's line is known.
 - To see what Lumio finds, quit it and start it from a terminal with `LUMIO_LOG=debug lumio`, toggle Caps Lock in the app, and look for `text cursor lookup` lines (also shown in Settings → Advanced → Application logs).
 
 ## Hover effects flicker while the indicator is visible (Wayland)

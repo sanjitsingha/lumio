@@ -63,6 +63,7 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | Indicator at the text cursor (GTK 3 text view on Wayland) | ✅ 6/6 toggles; caret (745, 432) → indicator body (741, 451), just below the caret; lookup 24–33 ms |
 | Indicator follows the text cursor | ✅ every caret position along a line, at the line end and on the next line, equal to the characters' extents |
 | Chrome started with `--force-renderer-accessibility` | ✅ caret found in a `<textarea>`; screen position within 2 px of the drawn caret (prototype of the same lookup; the scaled-window matching is unit-tested with the measured values) |
+| Indicator at the text cursor in LibreOffice Writer | ✅ just below the caret at the end of the typed text; lookup 32–59 ms (0.1.5 showed nothing: the search skipped the document's paragraphs) |
 | No text cursor (VS Code, Chrome without the flag) | ✅ lookup returns nothing in 10–18 ms; no indicator (default since 0.1.5; 0.1.4 used the pointer) |
 | Settings → Show Preview | ✅ always at the pointer |
 

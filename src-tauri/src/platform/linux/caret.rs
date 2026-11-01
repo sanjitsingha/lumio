@@ -17,6 +17,7 @@
 //! emitting events because of Lumio; the bus is only read while the
 //! indicator is about to show or is visible.
 
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use gtk::gio;
@@ -32,7 +33,10 @@ const NULL_PATH: &str = "/org/a11y/atspi/null";
 const ACCESSIBLE: &str = "org.a11y.atspi.Accessible";
 const COMPONENT: &str = "org.a11y.atspi.Component";
 const TEXT: &str = "org.a11y.atspi.Text";
+const COLLECTION: &str = "org.a11y.atspi.Collection";
 const COORD_SCREEN: u32 = 0;
+const MATCH_ALL: i32 = 1;
+const SORT_CANONICAL: u32 = 1;
 
 // AtspiStateType bit numbers
 const ACTIVE: u32 = 1;
@@ -48,6 +52,10 @@ const CALL_TIMEOUT_MS: i32 = 150;
 const MAX_NODES: usize = 3000;
 const MAX_DEPTH: usize = 60;
 const MAX_SEARCH_TIME: Duration = Duration::from_millis(300);
+/// Objects that manage their descendants (documents, lists, tables) are
+/// searched only up to this many children: a LibreOffice document holds its
+/// visible paragraphs, a large list could hold thousands of rows.
+const MAX_MANAGED_CHILDREN: i32 = 500;
 /// Gala's window actors sit three levels below its stage window.
 const GALA_MAX_DEPTH: usize = 4;
 /// Largest client-side shadow plus resize border around a window frame.
@@ -180,13 +188,16 @@ impl CaretTracker {
             }
         }
         windows.into_iter().find_map(|window| {
-            let field = self.find_focused(&window)?;
+            let path = self.focused_by_collection(&window).or_else(|| self.find_focused(&window))?;
+            let field = path.last()?.clone();
             if !self.is_text_field(&field) {
                 log::debug!("the focused object is not a text field");
                 return None;
             }
-            let offset = self.screen_offset(&window, focus.as_ref())?;
-            Some(Target { field, offset })
+            let (x, y) = self.screen_offset(&window, focus.as_ref())?;
+            let extents: Vec<Option<Rect>> = path.iter().map(|o| self.extents(o)).collect();
+            let (dx, dy) = embedded_toolkit_shift(&extents);
+            Some(Target { field, offset: (x + dx, y + dy) })
         })
     }
 
@@ -209,25 +220,70 @@ impl CaretTracker {
         Some((actor.x - surface.x, actor.y - surface.y))
     }
 
+    /// The focused descendant in one `Collection.GetMatches` call, which GTK 3,
+    /// LibreOffice, Firefox and Chromium implement (6 ms instead of 200 in
+    /// LibreOffice). Returns the path from `window` to it.
+    fn focused_by_collection(&self, window: &Obj) -> Option<Vec<Obj>> {
+        let rule = (
+            vec![1i32 << FOCUSED, 0],
+            MATCH_ALL,
+            HashMap::<String, String>::new(),
+            MATCH_ALL,
+            vec![0i32; 4],
+            MATCH_ALL,
+            Vec::<String>::new(),
+            MATCH_ALL,
+            false,
+        );
+        let args = (rule, SORT_CANONICAL, 1i32, true).to_variant();
+        let reply = self.call(window, COLLECTION, "GetMatches", Some(args), "(a(so))")?;
+        let field = refs(&reply.child_value(0)).into_iter().next()?;
+        let mut path = vec![field];
+        while path.last() != Some(window) {
+            let parent = self.property(path.last()?, ACCESSIBLE, "Parent").and_then(|v| reference(&v))?;
+            if path.len() > MAX_DEPTH || parent.path == ROOT_PATH {
+                break; // the app's root: the window was passed under another name
+            }
+            path.push(parent);
+        }
+        path.reverse();
+        Some(path)
+    }
+
     /// Depth-first search for the focused descendant, through the visible
-    /// part of the tree only.
-    fn find_focused(&self, window: &Obj) -> Option<Obj> {
+    /// part of the tree only (toolkits without `Collection`, such as GTK 4).
+    /// Returns the path from `window` to it.
+    fn find_focused(&self, window: &Obj) -> Option<Vec<Obj>> {
         let deadline = Instant::now() + MAX_SEARCH_TIME;
-        let mut stack = vec![(window.clone(), 0usize)];
+        // every object seen, with the index of its parent
+        let mut seen: Vec<(Obj, Option<usize>)> = vec![(window.clone(), None)];
+        let mut stack = vec![(0usize, 0usize)];
         let mut visited = 0;
-        while let Some((obj, depth)) = stack.pop() {
+        while let Some((index, depth)) = stack.pop() {
             visited += 1;
             if visited > MAX_NODES || Instant::now() > deadline {
                 log::debug!("gave up looking for the focused object after {visited} objects");
                 return None;
             }
+            let obj = seen[index].0.clone();
             let state = self.state(&obj);
             if has(state, FOCUSED) {
-                return Some(obj);
+                let mut path = Vec::with_capacity(depth + 1);
+                let mut at = Some(index);
+                while let Some(i) = at {
+                    path.push(seen[i].0.clone());
+                    at = seen[i].1;
+                }
+                path.reverse();
+                return Some(path);
             }
             let showing = depth == 0 || has(state, SHOWING);
-            if showing && depth < MAX_DEPTH && !has(state, MANAGES_DESCENDANTS) {
-                stack.extend(self.children(&obj).into_iter().rev().map(|c| (c, depth + 1)));
+            let searchable = !has(state, MANAGES_DESCENDANTS) || self.child_count(&obj) <= MAX_MANAGED_CHILDREN;
+            if showing && depth < MAX_DEPTH && searchable {
+                for child in self.children(&obj).into_iter().rev() {
+                    seen.push((child, Some(index)));
+                    stack.push((seen.len() - 1, depth + 1));
+                }
             }
         }
         None
@@ -321,16 +377,7 @@ impl CaretTracker {
     }
 
     fn children(&self, obj: &Obj) -> Vec<Obj> {
-        let Some(reply) = self.call(obj, ACCESSIBLE, "GetChildren", None, "(a(so))") else { return Vec::new() };
-        let list = reply.child_value(0);
-        (0..list.n_children())
-            .filter_map(|i| {
-                let item = list.child_value(i);
-                let bus = item.child_value(0).str()?.to_string();
-                let path = item.child_value(1).str()?.to_string();
-                (!bus.is_empty() && path != NULL_PATH).then_some(Obj { bus, path })
-            })
-            .collect()
+        self.call(obj, ACCESSIBLE, "GetChildren", None, "(a(so))").map(|r| refs(&r.child_value(0))).unwrap_or_default()
     }
 
     fn state(&self, obj: &Obj) -> u64 {
@@ -345,6 +392,10 @@ impl CaretTracker {
         reply.child_value(0).as_variant()
     }
 
+    fn child_count(&self, obj: &Obj) -> i32 {
+        self.property(obj, ACCESSIBLE, "ChildCount").and_then(|v| v.get::<i32>()).unwrap_or(i32::MAX)
+    }
+
     fn name(&self, obj: &Obj) -> String {
         self.property(obj, ACCESSIBLE, "Name").and_then(|v| v.get::<String>()).unwrap_or_default()
     }
@@ -357,12 +408,42 @@ impl CaretTracker {
     }
 }
 
+/// An object reference `(so)`; `None` for the null object.
+fn reference(v: &glib::Variant) -> Option<Obj> {
+    let bus = v.try_child_value(0)?.str()?.to_string();
+    let path = v.try_child_value(1)?.str()?.to_string();
+    (!bus.is_empty() && path != NULL_PATH).then_some(Obj { bus, path })
+}
+
+/// A list of object references `a(so)`.
+fn refs(list: &glib::Variant) -> Vec<Obj> {
+    (0..list.n_children()).filter_map(|i| reference(&list.child_value(i))).collect()
+}
+
 /// AT-SPI window names usually equal the title; Chromium appends the profile
 /// name ("New Tab - Google Chrome - Work").
 fn same_window(accessible_name: &str, title: &str) -> bool {
     !accessible_name.is_empty()
         && !title.is_empty()
         && (accessible_name.starts_with(title) || title.starts_with(accessible_name))
+}
+
+/// A toolkit embedded in another one's window (LibreOffice's VCL inside a GTK
+/// window) reports positions relative to its own top-level pane, and that
+/// pane claims to sit at (0, 0) although its parent (same size) is further
+/// down. `extents` runs from the window to the focused object; the result is
+/// the sum of those hidden origins.
+fn embedded_toolkit_shift(extents: &[Option<Rect>]) -> (i32, i32) {
+    extents.windows(2).fold((0, 0), |(dx, dy), pair| match pair {
+        [Some(parent), Some(child)]
+            if (child.x, child.y) == (0, 0)
+                && (parent.x, parent.y) != (0, 0)
+                && (child.width, child.height) == (parent.width, parent.height) =>
+        {
+            (dx + parent.x, dy + parent.y)
+        }
+        _ => (dx, dy),
+    })
 }
 
 /// The caret of an empty field sits at its start: top-left in a multi-line
@@ -447,6 +528,29 @@ mod tests {
         let mut actors = desktop();
         actors.push((3, r(100, 100, 598, 426)));
         assert_eq!(pick_window_actor(&actors, (598, 426), None), Some(r(100, 100, 598, 426)));
+    }
+
+    #[test]
+    fn libreoffice_panes_inside_gtk_are_shifted() {
+        // LibreOffice Writer on Wayland: frame, GTK panels, VCL root pane, document, paragraph
+        let path = [
+            Some(r(0, 0, 1920, 1050)),
+            Some(r(0, 37, 1920, 1013)),
+            Some(r(0, 61, 1920, 989)),
+            Some(r(0, 0, 1920, 989)),
+            Some(r(0, 78, 1920, 887)),
+            Some(r(343, 238, 1161, 26)),
+        ];
+        assert_eq!(embedded_toolkit_shift(&path), (0, 61));
+    }
+
+    #[test]
+    fn ordinary_trees_are_not_shifted() {
+        // GTK and Chromium: children report positions in the window's space
+        let gtk = [Some(r(0, 0, 598, 426)), Some(r(26, 26, 546, 374)), Some(r(26, 26, 546, 374)), Some(r(30, 60, 500, 20))];
+        assert_eq!(embedded_toolkit_shift(&gtk), (0, 0));
+        let unknown = [Some(r(0, 0, 800, 600)), None, Some(r(0, 0, 800, 600))];
+        assert_eq!(embedded_toolkit_shift(&unknown), (0, 0));
     }
 
     #[test]
