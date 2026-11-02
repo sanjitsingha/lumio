@@ -34,6 +34,12 @@ const ACCESSIBLE: &str = "org.a11y.atspi.Accessible";
 const COMPONENT: &str = "org.a11y.atspi.Component";
 const TEXT: &str = "org.a11y.atspi.Text";
 const COLLECTION: &str = "org.a11y.atspi.Collection";
+const HYPERTEXT: &str = "org.a11y.atspi.Hypertext";
+const HYPERLINK: &str = "org.a11y.atspi.Hyperlink";
+/// The character standing for an embedded object (a child) in a text.
+const EMBEDDED_OBJECT: &str = "\u{FFFC}";
+/// How deep rich editors nest the object that holds the caret.
+const MAX_EMBEDDING: usize = 12;
 const COORD_SCREEN: u32 = 0;
 const COORD_WINDOW: u32 = 1;
 const MATCH_ALL: i32 = 1;
@@ -120,7 +126,10 @@ fn has(state: u64, bit: u32) -> bool {
 
 struct Target {
     field: Obj,
-    /// Added to the field's caret coordinates to get screen coordinates.
+    /// The field's caret coordinates are divided by this (Chromium's own
+    /// controls are reported scaled; its web pages are not)…
+    scale: f64,
+    /// …then this is added to get screen coordinates.
     offset: (i32, i32),
 }
 
@@ -165,7 +174,7 @@ impl CaretTracker {
         let caret = has(self.state(&target.field), FOCUSED)
             .then(|| self.caret(&target.field))
             .flatten()
-            .map(|r| Rect { x: r.x + target.offset.0, y: r.y + target.offset.1, ..r });
+            .map(|r| to_screen(r, target.scale, target.offset));
         if caret.is_none() {
             self.target = None;
         }
@@ -177,7 +186,12 @@ impl CaretTracker {
     }
 
     fn find_target(&mut self) -> Option<Target> {
-        let focus = self.session_bus.as_ref().and_then(gala::focused_window);
+        let focused = || self.session_bus.as_ref().and_then(gala::focused_window);
+        // right after a focus change Gala can briefly report no focused window
+        let focus = focused().or_else(|| {
+            session::is_pantheon().then(|| std::thread::sleep(Duration::from_millis(60)))?;
+            focused()
+        });
         // Gala knows the focused window, so match its title: Chromium sets
         // the active flag late after a window is focused and keeps it on
         // background windows. Active windows are tried first.
@@ -203,22 +217,28 @@ impl CaretTracker {
                 log::debug!("the focused object is not a text field");
                 return None;
             }
-            let (x, y) = self.screen_offset(&window, focus.as_ref())?;
+            let (x, y, window_scale) = self.screen_offset(&window, focus.as_ref())?;
             let extents: Vec<Option<Rect>> = path.iter().map(|o| self.extents(o)).collect();
             let (dx, dy) = embedded_toolkit_shift(&extents);
-            Some(Target { field, offset: (x + dx, y + dy) })
+            // Chromium scales its window and its own controls (the address bar)
+            // with the text scaling factor, but not its web pages
+            let in_web_page = || path.iter().any(|o| self.role_name(o) == "document web");
+            let scale = if window_scale != 1.0 && !in_web_page() { window_scale } else { 1.0 };
+            Some(Target { field, scale, offset: (x + dx, y + dy) })
         })
     }
 
     /// What to add to the toolkit's coordinates to get screen coordinates.
-    fn screen_offset(&mut self, window: &Obj, focus: Option<&FocusedWindow>) -> Option<(i32, i32)> {
+    /// Also returns the factor by which the toolkit scales its window size
+    /// (1 except for Chromium with a text scaling factor).
+    fn screen_offset(&mut self, window: &Obj, focus: Option<&FocusedWindow>) -> Option<(i32, i32, f64)> {
         let x11_client = focus.is_some_and(|f| f.x11);
         if !self.wayland || x11_client {
-            return Some((0, 0));
+            return Some((0, 0, 1.0));
         }
         let surface = self.extents(window)?;
         if focus.is_none() && (surface.x, surface.y) != (0, 0) {
-            return Some((0, 0)); // reports real positions, so an XWayland client
+            return Some((0, 0, 1.0)); // reports real positions, so an XWayland client
         }
         let actors = self.gala_actors()?;
         let frame = focus.map(|f| (f.width, f.height));
@@ -226,7 +246,9 @@ impl CaretTracker {
             log::debug!("no Gala window matches the {}x{} surface (frame {frame:?})", surface.width, surface.height);
             return None;
         };
-        Some((actor.x - surface.x, actor.y - surface.y))
+        let scale = if actor.width > 0 { surface.width as f64 / actor.width as f64 } else { 1.0 };
+        let scale = if (scale - 1.0).abs() < 0.01 { 1.0 } else { scale };
+        Some((actor.x - surface.x, actor.y - surface.y, scale))
     }
 
     /// The path found last time, if its field in this window still has focus.
@@ -311,6 +333,7 @@ impl CaretTracker {
 
     /// The caret rectangle in the toolkit's coordinates.
     fn caret(&self, field: &Obj) -> Option<Rect> {
+        let field = &self.caret_holder(field);
         let offset = self.property(field, TEXT, "CaretOffset")?.get::<i32>()?;
         if offset < 0 {
             return None;
@@ -331,6 +354,47 @@ impl CaretTracker {
             }
         }
         field_caret(self.field_extents(field)?, count == 0 && offset == 0)
+    }
+
+    /// Rich editors (Chromium `contenteditable`: ChatGPT, WhatsApp, Gmail…)
+    /// keep their text in child objects. The field's own text then holds one
+    /// object replacement character per child, and its caret offset points
+    /// at the child that holds the caret; that child's caret is the real one.
+    fn caret_holder(&self, field: &Obj) -> Obj {
+        let mut holder = field.clone();
+        for _ in 0..MAX_EMBEDDING {
+            let Some(offset) = self.property(&holder, TEXT, "CaretOffset").and_then(|v| v.get::<i32>()) else { break };
+            if offset < 0 || self.text(&holder, offset, offset + 1).as_deref() != Some(EMBEDDED_OBJECT) {
+                break;
+            }
+            match self.embedded_child(&holder, offset) {
+                Some(child) => holder = child,
+                None => break,
+            }
+        }
+        holder
+    }
+
+    /// The child object at `offset` in `obj`'s text.
+    fn embedded_child(&self, obj: &Obj, offset: i32) -> Option<Obj> {
+        let by_link = || {
+            let (index,) = self.call(obj, HYPERTEXT, "GetLinkIndex", Some((offset,).to_variant()), "(i)")?.get::<(i32,)>()?;
+            let link = self.call(obj, HYPERTEXT, "GetLink", Some((index,).to_variant()), "((so))")?;
+            let link = reference(&link.child_value(0))?;
+            let child = self.call(&link, HYPERLINK, "GetObject", Some((0i32,).to_variant()), "((so))")?;
+            reference(&child.child_value(0))
+        };
+        // without Hypertext: the child whose caret offset is valid (Chromium
+        // reports -1 for the others)
+        by_link().or_else(|| {
+            self.children(obj).into_iter().take(MAX_MANAGED_CHILDREN as usize).find(|c| {
+                self.property(c, TEXT, "CaretOffset").and_then(|v| v.get::<i32>()).is_some_and(|o| o >= 0)
+            })
+        })
+    }
+
+    fn text(&self, obj: &Obj, start: i32, end: i32) -> Option<String> {
+        self.call(obj, TEXT, "GetText", Some((start, end).to_variant()), "(s)")?.get::<(String,)>().map(|(t,)| t)
     }
 
     /// GTK 4.14 reports (0, 0) for every screen position but correct window
@@ -460,6 +524,12 @@ fn same_window(accessible_name: &str, title: &str) -> bool {
     !accessible_name.is_empty()
         && !title.is_empty()
         && (accessible_name.starts_with(title) || title.starts_with(accessible_name))
+}
+
+/// Toolkit coordinates to screen coordinates.
+fn to_screen(r: Rect, scale: f64, (dx, dy): (i32, i32)) -> Rect {
+    let s = |v: i32| (v as f64 / scale).round() as i32;
+    Rect { x: s(r.x) + dx, y: s(r.y) + dy, width: s(r.width).max(1), height: s(r.height).max(1) }
 }
 
 /// A toolkit embedded in another one's window (LibreOffice's VCL inside a GTK
@@ -593,6 +663,14 @@ mod tests {
         assert_eq!(embedded_toolkit_shift(&gtk), (0, 0));
         let unknown = [Some(r(0, 0, 800, 600)), None, Some(r(0, 0, 800, 600))];
         assert_eq!(embedded_toolkit_shift(&unknown), (0, 0));
+    }
+
+    #[test]
+    fn chromium_controls_are_unscaled_web_pages_are_not() {
+        // address bar reported at (249, 70) in a window scaled by 1.2, actor at (-22, 8)
+        assert_eq!(to_screen(r(253, 72, 1, 20), 1.2, (-22, 8)), r(189, 68, 1, 17));
+        // web page caret: unscaled
+        assert_eq!(to_screen(r(128, 197, 1, 20), 1.0, (-22, 8)), r(106, 205, 1, 20));
     }
 
     #[test]
