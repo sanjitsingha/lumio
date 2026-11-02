@@ -11,7 +11,7 @@ use crate::events;
 use crate::storage::settings::Settings;
 use crate::window_manager;
 
-const TRAY_ID: &str = "lumio";
+const TRAY_ID: &str = "lummo";
 
 #[derive(Default)]
 pub struct TrayState {
@@ -40,13 +40,13 @@ fn create(app: &AppHandle, caps_enabled: bool) -> tauri::Result<()> {
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let caps = CheckMenuItem::with_id(app, "toggle-caps", "Caps Lock Indicator", true, caps_enabled, None::<&str>)?;
     let updates = MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Lumio", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Lummo", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[&open, &settings, &PredefinedMenuItem::separator(app)?, &caps, &updates, &PredefinedMenuItem::separator(app)?, &quit],
     )?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Lumio")
+        .tooltip("Lummo")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(on_menu_event)

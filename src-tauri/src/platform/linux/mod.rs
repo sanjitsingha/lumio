@@ -57,10 +57,10 @@ pub fn info() -> PlatformInfo {
         tray_detail: (!tray).then(|| {
             if session::is_pantheon() {
                 "elementary OS does not show tray icons by default. Install the “wingpanel-indicator-ayatana” \
-                 package to see Lumio's icon in the panel, or reopen Lumio from the Applications menu."
+                 package to see Lummo's icon in the panel, or reopen Lummo from the Applications menu."
                     .to_string()
             } else {
-                "No system tray host is running on this desktop; reopen Lumio from the applications menu.".to_string()
+                "No system tray host is running on this desktop; reopen Lummo from the applications menu.".to_string()
             }
         }),
         can_position_windows: session != session::SessionType::Wayland,

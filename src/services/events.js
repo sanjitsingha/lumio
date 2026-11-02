@@ -2,14 +2,14 @@
 import { listen } from "@tauri-apps/api/event";
 
 export const EVENTS = {
-  settingsChanged: "lumio://settings-changed",
-  spotlightShown: "lumio://spotlight-shown",
-  spotlightHiding: "lumio://spotlight-hiding",
-  spotlightHidden: "lumio://spotlight-hidden",
-  navigate: "lumio://navigate",
-  appearanceChanged: "lumio://appearance-changed",
-  updateStatus: "lumio://update-status",
-  notice: "lumio://notice",
+  settingsChanged: "lummo://settings-changed",
+  spotlightShown: "lummo://spotlight-shown",
+  spotlightHiding: "lummo://spotlight-hiding",
+  spotlightHidden: "lummo://spotlight-hidden",
+  navigate: "lummo://navigate",
+  appearanceChanged: "lummo://appearance-changed",
+  updateStatus: "lummo://update-status",
+  notice: "lummo://notice",
 };
 
 /** Subscribes and returns a synchronous unsubscribe function (safe in effects). */

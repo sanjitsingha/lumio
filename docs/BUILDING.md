@@ -24,11 +24,11 @@ This starts Vite with hot reload and runs the Rust app in debug mode. Rust chang
 
 ```bash
 npm run build:app -- --bundles deb
-# → src-tauri/target/release/bundle/deb/Lumio_0.1.0_amd64.deb
-sudo apt install ./src-tauri/target/release/bundle/deb/Lumio_0.1.0_amd64.deb
+# → src-tauri/target/release/bundle/deb/Lummo_0.1.0_amd64.deb
+sudo apt install ./src-tauri/target/release/bundle/deb/Lummo_0.1.0_amd64.deb
 ```
 
-The `.deb` declares `libwebkit2gtk-4.1-0`, `libgtk-3-0` and `libayatana-appindicator3-1`. It installs `/usr/bin/lumio`, a launcher entry, and icons.
+The `.deb` declares `libwebkit2gtk-4.1-0`, `libgtk-3-0` and `libayatana-appindicator3-1`. It installs `/usr/bin/lummo`, a launcher entry, and icons. It also installs `/usr/bin/lumio`, which runs `lummo`, and replaces an installed `lumio` package. Lummo was called Lumio before 0.1.15, and Lumio restarts itself through `/usr/bin/lumio` after installing an update.
 
 An AppImage is also possible (`--bundles appimage`). The Tauri CLI downloads `linuxdeploy` for this.
 
@@ -40,7 +40,7 @@ On Windows:
 
 ```powershell
 npm run build:app -- --bundles nsis
-# → src-tauri\target\release\bundle\nsis\Lumio_0.1.0_x64-setup.exe
+# → src-tauri\target\release\bundle\nsis\Lummo_0.1.0_x64-setup.exe
 ```
 
 The installer is per-user (no admin rights) and bootstraps WebView2 if it is missing.

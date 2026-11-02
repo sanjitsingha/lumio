@@ -50,7 +50,7 @@ fn executable() -> Result<String, String> {
 pub fn render_entry(name: &str, exec: &str) -> String {
     format!(
         "[Desktop Entry]\nType=Application\nName={name}\nComment=Spotlight-style search and Caps Lock indicator\n\
-         Exec={} --autostart\nIcon=lumio\nTerminal=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n\
+         Exec={} --autostart\nIcon=lummo\nTerminal=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n\
          X-GNOME-Autostart-Delay=2\n",
         quote_exec_arg(exec)
     )
@@ -82,16 +82,16 @@ mod tests {
 
     #[test]
     fn quotes_paths_per_desktop_entry_spec() {
-        assert_eq!(quote_exec_arg("/usr/bin/lumio"), "/usr/bin/lumio");
-        assert_eq!(quote_exec_arg("/opt/My Apps/lumio"), "\"/opt/My Apps/lumio\"");
+        assert_eq!(quote_exec_arg("/usr/bin/lummo"), "/usr/bin/lummo");
+        assert_eq!(quote_exec_arg("/opt/My Apps/lummo"), "\"/opt/My Apps/lummo\"");
         assert_eq!(quote_exec_arg("/tmp/a$b"), "\"/tmp/a\\$b\"");
         assert_eq!(quote_exec_arg(r"/tmp/a\b"), "\"/tmp/a\\\\\\\\b\"");
     }
 
     #[test]
     fn entry_contains_autostart_flag() {
-        let text = render_entry("Lumio", "/opt/Lumio App/lumio");
-        assert!(text.contains("Exec=\"/opt/Lumio App/lumio\" --autostart"));
+        let text = render_entry("Lummo", "/opt/Lummo App/lummo");
+        assert!(text.contains("Exec=\"/opt/Lummo App/lummo\" --autostart"));
         assert!(text.starts_with("[Desktop Entry]"));
     }
 }

@@ -47,7 +47,7 @@ const FILES = {
 const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 
 export function appIconUrl(key) {
-  return isWindows ? `http://lumio-icon.localhost/app/${key}` : `lumio-icon://localhost/app/${key}`;
+  return isWindows ? `http://lummo-icon.localhost/app/${key}` : `lummo-icon://localhost/app/${key}`;
 }
 
 function Tile({ tint, Icon, size }) {

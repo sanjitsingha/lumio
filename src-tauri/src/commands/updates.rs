@@ -22,7 +22,7 @@ pub async fn download_update(app: AppHandle, state: State<'_, AppState>) -> AppR
     Ok(state.updates.status())
 }
 
-/// Installs the update (downloading it first if needed) and restarts Lumio.
+/// Installs the update (downloading it first if needed) and restarts Lummo.
 #[tauri::command]
 pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
     state.updates.install(&app).await

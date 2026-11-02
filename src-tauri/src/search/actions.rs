@@ -20,7 +20,7 @@ pub struct QuickAction {
     pub icon: &'static str,
 }
 
-pub const LUMIO_SETTINGS: &str = "lumio-settings";
+pub const LUMMO_SETTINGS: &str = "lummo-settings";
 
 pub const ACTIONS: &[QuickAction] = &[
     QuickAction {
@@ -59,22 +59,22 @@ pub const ACTIONS: &[QuickAction] = &[
         icon: "square-terminal",
     },
     QuickAction {
-        id: LUMIO_SETTINGS,
-        title: "Lumio Settings",
+        id: LUMMO_SETTINGS,
+        title: "Lummo Settings",
         subtitle: "Shortcuts, Caps Lock indicator and appearance",
-        keywords: &["lumio", "preferences", "shortcuts", "caps lock", "spotlight"],
+        keywords: &["lummo", "preferences", "shortcuts", "caps lock", "spotlight"],
         icon: "sliders-horizontal",
     },
 ];
 
 pub struct ActionsProvider {
     available: RwLock<HashSet<&'static str>>,
-    open_lumio_settings: Arc<dyn Fn() + Send + Sync>,
+    open_lummo_settings: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl ActionsProvider {
-    pub fn new(open_lumio_settings: Arc<dyn Fn() + Send + Sync>) -> Self {
-        let provider = Self { available: RwLock::default(), open_lumio_settings };
+    pub fn new(open_lummo_settings: Arc<dyn Fn() + Send + Sync>) -> Self {
+        let provider = Self { available: RwLock::default(), open_lummo_settings };
         provider.refresh_availability();
         provider
     }
@@ -83,7 +83,7 @@ impl ActionsProvider {
     pub fn refresh_availability(&self) {
         let available: HashSet<&'static str> = ACTIONS
             .iter()
-            .filter(|a| a.id == LUMIO_SETTINGS || platform::quick_actions::is_available(a.id))
+            .filter(|a| a.id == LUMMO_SETTINGS || platform::quick_actions::is_available(a.id))
             .map(|a| a.id)
             .collect();
         *self.available.write().unwrap_or_else(|e| e.into_inner()) = available;
@@ -138,8 +138,8 @@ impl SearchProvider for ActionsProvider {
             .iter()
             .find(|a| a.id == local_id)
             .ok_or_else(|| AppError::NotFound(format!("Unknown action \"{local_id}\".")))?;
-        if action.id == LUMIO_SETTINGS {
-            (self.open_lumio_settings)();
+        if action.id == LUMMO_SETTINGS {
+            (self.open_lummo_settings)();
         } else {
             platform::quick_actions::run(action.id).map_err(AppError::Launch)?;
         }
@@ -165,14 +165,14 @@ mod tests {
     }
 
     #[test]
-    fn lumio_settings_is_always_searchable() {
+    fn lummo_settings_is_always_searchable() {
         let provider = ActionsProvider::new(Arc::new(|| {}));
-        let query = super::super::fuzzy::Query::new("lumio");
+        let query = super::super::fuzzy::Query::new("lummo");
         let settings = SpotlightSettings::default();
-        let ctx = SearchContext { raw: "lumio", query: &query, settings: &settings, limit: 10 };
+        let ctx = SearchContext { raw: "lummo", query: &query, settings: &settings, limit: 10 };
         let mut out = Vec::new();
         provider.search(&ctx, &mut out);
-        assert_eq!(out[0].id, "action:lumio-settings");
+        assert_eq!(out[0].id, "action:lummo-settings");
     }
 
     #[test]

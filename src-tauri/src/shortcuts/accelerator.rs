@@ -128,7 +128,7 @@ impl fmt::Display for ValidationError {
             ValidationError::ShiftOnly => {
                 write!(f, "Shift on its own would interfere with typing. Add Ctrl, Alt or Super.")
             }
-            ValidationError::Escape => write!(f, "Escape is reserved for closing Lumio windows."),
+            ValidationError::Escape => write!(f, "Escape is reserved for closing Lummo windows."),
             ValidationError::Reserved(what) => write!(f, "This shortcut is reserved by the operating system ({what})."),
         }
     }

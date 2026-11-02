@@ -34,7 +34,7 @@ impl AppState {
         self.settings.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
-    /// Lumio's own folders, never indexed.
+    /// Lummo's own folders, never indexed.
     pub fn private_dirs(&self) -> Vec<std::path::PathBuf> {
         vec![self.paths.config_dir.clone(), self.paths.data_dir.clone(), self.paths.cache_dir.clone(), self.paths.log_dir.clone()]
     }
@@ -149,7 +149,7 @@ pub fn start_background_services(app: &AppHandle) {
     state.engine.files.configure(index_config(&state, &s), files_enabled(&s));
     let engine = state.engine.clone();
     std::thread::Builder::new()
-        .name("lumio-app-index".into())
+        .name("lummo-app-index".into())
         .spawn(move || {
             engine.apps.refresh();
             engine.actions.refresh_availability();

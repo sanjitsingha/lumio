@@ -43,10 +43,10 @@ mod linux {
     fn launches_desktop_entry() {
         let dir = tempfile::tempdir().unwrap();
         let marker = dir.path().join("launched");
-        let entry = dir.path().join("lumio-test.desktop");
+        let entry = dir.path().join("lummo-test.desktop");
         std::fs::write(
             &entry,
-            format!("[Desktop Entry]\nType=Application\nName=Lumio Test\nExec=touch {}\n", marker.display()),
+            format!("[Desktop Entry]\nType=Application\nName=Lummo Test\nExec=touch {}\n", marker.display()),
         )
         .unwrap();
         platform::launch::launch_app(&entry.to_string_lossy()).expect("launch succeeds");
@@ -74,7 +74,7 @@ mod linux {
         eprintln!("caps lock is {} (via {method})", if state { "on" } else { "off" });
     }
 
-    /// The input method (IBus) accepts Lumio's watch for text cursor positions.
+    /// The input method (IBus) accepts Lummo's watch for text cursor positions.
     #[cfg(target_os = "linux")]
     #[test]
     #[ignore]

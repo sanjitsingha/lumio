@@ -10,7 +10,7 @@
 //!   through Gala, which calls `SetCursorLocation` in screen coordinates;
 //! * X11 apps reach it through ibus-x11 (`SetCursorLocation`, screen).
 //!
-//! Lumio watches exactly these calls and the focus changes on IBus's bus.
+//! Lummo watches exactly these calls and the focus changes on IBus's bus.
 //! Key events are never subscribed to. The watched calls are copies
 //! (eavesdropped); they are swallowed so that nothing ever answers them.
 

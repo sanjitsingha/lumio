@@ -22,7 +22,7 @@ fn launch_context() -> gio::AppLaunchContext {
             ctx.unsetenv(var);
         }
     }
-    ctx.unsetenv("LUMIO_DEV_SNAPSHOT_DIR");
+    ctx.unsetenv("LUMMO_DEV_SNAPSHOT_DIR");
     ctx
 }
 

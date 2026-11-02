@@ -164,7 +164,7 @@ impl Overlay {
         let (tx, rx) = mpsc::channel::<Cmd>();
         let (hwnd_tx, hwnd_rx) = mpsc::channel::<Result<isize, String>>();
         std::thread::Builder::new()
-            .name("lumio-capslock-overlay".into())
+            .name("lummo-capslock-overlay".into())
             .spawn(move || unsafe {
                 let instance = match GetModuleHandleW(None) {
                     Ok(m) => m,
@@ -176,14 +176,14 @@ impl Overlay {
                 let class = WNDCLASSW {
                     lpfnWndProc: Some(wndproc),
                     hInstance: instance.into(),
-                    lpszClassName: w!("LumioCapsLockOverlay"),
+                    lpszClassName: w!("LummoCapsLockOverlay"),
                     ..Default::default()
                 };
                 RegisterClassW(&class);
                 let created = CreateWindowExW(
                     WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                    w!("LumioCapsLockOverlay"),
-                    w!("Lumio Caps Lock"),
+                    w!("LummoCapsLockOverlay"),
+                    w!("Lummo Caps Lock"),
                     WS_POPUP,
                     0,
                     0,

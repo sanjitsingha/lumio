@@ -1,5 +1,5 @@
-//! Command-line flags. A second `lumio` process forwards its flags to the
-//! running instance (single-instance plugin), so `lumio --toggle` can be
+//! Command-line flags. A second `lummo` process forwards its flags to the
+//! running instance (single-instance plugin), so `lummo --toggle` can be
 //! bound to a desktop keyboard shortcut where global shortcuts are not
 //! available to apps.
 
@@ -54,7 +54,7 @@ pub fn after_update_pid<S: AsRef<str>>(args: &[S]) -> Option<u32> {
     args.get(pos + 1)?.as_ref().parse().ok()
 }
 
-pub const HELP: &str = "Usage: lumio [--toggle | --settings | --quit | --autostart]";
+pub const HELP: &str = "Usage: lummo [--toggle | --settings | --quit | --autostart]";
 
 #[cfg(test)]
 mod tests {
@@ -62,19 +62,19 @@ mod tests {
 
     #[test]
     fn parses_flags() {
-        assert_eq!(parse(&["lumio"]), Launch::Manual);
-        assert_eq!(parse(&["lumio", "--toggle"]), Launch::Toggle);
-        assert_eq!(parse(&["lumio", "--spotlight"]), Launch::Toggle);
-        assert_eq!(parse(&["lumio", "--autostart"]), Launch::Autostart);
-        assert_eq!(parse(&["lumio", "--settings"]), Launch::Settings);
-        assert_eq!(parse(&["lumio", "--toggle", "--quit"]), Launch::Quit, "quit wins");
-        assert_eq!(parse(&["lumio", "--unknown"]), Launch::Manual);
-        assert_eq!(parse(&["lumio", "--dev-eval", "spotlight", "1"]), Launch::Dev);
+        assert_eq!(parse(&["lummo"]), Launch::Manual);
+        assert_eq!(parse(&["lummo", "--toggle"]), Launch::Toggle);
+        assert_eq!(parse(&["lummo", "--spotlight"]), Launch::Toggle);
+        assert_eq!(parse(&["lummo", "--autostart"]), Launch::Autostart);
+        assert_eq!(parse(&["lummo", "--settings"]), Launch::Settings);
+        assert_eq!(parse(&["lummo", "--toggle", "--quit"]), Launch::Quit, "quit wins");
+        assert_eq!(parse(&["lummo", "--unknown"]), Launch::Manual);
+        assert_eq!(parse(&["lummo", "--dev-eval", "spotlight", "1"]), Launch::Dev);
         assert!(Launch::Dev.requires_running_instance() && Launch::Quit.requires_running_instance());
         assert!(!Launch::Toggle.requires_running_instance());
-        assert_eq!(parse(&["lumio", "--after-update", "4242"]), Launch::Updated);
-        assert_eq!(after_update_pid(&["lumio", "--after-update", "4242"]), Some(4242));
-        assert_eq!(after_update_pid(&["lumio", "--after-update"]), None);
-        assert_eq!(after_update_pid(&["lumio"]), None);
+        assert_eq!(parse(&["lummo", "--after-update", "4242"]), Launch::Updated);
+        assert_eq!(after_update_pid(&["lummo", "--after-update", "4242"]), Some(4242));
+        assert_eq!(after_update_pid(&["lummo", "--after-update"]), None);
+        assert_eq!(after_update_pid(&["lummo"]), None);
     }
 }

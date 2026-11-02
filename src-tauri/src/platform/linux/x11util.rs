@@ -71,7 +71,7 @@ impl ArgbContext {
             )
             .map_err(err)?;
         self.conn
-            .change_property8(PropMode::REPLACE, win, AtomEnum::WM_CLASS, AtomEnum::STRING, b"lumio\0Lumio\0")
+            .change_property8(PropMode::REPLACE, win, AtomEnum::WM_CLASS, AtomEnum::STRING, b"lummo\0Lummo\0")
             .map_err(err)?;
         Ok(win)
     }

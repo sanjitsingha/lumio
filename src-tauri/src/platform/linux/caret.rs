@@ -14,7 +14,7 @@
 //!    rectangles, and the focused window's actor supplies the origin.
 //!
 //! Nothing is registered with the accessibility registry, so no app starts
-//! emitting events because of Lumio; the bus is only read while the
+//! emitting events because of Lummo; the bus is only read while the
 //! indicator is about to show or is visible.
 
 use std::collections::HashMap;
@@ -79,7 +79,7 @@ pub fn support() -> Result<&'static str, String> {
     }
     connect().map_err(|e| format!("The accessibility bus (AT-SPI) is not available ({e})."))?;
     if session == SessionType::Wayland && !session::is_pantheon() {
-        return Err("On Wayland, Lumio can place text cursor positions on screen only with elementary OS's window \
+        return Err("On Wayland, Lummo can place text cursor positions on screen only with elementary OS's window \
                     manager (Gala)."
             .into());
     }
@@ -859,7 +859,7 @@ mod tests {
     #[test]
     fn window_names_match_titles() {
         assert!(same_window("New Tab - Google Chrome - Sanjit", "New Tab - Google Chrome"));
-        assert!(same_window("Lumio caret test GTK3", "Lumio caret test GTK3"));
+        assert!(same_window("Lummo caret test GTK3", "Lummo caret test GTK3"));
         assert!(!same_window("Terminal", "Spotlight - Visual Studio Code"));
         assert!(!same_window("", "Files"));
     }

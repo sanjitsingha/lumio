@@ -72,7 +72,7 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | ChatGPT input (empty) | ✅ at the start of the box |
 | Chrome, one window: rich editor tab → Google tab → new tab (address bar) → Google tab again | ✅ each press at its own field (0.1.10 reused the field found before, so after one field the others showed nothing) |
 | Dribbble and Google search boxes (real pages) | ✅ below the caret; first press in a field 110–155 ms, later ones about 30 ms |
-| Input method (IBus) source, 0.1.13: GTK 3 text view (typed text arrives intact while Lumio listens) | ✅ cursor after the typed text |
+| Input method (IBus) source, 0.1.13: GTK 3 text view (typed text arrives intact while Lummo listens) | ✅ cursor after the typed text |
 | Terminal (GTK 4, floating window) | ✅ below the prompt's cursor (accessibility reports nothing there) |
 | VS Code chat input | ✅ (771, 969); the cursor measured on screen: (771, 968) |
 | Chrome with `--enable-wayland-ime`: page field, address bar after End | ✅ field within 1 px of accessibility's answer; address bar under the URL's end; typed text arrives intact |
@@ -103,7 +103,7 @@ Run this on each platform and record the results.
 | 10 | Indicator never blocks clicks or takes focus | ✅ | ☐ | ☐ | ☐ |
 | 11 | Indicator correct on a second monitor / at 125–200% scale | ☐ (single 1080p monitor available) | ☐ | ☐ | ☐ |
 | 12 | Tray menu items work | n/a (no tray host) | ☐ | ☐ | ☐ |
-| 13 | Launch at login starts Lumio in the background | ☐ | ☐ | ☐ | ☐ |
+| 13 | Launch at login starts Lummo in the background | ☐ | ☐ | ☐ | ☐ |
 | 14 | Quit releases shortcuts (Ctrl+Space works in other apps again) | ✅ | ☐ | ☐ | ☐ |
 
 ## Manual multi-monitor and scaling notes

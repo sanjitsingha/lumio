@@ -1,4 +1,4 @@
-//! `lumio-icon://localhost/app/<hex key>` serves application icons to the
+//! `lummo-icon://localhost/app/<hex key>` serves application icons to the
 //! webview. Only icons of indexed applications can be requested, so the
 //! protocol never exposes arbitrary files.
 
@@ -9,7 +9,7 @@ use tauri::http::{header, Response, StatusCode};
 use super::apps::{AppIcon, AppIndex};
 use super::unhex_key;
 
-pub const SCHEME: &str = "lumio-icon";
+pub const SCHEME: &str = "lummo-icon";
 
 pub fn respond(index: &Arc<AppIndex>, path: &str) -> Response<Vec<u8>> {
     let key = path.trim_start_matches('/').strip_prefix("app/").and_then(unhex_key);

@@ -32,8 +32,8 @@ export function useUpdates() {
     (quiet = false) =>
       run(api.checkForUpdates, (s) => {
         if (quiet || !s) return;
-        if (s.phase.state === "upToDate") toast.success("Lumio is up to date.");
-        if (s.phase.state === "available") toast.info(`Lumio ${s.latest.version} is available.`);
+        if (s.phase.state === "upToDate") toast.success("Lummo is up to date.");
+        if (s.phase.state === "available") toast.info(`Lummo ${s.latest.version} is available.`);
       }),
     [run],
   );

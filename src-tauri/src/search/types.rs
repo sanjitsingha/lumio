@@ -39,7 +39,7 @@ impl ResultKind {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ResultIcon {
-    /// Served by the `lumio-icon` protocol at `/app/<key>`.
+    /// Served by the `lummo-icon` protocol at `/app/<key>`.
     App { key: String },
     /// A Lucide icon name rendered by the frontend.
     Symbol { name: String },

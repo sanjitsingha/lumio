@@ -163,11 +163,11 @@ mod tests {
     }
 
     /// Writes PNG previews for manual inspection:
-    /// `LUMIO_RENDER_PREVIEW=/tmp cargo test render_previews -- --ignored`
+    /// `LUMMO_RENDER_PREVIEW=/tmp cargo test render_previews -- --ignored`
     #[test]
     #[ignore]
     fn render_previews() {
-        let Some(dir) = std::env::var_os("LUMIO_RENDER_PREVIEW") else { return };
+        let Some(dir) = std::env::var_os("LUMMO_RENDER_PREVIEW") else { return };
         for (dark, on) in [(false, true), (false, false), (true, true), (true, false)] {
             let f = render(Style { size: 64, scale: 2.0, dark, on, radius: 0.27 }, 1.0).unwrap();
             let pixmap = Pixmap::from_vec(f.rgba, tiny_skia::IntSize::from_wh(f.width, f.height).unwrap()).unwrap();

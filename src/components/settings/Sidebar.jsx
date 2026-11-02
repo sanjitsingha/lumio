@@ -31,7 +31,7 @@ export function Sidebar({ active, onSelect, appName, version }) {
       <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
         <img src="/app-icon.svg" alt="" width={34} height={34} draggable={false} />
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-semibold text-label">{appName || "Lumio"}</div>
+          <div className="truncate text-[14px] font-semibold text-label">{appName || "Lummo"}</div>
           <div className="text-[11px] text-secondary">{version ? `Version ${version}` : " "}</div>
         </div>
       </div>

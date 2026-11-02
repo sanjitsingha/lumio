@@ -240,7 +240,7 @@ export default function SpotlightPage() {
                       <SearchX size={20} strokeWidth={1.8} />
                       <div>
                         <div className="text-[13px] text-label">No results for “{query.trim()}”</div>
-                        <div className="text-[12px]">Try another name, or check which folders Lumio indexes in Settings.</div>
+                        <div className="text-[12px]">Try another name, or check which folders Lummo indexes in Settings.</div>
                       </div>
                     </div>
                   )}

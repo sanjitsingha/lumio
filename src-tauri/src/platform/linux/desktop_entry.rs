@@ -317,7 +317,7 @@ Exec=firefox -P
         assert!(DesktopEntry { only_show_in: vec!["pantheon".into()], ..base.clone() }.is_visible(&desktops));
         assert!(!DesktopEntry { not_show_in: vec!["Pantheon".into()], ..base.clone() }.is_visible(&desktops));
         assert!(!DesktopEntry { entry_type: "Link".into(), ..base.clone() }.is_visible(&desktops));
-        assert!(!DesktopEntry { try_exec: Some("definitely-not-installed-lumio".into()), ..base.clone() }.is_visible(&desktops));
+        assert!(!DesktopEntry { try_exec: Some("definitely-not-installed-lummo".into()), ..base.clone() }.is_visible(&desktops));
         assert!(DesktopEntry { try_exec: Some("sh".into()), ..base }.is_visible(&desktops));
     }
 

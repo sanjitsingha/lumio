@@ -161,7 +161,7 @@ impl CapsLockController {
         let mode = support.mode;
         let initial = settings.clone();
         let spawned = std::thread::Builder::new()
-            .name("lumio-capslock".into())
+            .name("lummo-capslock".into())
             .spawn(move || Runner::new(app, mode, initial, theme, caps_state, runner_tx).run(rx));
         if let Err(e) = spawned {
             log::error!("could not start the Caps Lock indicator thread: {e}");

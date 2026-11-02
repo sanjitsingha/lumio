@@ -119,7 +119,7 @@ impl AppIndex {
         self.meta.lock().unwrap_or_else(|e| e.into_inner()).error.clone()
     }
 
-    /// Icon for the `lumio-icon` protocol.
+    /// Icon for the `lummo-icon` protocol.
     pub fn icon(&self, key: &str) -> Option<AppIcon> {
         let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
         entries.iter().find(|e| e.app.key == key).map(|e| e.app.icon.clone())

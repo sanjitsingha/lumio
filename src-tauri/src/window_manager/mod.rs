@@ -47,7 +47,7 @@ pub fn create_spotlight(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         return Ok(w);
     }
     let window = WebviewWindowBuilder::new(app, SPOTLIGHT, WebviewUrl::App("index.html".into()))
-        .title("Lumio Spotlight")
+        .title("Lummo Spotlight")
         .inner_size(SPOTLIGHT_WIDTH, if cfg!(target_os = "linux") { SPOTLIGHT_MAX_HEIGHT } else { 120.0 })
         .decorations(false)
         .transparent(true)
@@ -245,7 +245,7 @@ pub fn open_settings(app: &AppHandle, pane: Option<&str>) {
                 None => "index.html".to_string(),
             };
             let built = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App(url.into()))
-                .title("Lumio Settings")
+                .title("Lummo Settings")
                 .inner_size(880.0, 620.0)
                 .min_inner_size(760.0, 520.0)
                 .center()
@@ -309,7 +309,7 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
             }
         }
         (SETTINGS, WindowEvent::CloseRequested { .. }) => {
-            log::info!("Settings closed; Lumio keeps running in the background");
+            log::info!("Settings closed; Lummo keeps running in the background");
         }
         _ => {}
     }

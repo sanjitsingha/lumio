@@ -71,21 +71,21 @@ writeFileSync(files.pkg, `${JSON.stringify(pkg, null, 2)}\n`);
 writeFileSync(files.cargo, cargo.replace(/^(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m, `$1${next}$2`));
 try {
   const lock = readFileSync(files.lock, "utf8");
-  writeFileSync(files.lock, lock.replace(/(name = "lumio"\nversion = ")[^"]+(")/, `$1${next}$2`));
+  writeFileSync(files.lock, lock.replace(/(name = "lummo"\nversion = ")[^"]+(")/, `$1${next}$2`));
 } catch {
   // no lockfile yet; cargo creates it on the next build
 }
 
 git("add", files.pkg, files.cargo, files.lock);
 git("commit", "-m", `Release v${next}`);
-git("tag", "-a", `v${next}`, "-m", notes || `Lumio ${next}`);
+git("tag", "-a", `v${next}`, "-m", notes || `Lummo ${next}`);
 console.log(`\n✔ Version ${next} committed and tagged v${next}.`);
 
 if (push) {
   git("push");
   git("push", "origin", `v${next}`);
   console.log("✔ Pushed. GitHub Actions is now building the installers (Actions tab → release).");
-  console.log("  When it finishes, installed copies of Lumio will offer the update.\n");
+  console.log("  When it finishes, installed copies of Lummo will offer the update.\n");
 } else {
   console.log(`\nPublish it with:\n  git push && git push origin v${next}\n`);
 }

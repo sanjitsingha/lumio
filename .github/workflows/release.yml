@@ -2,7 +2,7 @@ name: release
 
 # Pushing a tag like v0.2.0 (see `npm run release`) builds signed installers
 # for Windows and Linux and publishes them, plus the `latest.json` update
-# feed that installed copies of Lumio read, as a GitHub release.
+# feed that installed copies of Lummo read, as a GitHub release.
 
 on:
   push:
@@ -42,9 +42,9 @@ jobs:
         run: |
           git fetch --force --tags
           {
-            echo "body<<LUMIO_NOTES_EOF"
+            echo "body<<LUMMO_NOTES_EOF"
             git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
-            echo "LUMIO_NOTES_EOF"
+            echo "LUMMO_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Linux system packages
@@ -93,7 +93,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Lumio ${{ github.ref_name }}
+          releaseName: Lummo ${{ github.ref_name }}
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false

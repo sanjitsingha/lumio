@@ -1,8 +1,8 @@
 [package]
-name = "lumio"
+name = "lummo"
 version = "0.1.14"
 description = "Spotlight-style search and a cursor-anchored Caps Lock indicator"
-authors = ["Lumio contributors"]
+authors = ["Lummo contributors"]
 license = "MIT"
 # GitHub repository: source of updates (releases/latest/download/latest.json) and the About links.
 repository = "https://github.com/sanjitsingha/lumio"
@@ -10,12 +10,12 @@ edition = "2021"
 rust-version = "1.85"
 
 [lib]
-name = "lumio_lib"
+name = "lummo_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# Developer aid (never enabled in releases): `lumio --dev-snapshot <dir>` writes PNG
-# snapshots of Lumio's own webviews and `lumio --dev-eval <window> <js>` drives the UI.
+# Developer aid (never enabled in releases): `lummo --dev-snapshot <dir>` writes PNG
+# snapshots of Lummo's own webviews and `lummo --dev-eval <window> <js>` drives the UI.
 dev-snapshot = ["dep:webkit2gtk", "dep:cairo-rs"]
 
 [build-dependencies]

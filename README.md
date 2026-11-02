@@ -1,4 +1,4 @@
-# Lumio
+# Lummo
 
 A keyboard-first desktop utility for **elementary OS 8** and **Windows 10/11**, inspired by macOS:
 
@@ -6,6 +6,8 @@ A keyboard-first desktop utility for **elementary OS 8** and **Windows 10/11**, 
 - **Caps Lock indicator**: a small ⇪ badge that appears **at the blinking text cursor** of the field you type in and follows it, like on a Mac, including on Wayland.
 
 Built with Tauri 2 (Rust) and React. It is a native desktop app, not Electron or a website.
+
+Lummo was called Lumio before version 0.1.15. Installed copies update to Lummo and keep their settings.
 
 ---
 
@@ -16,9 +18,9 @@ Built with Tauri 2 (Rust) and React. It is a native desktop app, not Electron or
 | **Spotlight** | Fuzzy search (prefix, whole-word, acronym, substring, typo tolerance), Top Hit, sections (Applications, Quick Actions, Folders, Files), recent items, inline suggestions from history, usage-based ranking. On Linux, the selected app's own actions (*New Window*, *New Private Window*…) are listed below it. A calculator answers sums such as `3*6+6-45` as you type (Enter copies the answer). Every search ends with *Search Google for “…”*, which opens in the browser chosen in Settings (or the system default). Keyboard: `↑/↓` move, `Enter` open, `Ctrl+Enter` show in folder, `Tab`/`Shift+Tab` jump between sections, `Ctrl+Backspace` delete the previous word or path segment, `→` accept a suggestion, `Esc` close. |
 | **Apps** | Linux: XDG desktop entries, including Flatpak and Snap, with icons from your icon theme. Windows: the Start menu's AppsFolder, including Store apps such as Calculator and Settings, with real shell icons. |
 | **Files** | A background index of your home folder (or folders you choose). It is cached to disk and kept current with native change notifications (inotify / ReadDirectoryChangesW). Exclusions such as `node_modules`, `.git` or `*.tmp` keep it fast. |
-| **Quick actions** | Open Settings, Calculator, File Manager, Browser, Terminal, and Lumio Settings. The list is extensible. |
+| **Quick actions** | Open Settings, Calculator, File Manager, Browser, Terminal, and Lummo Settings. The list is extensible. |
 | **Caps Lock indicator** | Anchored to the text cursor (read from the input method on Linux, where every app that types reports its cursor, and through accessibility; the system caret on Windows), shown also when you click into a text field while Caps Lock is on: near, below or above the cursor. Where there is no text cursor it is not shown. You can set size, opacity, corner radius, duration (or "while on"), animation speed and a brief "off" flash; it follows the app's light or dark appearance. It is click-through and never takes keyboard focus. |
-| **Global shortcuts** | Configurable, with a live recorder, validation, duplicate and system-conflict detection (Lumio names the owner, e.g. *"Alt+Space is already used by the system shortcut “Activate window menu”"*), reset, clear, and persistence. |
+| **Global shortcuts** | Configurable, with a live recorder, validation, duplicate and system-conflict detection (Lummo names the owner, e.g. *"Alt+Space is already used by the system shortcut “Activate window menu”"*), reset, clear, and persistence. |
 | **Settings** | A macOS System Settings–style window: General (startup, updates, clearing the cache and history, resetting settings), Spotlight (including its keyboard shortcut), Caps Lock Indicator, Appearance (light/dark/system, accent colours including the system accent), About (with an update check). |
 | **Background** | Runs in the background, single instance, launch at login, tray menu (where the desktop shows tray icons), clean shutdown that releases its shortcuts. |
 
@@ -31,7 +33,7 @@ sudo apt install build-essential curl libwebkit2gtk-4.1-dev libgtk-3-dev \
 # Rust (https://rustup.rs) and Node.js 20+ are also required
 
 npm install
-npm run tauri dev        # starts Lumio with hot reload; Settings opens
+npm run tauri dev        # starts Lummo with hot reload; Settings opens
 ```
 
 Press **Ctrl+Space** to open Spotlight (**Alt+Space** on Windows); change it in Settings → Spotlight.
@@ -50,7 +52,7 @@ Outputs are written to `src-tauri/target/release/bundle/`. See [docs/BUILDING.md
 
 ## Releases and automatic updates
 
-Publish a release with one command. GitHub Actions builds the signed Windows `.exe`, Linux `.deb` and AppImage, and every installed Lumio updates itself (Settings → About shows the release notes and has **Update Now**; there is also an optional fully automatic mode).
+Publish a release with one command. GitHub Actions builds the signed Windows `.exe`, Linux `.deb` and AppImage, and every installed Lummo updates itself (Settings → About shows the release notes and has **Update Now**; there is also an optional fully automatic mode).
 
 ```bash
 npm run release -- patch --notes "What changed" --push
@@ -70,11 +72,11 @@ npm run lint:rust                # clippy, warnings are errors
 ## Command line
 
 ```
-lumio               start (or bring up Settings if already running)
-lumio --toggle      show/hide Spotlight (bind this to a desktop shortcut if needed)
-lumio --settings    open Settings
-lumio --quit        quit the running instance
-lumio --autostart   used by the login entry; stays in the background
+lummo               start (or bring up Settings if already running)
+lummo --toggle      show/hide Spotlight (bind this to a desktop shortcut if needed)
+lummo --settings    open Settings
+lummo --quit        quit the running instance
+lummo --autostart   used by the login entry; stays in the background
 ```
 
 ## Documentation
@@ -92,4 +94,4 @@ The product name lives in `src-tauri/tauri.conf.json` (`productName`, `mainBinar
 
 ## Licence
 
-MIT. Inspired by macOS; not affiliated with Apple Inc. Lumio does not use Apple artwork.
+MIT. Inspired by macOS; not affiliated with Apple Inc. Lummo does not use Apple artwork.

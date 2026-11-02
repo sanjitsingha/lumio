@@ -49,7 +49,7 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
 pub fn start_monitor(on_change: StateCallback, _active: Arc<AtomicBool>) -> Result<&'static str, String> {
     let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
     std::thread::Builder::new()
-        .name("lumio-capslock-hook".into())
+        .name("lummo-capslock-hook".into())
         .spawn(move || {
             WORKER_THREAD.store(unsafe { GetCurrentThreadId() }, Ordering::SeqCst);
             let module = unsafe { GetModuleHandleW(None) }.ok().map(|m| m.into());

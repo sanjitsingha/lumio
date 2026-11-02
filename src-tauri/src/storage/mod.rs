@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, Runtime};
 
-/// Directories used by Lumio. Resolved from Tauri's path resolver so they
+/// Directories used by Lummo. Resolved from Tauri's path resolver so they
 /// follow platform conventions (XDG on Linux, %APPDATA%/%LOCALAPPDATA% on Windows).
 #[derive(Debug, Clone)]
 pub struct StoragePaths {

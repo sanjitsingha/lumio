@@ -1,20 +1,20 @@
-# Releasing and updating Lumio
+# Releasing and updating Lummo
 
-This is how a change on your machine reaches every installed copy of Lumio:
+This is how a change on your machine reaches every installed copy of Lummo:
 
 ```
 you: npm run release -- patch --notes "…" --push
         │  (bumps version, commits, tags v0.1.1, pushes)
         ▼
 GitHub Actions (.github/workflows/release.yml)
-        │  builds + signs:  Lumio_0.1.1_x64-setup.exe   (Windows)
-        │                   Lumio_0.1.1_amd64.deb        (elementary OS / Ubuntu)
-        │                   Lumio_0.1.1_amd64.AppImage   (any Linux)
+        │  builds + signs:  Lummo_0.1.1_x64-setup.exe   (Windows)
+        │                   Lummo_0.1.1_amd64.deb        (elementary OS / Ubuntu)
+        │                   Lummo_0.1.1_amd64.AppImage   (any Linux)
         │  and writes latest.json (the update feed)
         ▼
-GitHub release "Lumio v0.1.1"
+GitHub release "Lummo v0.1.1"
         ▼
-installed Lumio (every 6 h, or Settings → About → Check Now)
+installed Lummo (every 6 h, or Settings → About → Check Now)
         │  downloads the matching installer, verifies its signature,
         ▼  installs it and restarts itself
 ```
@@ -46,10 +46,10 @@ Then paste the content of `lumio.key.pub` into `tauri.conf.json`. Copies install
 
 ### 2. Create the GitHub repository
 
-1. On github.com → **New repository**, e.g. `lumio`. It must be **Public**: the app downloads updates anonymously, and private repositories' release files require a login.
+1. On github.com → **New repository**, e.g. `lummo`. It must be **Public**: the app downloads updates anonymously, and private repositories' release files require a login.
 2. Put its URL in `src-tauri/Cargo.toml`:
    ```toml
-   repository = "https://github.com/<your-user>/lumio"
+   repository = "https://github.com/<your-user>/lummo"
    ```
    This single line enables the update check, the release-page link and the "Source code" link in About.
 
@@ -80,8 +80,8 @@ After fixing a secret, open the failed run and click **Re-run all jobs**; no new
 cd ~/Spotlight
 git init -b main
 git add .
-git commit -m "Lumio 0.1.0"
-git remote add origin https://github.com/<your-user>/lumio.git
+git commit -m "Lummo 0.1.0"
+git remote add origin https://github.com/<your-user>/lummo.git
 git push -u origin main
 ```
 
@@ -94,10 +94,10 @@ git tag -a v0.1.0 -m "First release"
 git push origin v0.1.0
 ```
 
-Open the **Actions** tab and wait for the *release* workflow (about 15 minutes). Then go to **Releases → Lumio v0.1.0** and install it on your machines:
+Open the **Actions** tab and wait for the *release* workflow (about 15 minutes). Then go to **Releases → Lummo v0.1.0** and install it on your machines:
 
-- **elementary OS / Ubuntu:** download `Lumio_0.1.0_amd64.deb`, then `sudo apt install ./Lumio_0.1.0_amd64.deb`. Lumio appears in the Applications menu.
-- **Windows:** download and run `Lumio_0.1.0_x64-setup.exe`. It installs per user, without admin rights.
+- **elementary OS / Ubuntu:** download `Lummo_0.1.0_amd64.deb`, then `sudo apt install ./Lummo_0.1.0_amd64.deb`. Lummo appears in the Applications menu.
+- **Windows:** download and run `Lummo_0.1.0_x64-setup.exe`. It installs per user, without admin rights.
 - **Other Linux:** download the `.AppImage`, `chmod +x` it and run it.
 
 From now on these copies update themselves.
@@ -126,13 +126,13 @@ When the workflow finishes, installed copies notice the update (at the next 6-ho
 
 | Installed as | What "Update Now" does |
 |---|---|
-| Windows `.exe` | runs the new installer with a small progress window, then restarts Lumio |
-| `.deb` | asks for your password (system package), installs, restarts Lumio |
+| Windows `.exe` | runs the new installer with a small progress window, then restarts Lummo |
+| `.deb` | asks for your password (system package), installs, restarts Lummo |
 | AppImage | replaces the AppImage file, restarts |
 
 **Settings → General**:
 
-- Lumio checks for updates shortly after it starts and every few hours, and notifies you when a release appears.
+- Lummo checks for updates shortly after it starts and every few hours, and notifies you when a release appears.
 - *Install updates automatically* installs it without asking.
 
 **Manual update** is always possible: About → **Release Page** opens the latest GitHub release, where you can download the installer yourself.
@@ -155,12 +155,12 @@ The update flow can be exercised on your development machine without GitHub:
 npm run update:local -- --version 0.1.1 --build
 
 # terminal 2: run the development app (0.1.0) against that feed
-LUMIO_UPDATE_ENDPOINT=http://127.0.0.1:8765/latest.json npm run tauri dev
+LUMMO_UPDATE_ENDPOINT=http://127.0.0.1:8765/latest.json npm run tauri dev
 ```
 
-In Lumio: **Settings → About → Check Now**. It reports *Lumio 0.1.1 is available* with the notes, and **Download** fetches the installer and verifies its signature.
+In Lummo: **Settings → About → Check Now**. It reports *Lummo 0.1.1 is available* with the notes, and **Download** fetches the installer and verifies its signature.
 
-Development builds never install over themselves (there is nothing installed to replace). To see the full install-and-restart, install a packaged build first (`npm run build:app`, then `sudo apt install ./src-tauri/target/release/bundle/deb/Lumio_0.1.0_amd64.deb`) and publish a newer version through GitHub as described above.
+Development builds never install over themselves (there is nothing installed to replace). To see the full install-and-restart, install a packaged build first (`npm run build:app`, then `sudo apt install ./src-tauri/target/release/bundle/deb/Lummo_0.1.0_amd64.deb`) and publish a newer version through GitHub as described above.
 
 Without `--build`, `npm run update:local` serves an installer you built earlier with the same command.
 

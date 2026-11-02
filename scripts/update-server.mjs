@@ -4,8 +4,8 @@
 //   npm run update:local -- --version 0.1.1 --build   # build a signed 0.1.1 installer, then serve it
 //   npm run update:local -- --version 0.1.1           # serve an installer built earlier
 //
-// Then start Lumio pointed at it (dev builds accept plain http):
-//   LUMIO_UPDATE_ENDPOINT=http://127.0.0.1:8765/latest.json npm run tauri dev
+// Then start Lummo pointed at it (dev builds accept plain http):
+//   LUMMO_UPDATE_ENDPOINT=http://127.0.0.1:8765/latest.json npm run tauri dev
 //
 // The feed has the same format GitHub releases get from tauri-action.
 import { execFileSync } from "node:child_process";
@@ -88,7 +88,7 @@ createServer((req, res) => {
   res.writeHead(200, { "Content-Length": statSync(file).size });
   createReadStream(file).pipe(res);
 }).listen(port, "127.0.0.1", () => {
-  console.log(`\nServing Lumio ${version} (${artifact}) at ${base}/latest.json`);
-  console.log(`Start Lumio with:  LUMIO_UPDATE_ENDPOINT=${base}/latest.json npm run tauri dev`);
+  console.log(`\nServing Lummo ${version} (${artifact}) at ${base}/latest.json`);
+  console.log(`Start Lummo with:  LUMMO_UPDATE_ENDPOINT=${base}/latest.json npm run tauri dev`);
   console.log("Then open Settings → About → Check Now.  (Ctrl+C stops the server.)\n");
 });

@@ -1,9 +1,9 @@
 //! Developer harness, compiled only with `--features dev-snapshot`.
 //!
-//! A second `lumio` process forwards these flags to the running instance:
-//! * `--dev-snapshot <dir>` writes `<dir>/<window>.png` for every Lumio webview
-//!   (only Lumio's own content is captured, never the rest of the desktop).
-//! * `--dev-eval <window> <js>` runs JavaScript in a Lumio window (UI tests).
+//! A second `lummo` process forwards these flags to the running instance:
+//! * `--dev-snapshot <dir>` writes `<dir>/<window>.png` for every Lummo webview
+//!   (only Lummo's own content is captured, never the rest of the desktop).
+//! * `--dev-eval <window> <js>` runs JavaScript in a Lummo window (UI tests).
 
 use tauri::{AppHandle, Manager};
 

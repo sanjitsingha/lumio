@@ -4,21 +4,21 @@ import Image from "next/image";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 /*
- * Lumio's Spotlight playing on a laptop screen, in a loop: it opens, a few
+ * Lummo's Spotlight playing on a laptop screen, in a loop: it opens, a few
  * searches are typed one after another (results follow every keystroke), and
  * it closes again. The panel's sizes and colours
- * are copied from the app (src/components/spotlight in the Lumio repo); the
+ * are copied from the app (src/components/spotlight in the Lummo repo); the
  * motion is softer than the app's, for the page.
  */
 
-/** The laptop picture (public/lumio/laptop.png) and the screen inside it, in image pixels. */
+/** The laptop picture (public/lummo/laptop.png) and the screen inside it, in image pixels. */
 const LAPTOP = { width: 1488, height: 831 };
 const SCREEN = { x: 180, y: 21, width: 1128, height: 754 };
 
 /** The scene is laid out on a desktop this wide, then scaled to the screen: smaller makes the panel bigger. */
 const DESKTOP_WIDTH = 1152;
 const DESKTOP_HEIGHT = (DESKTOP_WIDTH * SCREEN.height) / SCREEN.width;
-/** Lumio's window opens 22% down the screen; the panel sits 36 px inside it. */
+/** Lummo's window opens 22% down the screen; the panel sits 36 px inside it. */
 const PANEL_TOP = Math.round(DESKTOP_HEIGHT * 0.22) + 36;
 const PANEL_WIDTH = 680;
 
@@ -34,7 +34,7 @@ const QUERIES = ["Chrome", "Terminal", "invoice", "249*12", "who is the pm of in
 /** How long each search's results stay up before the next one. */
 const HOLD_MS = 1800;
 
-/** The demo's "computer": what Lumio finds. `icon` may also be an image in public/, e.g. "/lumio/spotify.png". */
+/** The demo's "computer": what Lummo finds. `icon` may also be an image in public/, e.g. "/lummo/spotify.png". */
 const APPS = [
   { title: "Chrome", subtitle: "Application", icon: "chrome" },
   { title: "Calculator", subtitle: "Application", icon: "calculator" },
@@ -51,7 +51,7 @@ const FILES = [
 
 const matches = (title, text) => title.toLowerCase().split(/[\s._-]+/).some((word) => word.startsWith(text));
 
-/** Sections in Lumio's order: Calculator, Top Hit, Applications, Folders, Files, Web. */
+/** Sections in Lummo's order: Calculator, Top Hit, Applications, Folders, Files, Web. */
 function search(query) {
   const raw = query.trim();
   if (!raw) return [];
@@ -69,7 +69,7 @@ function search(query) {
   if (folders.length) sections.push({ title: "Folders", rows: folders });
   const files = FILES.filter((f) => matches(f.title, text));
   if (files.length) sections.push({ title: "Files", rows: files });
-  // the browser chosen in Lumio's settings (Chrome) supplies the icon
+  // the browser chosen in Lummo's settings (Chrome) supplies the icon
   sections.push({
     title: "Web",
     rows: [{ key: "web", title: `Search Google for “${raw}”`, subtitle: "Web search", icon: "chrome" }],
@@ -105,9 +105,9 @@ const typingDelay = (char, i) => 95 + RHYTHM[i % RHYTHM.length] + (char === " " 
 // panel: "hidden" | "open" | "closing"; selectAll: the typed text is selected, about to be typed over
 const CLOSED = { panel: "hidden", query: "", selectAll: false };
 
-export default function LumioSpotlightDemo({
-  src = "/lumio/laptop.png",
-  alt = "Lumio Spotlight searching apps, files and the web on a Windows laptop",
+export default function LummoSpotlightDemo({
+  src = "/lummo/laptop.png",
+  alt = "Lummo Spotlight searching apps, files and the web on a Windows laptop",
   className = "",
   priority = false,
 }) {
@@ -159,14 +159,14 @@ export default function LumioSpotlightDemo({
           await wait(450);
         }
         for (let i = 0; i < query.length; i++) {
-          // like Lumio, every keystroke brings new results
+          // like Lummo, every keystroke brings new results
           setUi((s) => ({ ...s, query: query.slice(0, i + 1), selectAll: false }));
           await wait(typingDelay(query[i + 1], i));
         }
         await wait(HOLD_MS);
       }
       setUi((s) => ({ ...s, panel: "closing" }));
-      // like Lumio, the next opening starts with an empty box
+      // like Lummo, the next opening starts with an empty box
       await wait(260);
       setUi(CLOSED);
       await wait(400);
@@ -218,9 +218,9 @@ export default function LumioSpotlightDemo({
         </div>
       </div>
       <style>{`
-        @keyframes lumio-blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
-        @keyframes lumio-fade-in { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes lumio-row-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes lummo-blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
+        @keyframes lummo-fade-in { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes lummo-row-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
       `}</style>
     </div>
   );
@@ -256,7 +256,7 @@ function Panel({ ui, sections }) {
       <AutoHeight animate={ui.panel !== "hidden"}>
         <SearchBar query={ui.query} selectAll={ui.selectAll} />
         {sections.length > 0 && (
-          <div className="border-t border-black/[0.08]" style={{ animation: `lumio-fade-in 220ms ${EASE_OUT} both` }}>
+          <div className="border-t border-black/[0.08]" style={{ animation: `lummo-fade-in 220ms ${EASE_OUT} both` }}>
             <Results sections={sections} />
           </div>
         )}
@@ -290,7 +290,7 @@ function AutoHeight({ animate, children }) {
 
 /**
  * The result list. Rows that stay glide to their new place, new rows fade in,
- * and the blue selection slides along with the first row (Lumio selects it).
+ * and the blue selection slides along with the first row (Lummo selects it).
  */
 function Results({ sections }) {
   const selected = 0;
@@ -341,7 +341,7 @@ function Results({ sections }) {
           key={`h:${section.title}`}
           data-flip={`h:${section.title}`}
           className="relative px-[22px] pb-1 pt-2.5 text-[11px] font-semibold tracking-[0.01em] text-[#86868b]"
-          style={{ animation: `lumio-fade-in 260ms ${EASE_OUT} both` }}
+          style={{ animation: `lummo-fade-in 260ms ${EASE_OUT} both` }}
         >
           {section.title}
         </div>,
@@ -367,7 +367,7 @@ function SearchBar({ query, selectAll }) {
           // the typed text sits on a soft rounded highlight
           <span className="-mx-2 inline-block rounded-[8px] bg-black/[0.08] px-2 py-[3px]">
             {selectAll ? (
-              // Lumio's text selection colour; a selection hides the caret
+              // Lummo's text selection colour; a selection hides the caret
               <span className="bg-[rgba(0,122,255,0.3)]">{query}</span>
             ) : (
               <>
@@ -392,7 +392,7 @@ function Caret({ gap }) {
   return (
     <span className="relative inline-block h-0 w-0 align-middle">
       <span
-        className="absolute top-0 h-[26px] w-[2px] -translate-y-1/2 animate-[lumio-blink_1.06s_linear_infinite] bg-[#1d1d1f]"
+        className="absolute top-0 h-[26px] w-[2px] -translate-y-1/2 animate-[lummo-blink_1.06s_linear_infinite] bg-[#1d1d1f]"
         style={{ left: gap }}
       />
     </span>
@@ -407,7 +407,7 @@ function Row({ flip, index, row, selected }) {
     className: `relative mx-2 flex h-[46px] items-center gap-3 rounded-[9px] transition-colors duration-200 ${
       row.kind === "calc" ? "px-3" : "px-2.5"
     } ${selected ? "text-white" : "text-[#1d1d1f]"}`,
-    style: { animation: `lumio-row-in 280ms ${EASE_OUT} both` },
+    style: { animation: `lummo-row-in 280ms ${EASE_OUT} both` },
   };
   if (row.kind === "calc") {
     return (
@@ -453,7 +453,7 @@ function ReturnGlyph({ shown }) {
   );
 }
 
-/* Icons: Lumio draws files and symbols with Lucide (lucide.dev, ISC licence); apps show their own icon. */
+/* Icons: Lummo draws files and symbols with Lucide (lucide.dev, ISC licence); apps show their own icon. */
 
 function Glyph({ size, strokeWidth = 2, className, style, children }) {
   return (
@@ -480,7 +480,7 @@ const FILE_OUTLINE =
 const FILE_TINTS = { image: "#AF52DE", pdf: "#E5484D", document: "#2F80ED" };
 const ICON_FADE = "color 200ms ease, fill 200ms ease";
 
-/** Lumio's tile for an app without its own icon: a white symbol on a tinted gradient. */
+/** Lummo's tile for an app without its own icon: a white symbol on a tinted gradient. */
 function Tile({ from, to, children }) {
   return (
     <span

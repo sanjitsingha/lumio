@@ -9,7 +9,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Feature | Status | Notes |
 |---|---|---|
 | Spotlight window | ✅ | Opens, receives keyboard focus (Gala's input timestamp is used to satisfy focus-stealing prevention), closes on Esc or on blur. Gala centres new windows. The window has a fixed size and its input region is limited to the panel, so the empty area is click-through. |
-| Global shortcuts | ✅ | Via Gala's `GrabAccelerator` D-Bus API. **Alt+Space is reserved** by Gala's window menu; Lumio reports this and **Ctrl+Space** works by default. |
+| Global shortcuts | ✅ | Via Gala's `GrabAccelerator` D-Bus API. **Alt+Space is reserved** by Gala's window menu; Lummo reports this and **Ctrl+Space** works by default. |
 | App search and launch | ✅ | XDG desktop entries, Flatpak exports, icons from the elementary icon theme; launched through GIO. |
 | Web search | 🟡 | Browsers are the apps registered for `https` links (`g_app_info_get_all_for_type`); the search opens with `g_app_info_launch_uris`. |
 | App actions | 🟡 | The selected app's `[Desktop Action]` groups (*New Window*, *New Private Window*…) are listed below it and run through GIO (`g_desktop_app_info_launch_action`). |
@@ -25,7 +25,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Caps Lock indicator **at the pointer** | ✅ | Pointer position comes from XWayland (see [ARCHITECTURE](ARCHITECTURE.md#caps-lock-indicator)). It follows the pointer. While the indicator is visible, apps under a *moving* pointer may see brief hover enter/leave flicker; clicks are never blocked at the pointer. Turn off *Follow the pointer* to avoid this. |
 | No text cursor | ✅ | No indicator (it belongs to text fields). Where no floating indicator is possible at all, Gala's on-screen display is used. |
 | Repeated toggles | ✅ | 8 of 8 consecutive on/off toggles visible (0.1.3 showed only the first one, see [ARCHITECTURE](ARCHITECTURE.md#caps-lock-indicator)). |
-| System tray | ⚠️ | Stock elementary OS has no tray host, so no icon is shown. Install `wingpanel-indicator-ayatana` to get one. Opening Lumio from the Applications menu brings up Settings. |
+| System tray | ⚠️ | Stock elementary OS has no tray host, so no icon is shown. Install `wingpanel-indicator-ayatana` to get one. Opening Lummo from the Applications menu brings up Settings. |
 | Launch at login | ✅ | XDG autostart entry (`~/.config/autostart/com.lumio.desktop.desktop`). |
 | Light/dark/accent | ✅ | Follows the portal `color-scheme` and `accent-color` (elementary's accent). |
 
@@ -44,7 +44,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 ## Other Linux desktops
 
 - **GNOME/KDE on X11:** global shortcuts via `XGrabKey`. The indicator and search work as on X11 above.
-- **GNOME/KDE on Wayland:** GNOME Shell does not let ordinary apps use `GrabAccelerator`, so global shortcuts are unavailable. Bind a custom system shortcut to `lumio --toggle`. The Caps Lock indicator works through XWayland if it is running.
+- **GNOME/KDE on Wayland:** GNOME Shell does not let ordinary apps use `GrabAccelerator`, so global shortcuts are unavailable. Bind a custom system shortcut to `lummo --toggle`. The Caps Lock indicator works through XWayland if it is running.
 
 ## Windows 10 / 11
 
@@ -66,13 +66,13 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Tray | 🟡 | Standard notification-area icon and menu. |
 | Theme/accent | 🟡 | `AppsUseLightTheme` and `DwmGetColorizationColor`. |
 
-**Permissions:** none beyond a normal user account. Some antivirus products flag low-level keyboard hooks. Lumio's hook only looks for the Caps Lock key and does not record keystrokes.
+**Permissions:** none beyond a normal user account. Some antivirus products flag low-level keyboard hooks. Lummo's hook only looks for the Caps Lock key and does not record keystrokes.
 
 ## Known limitations
 
 - **The text cursor is only as good as the app's accessibility.** Apps that draw text themselves without accessibility (games, some terminals, Chromium/Electron without `--force-renderer-accessibility`) report no caret.
-- **Wayland pointer tracking needs XWayland.** If XWayland is disabled, Lumio uses the compositor OSD (on Gala) or reports the indicator as unavailable.
+- **Wayland pointer tracking needs XWayland.** If XWayland is disabled, Lummo uses the compositor OSD (on Gala) or reports the indicator as unavailable.
 - **The hole-tracking approach is a deliberate trade-off.** It is the only consent-free way to observe the pointer on Wayland without screen-capture permissions (which would show a "screen is being shared" indicator).
 - **Alt+Space cannot be the default on elementary OS** unless you rebind the window-menu shortcut in System Settings → Keyboard → Shortcuts.
-- **Gala keeps accelerator grabs if Lumio is killed (`kill -9`).** The next Lumio start re-adopts and releases them correctly; a normal quit always releases them.
+- **Gala keeps accelerator grabs if Lummo is killed (`kill -9`).** The next Lummo start re-adopts and releases them correctly; a normal quit always releases them.
 - **Indicator size on Wayland is in logical pixels**, because X clients render at 1× under XWayland. On 2× HiDPI the indicator is upscaled by the compositor.

@@ -16,7 +16,7 @@ pub mod windows;
 use self::windows as imp;
 
 #[cfg(not(any(target_os = "linux", windows)))]
-compile_error!("Lumio supports Linux and Windows only.");
+compile_error!("Lummo supports Linux and Windows only.");
 
 pub use imp::{appearance, apps, autostart, browser, capslock, caret, cursor, ime, launch, overlay, quick_actions};
 

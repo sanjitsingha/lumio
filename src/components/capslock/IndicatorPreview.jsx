@@ -46,7 +46,7 @@ function Indicator({ settings, dark, style }) {
 
 /**
  * Live preview: a sheet of paper being typed on, with the blinking text
- * cursor and the indicator where Lumio puts it (offsets match
+ * cursor and the indicator where Lummo puts it (offsets match
  * `place_at_caret`).
  */
 export function IndicatorPreview({ settings, dark }) {

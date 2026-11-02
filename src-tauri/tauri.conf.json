@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Lumio",
-  "mainBinaryName": "lumio",
+  "productName": "Lummo",
+  "mainBinaryName": "lummo",
   "identifier": "com.lumio.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -17,7 +17,7 @@
         "default-src": "'self' ipc: http://ipc.localhost",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: lumio-icon: http://lumio-icon.localhost",
+        "img-src": "'self' data: lummo-icon: http://lummo-icon.localhost",
         "font-src": "'self' data:",
         "connect-src": "ipc: http://ipc.localhost"
       },
@@ -31,10 +31,11 @@
       "appimage",
       "nsis"
     ],
+    "publisher": "Lummo",
     "category": "Productivity",
     "shortDescription": "Spotlight-style search and Caps Lock indicator",
-    "longDescription": "Lumio is a keyboard-first productivity utility with a Spotlight-style launcher for applications, files and quick actions, plus a Caps Lock indicator that appears next to the mouse pointer.",
-    "copyright": "Copyright © Lumio contributors",
+    "longDescription": "Lummo is a keyboard-first productivity utility with a Spotlight-style launcher for applications, files and quick actions, plus a Caps Lock indicator that appears next to the text cursor.",
+    "copyright": "Copyright © Lummo contributors",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,7 +45,12 @@
     ],
     "linux": {
       "deb": {
-        "section": "utils"
+        "section": "utils",
+        "conflicts": ["lumio"],
+        "replaces": ["lumio"],
+        "files": {
+          "/usr/bin/lumio": "linux/lumio-command.sh"
+        }
       }
     },
     "windows": {

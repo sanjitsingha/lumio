@@ -39,7 +39,7 @@ export default function GeneralPane({ onCheckUpdates }) {
         <ToggleRow
           label="Launch at startup"
           description={
-            platform?.os === "windows" ? "Start Lumio when you sign in to Windows." : "Start Lumio when you log in."
+            platform?.os === "windows" ? "Start Lummo when you sign in to Windows." : "Start Lummo when you log in."
           }
           checked={g.launchAtStartup}
           onChange={(v) => set({ launchAtStartup: v })}
@@ -49,21 +49,21 @@ export default function GeneralPane({ onCheckUpdates }) {
       <Group title="Updates">
         <ToggleRow
           label="Install updates automatically"
-          description="Install new versions without asking, then restart Lumio."
+          description="Install new versions without asking, then restart Lummo."
           checked={g.autoInstallUpdates}
           onChange={(v) => set({ autoInstallUpdates: v })}
         />
-        <Row label="Check now" description="Look for a newer version of Lumio.">
+        <Row label="Check now" description="Look for a newer version of Lummo.">
           <Button onClick={onCheckUpdates}>Check for Updates…</Button>
         </Row>
       </Group>
 
       <Group title="Maintenance">
-        <Row label="Clear cache" description="Lumio rebuilds its list of your files in the background.">
+        <Row label="Clear cache" description="Lummo rebuilds its list of your files in the background.">
           <Button
             busy={busy === "cache"}
             icon={Trash2}
-            onClick={() => run("cache", api.clearCache, "Cache cleared. Lumio is rebuilding it in the background.")}
+            onClick={() => run("cache", api.clearCache, "Cache cleared. Lummo is rebuilding it in the background.")}
           >
             Clear Cache
           </Button>
@@ -96,7 +96,7 @@ export default function GeneralPane({ onCheckUpdates }) {
       </Group>
 
       <Group>
-        <Row label="Quit Lumio" description="Stops Lumio completely and releases its global shortcuts.">
+        <Row label="Quit Lummo" description="Stops Lummo completely and releases its global shortcuts.">
           <Button variant="destructive" icon={Power} onClick={() => api.quitApp()}>
             Quit
           </Button>

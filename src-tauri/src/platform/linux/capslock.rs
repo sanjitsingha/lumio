@@ -104,7 +104,7 @@ fn start_xkb(on_change: StateCallback) -> Result<(), String> {
     let mut last = initial.locked_mods.contains(ModMask::LOCK);
     on_change(last);
     std::thread::Builder::new()
-        .name("lumio-capslock-xkb".into())
+        .name("lummo-capslock-xkb".into())
         .spawn(move || loop {
             match conn.wait_for_event() {
                 Ok(Event::XkbStateNotify(ev)) => {
@@ -130,7 +130,7 @@ fn start_led_poll(on_change: StateCallback, active: Arc<AtomicBool>) -> Result<(
     let mut last = read_leds(&paths).ok_or("no readable Caps Lock LED was found")?;
     on_change(last);
     std::thread::Builder::new()
-        .name("lumio-capslock-led".into())
+        .name("lummo-capslock-led".into())
         .spawn(move || {
             let mut rescanned = Instant::now();
             loop {

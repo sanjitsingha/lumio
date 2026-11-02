@@ -73,7 +73,7 @@ impl FileIndex {
     }
 
     /// Builds the indexing configuration from settings. `private_dirs` are
-    /// Lumio's own data folders, always excluded to avoid feedback loops.
+    /// Lummo's own data folders, always excluded to avoid feedback loops.
     pub fn config_from(settings: &SpotlightSettings, home: Option<&Path>, private_dirs: &[PathBuf]) -> IndexConfig {
         let mut exclusions = settings.exclusions.clone();
         exclusions.extend(private_dirs.iter().map(|p| p.to_string_lossy().into_owned()));
@@ -113,7 +113,7 @@ impl FileIndex {
                 *tx = Some(sender.clone());
                 let this = Arc::clone(self);
                 let spawned = std::thread::Builder::new()
-                    .name("lumio-file-index".into())
+                    .name("lummo-file-index".into())
                     .spawn(move || this.worker(sender, receiver));
                 if let Err(e) = spawned {
                     log::error!("could not start the file indexer: {e}");

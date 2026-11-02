@@ -12,7 +12,7 @@ export default function About({ updates }) {
     <>
       <div className="mt-4 mb-7 flex flex-col items-center text-center">
         <img src="/app-icon.svg" alt="" width={96} height={96} draggable={false} />
-        <h1 className="mt-3 text-[22px] font-semibold tracking-[-0.01em] text-label">{info?.appName ?? "Lumio"}</h1>
+        <h1 className="mt-3 text-[22px] font-semibold tracking-[-0.01em] text-label">{info?.appName ?? "Lummo"}</h1>
         <p className="text-[12.5px] text-secondary">Version {info?.version ?? "…"}</p>
         <p className="mt-2 max-w-[380px] text-[12.5px] leading-[17px] text-secondary">
           {info?.description ?? "Spotlight-style search and a cursor-anchored Caps Lock indicator."}

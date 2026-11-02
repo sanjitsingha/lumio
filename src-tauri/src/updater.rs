@@ -1,7 +1,7 @@
 //! In-app updates from signed GitHub releases.
 //!
 //! Releases are built by `.github/workflows/release.yml`, which uploads the
-//! installers, their minisign signatures and a `latest.json` manifest. Lumio
+//! installers, their minisign signatures and a `latest.json` manifest. Lummo
 //! reads `https://github.com/<owner>/<repo>/releases/latest/download/latest.json`
 //! (derived from `repository` in Cargo.toml), downloads the artifact matching
 //! how it was installed (NSIS `.exe`, `.deb` or AppImage), verifies it against
@@ -23,7 +23,7 @@ use crate::storage::history::now_secs;
 
 /// Overrides the release feed, e.g. `http://127.0.0.1:8765/latest.json` for
 /// local testing (plain http is only accepted by debug builds).
-pub const ENDPOINT_ENV: &str = "LUMIO_UPDATE_ENDPOINT";
+pub const ENDPOINT_ENV: &str = "LUMMO_UPDATE_ENDPOINT";
 const FIRST_CHECK_DELAY: Duration = Duration::from_secs(30);
 const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 3600);
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(120);
@@ -107,7 +107,7 @@ fn install_support() -> (bool, Option<String>) {
             false,
             Some(
                 "This is a development build: updates can be checked and downloaded here, but they install only into \
-                 an installed copy of Lumio (.exe installer, .deb or AppImage)."
+                 an installed copy of Lummo (.exe installer, .deb or AppImage)."
                     .into(),
             ),
         );
@@ -120,7 +120,7 @@ fn install_support() -> (bool, Option<String>) {
         }
         _ => (
             false,
-            Some("This copy of Lumio was not installed from a package, so it cannot update itself. Download the \
+            Some("This copy of Lummo was not installed from a package, so it cannot update itself. Download the \
                   latest release instead."
                 .into()),
         ),
@@ -209,7 +209,7 @@ impl UpdateService {
             .and_then(|b| {
                 b.timeout(Duration::from_secs(30))
                     .on_before_exit(move || {
-                        // the Windows installer replaces Lumio right after this
+                        // the Windows installer replaces Lummo right after this
                         if let Some(state) = handle.try_state::<AppState>() {
                             state.shortcuts.shutdown();
                         }
@@ -236,7 +236,7 @@ impl UpdateService {
                 log::info!("update available: {} -> {}", u.current_version, u.version);
                 Phase::Available
             } else {
-                log::info!("Lumio is up to date");
+                log::info!("Lummo is up to date");
                 Phase::UpToDate
             }
         };
@@ -283,7 +283,7 @@ impl UpdateService {
         }
     }
 
-    /// Installs the downloaded update and restarts Lumio.
+    /// Installs the downloaded update and restarts Lummo.
     pub async fn install(&self, app: &AppHandle) -> AppResult<()> {
         let (can_install, note) = install_support();
         if !can_install {
@@ -330,7 +330,7 @@ fn relaunch_after_update(app: &AppHandle) {
     {
         let exe = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from).or_else(|| {
             std::env::current_exe().ok().map(|p| {
-                // the replaced binary shows up as "/usr/bin/lumio (deleted)"
+                // the replaced binary shows up as "/usr/bin/lummo (deleted)"
                 let s = p.to_string_lossy();
                 std::path::PathBuf::from(s.strip_suffix(" (deleted)").unwrap_or(&s).to_string())
             })
@@ -342,13 +342,13 @@ fn relaunch_after_update(app: &AppHandle) {
                     .arg(std::process::id().to_string())
                     .spawn()
                 {
-                    log::error!("could not start the updated Lumio ({}): {e}", exe.display());
+                    log::error!("could not start the updated Lummo ({}): {e}", exe.display());
                 }
             }
-            None => log::error!("could not determine Lumio's executable to restart"),
+            None => log::error!("could not determine Lummo's executable to restart"),
         }
     }
-    // On Windows the installer has already been started and restarts Lumio itself.
+    // On Windows the installer has already been started and restarts Lummo itself.
     app.exit(0);
 }
 
@@ -361,7 +361,7 @@ pub fn notify(app: &AppHandle, title: &str, body: &str) {
 /// Background checks: shortly after startup, then every few hours.
 pub fn start_background_checks(app: &AppHandle) {
     let app = app.clone();
-    let spawned = std::thread::Builder::new().name("lumio-updates".into()).spawn(move || {
+    let spawned = std::thread::Builder::new().name("lummo-updates".into()).spawn(move || {
         std::thread::sleep(FIRST_CHECK_DELAY);
         loop {
             let Some(state) = app.try_state::<AppState>() else { return };
@@ -371,15 +371,15 @@ pub fn start_background_checks(app: &AppHandle) {
                 if let Ok(status) = found {
                     if let (Phase::Available, Some(latest)) = (&status.phase, &status.latest) {
                         if general.auto_install_updates && status.can_install {
-                            notify(&app, "Updating Lumio", &format!("Installing version {}…", latest.version));
+                            notify(&app, "Updating Lummo", &format!("Installing version {}…", latest.version));
                             if let Err(e) = tauri::async_runtime::block_on(state.updates.install(&app)) {
                                 log::error!("automatic update failed: {e}");
                             }
                         } else if state.updates.should_notify(&latest.version) {
                             notify(
                                 &app,
-                                &format!("Lumio {} is available", latest.version),
-                                "Open Lumio Settings → About to install it.",
+                                &format!("Lummo {} is available", latest.version),
+                                "Open Lummo Settings → About to install it.",
                             );
                         }
                     }
@@ -393,7 +393,7 @@ pub fn start_background_checks(app: &AppHandle) {
     }
 }
 
-/// Used by `lumio --after-update <pid>`: wait until the previous process has exited.
+/// Used by `lummo --after-update <pid>`: wait until the previous process has exited.
 pub fn wait_for_previous_instance(pid: u32) {
     #[cfg(target_os = "linux")]
     {
@@ -413,13 +413,13 @@ mod tests {
 
     #[test]
     fn parses_github_repository_urls() {
-        assert_eq!(parse_github_repo("https://github.com/acme/lumio"), Some(("acme".into(), "lumio".into())));
-        assert_eq!(parse_github_repo("https://github.com/acme/lumio.git"), Some(("acme".into(), "lumio".into())));
-        assert_eq!(parse_github_repo("https://github.com/acme/lumio/"), Some(("acme".into(), "lumio".into())));
+        assert_eq!(parse_github_repo("https://github.com/acme/lummo"), Some(("acme".into(), "lummo".into())));
+        assert_eq!(parse_github_repo("https://github.com/acme/lummo.git"), Some(("acme".into(), "lummo".into())));
+        assert_eq!(parse_github_repo("https://github.com/acme/lummo/"), Some(("acme".into(), "lummo".into())));
         assert_eq!(parse_github_repo("https://github.com/acme"), None);
-        assert_eq!(parse_github_repo("https://github.com/acme/lumio/tree/main"), None);
-        assert_eq!(parse_github_repo("https://gitlab.com/acme/lumio"), None);
-        assert_eq!(parse_github_repo("https://github.com/ac me/lumio"), None);
+        assert_eq!(parse_github_repo("https://github.com/acme/lummo/tree/main"), None);
+        assert_eq!(parse_github_repo("https://gitlab.com/acme/lummo"), None);
+        assert_eq!(parse_github_repo("https://github.com/ac me/lummo"), None);
         assert_eq!(parse_github_repo(""), None);
     }
 

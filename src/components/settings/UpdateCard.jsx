@@ -46,21 +46,21 @@ export function UpdateCard({ updates }) {
     title = "Checking for updates…";
   } else if (phase === "upToDate") {
     icon = <CircleCheck size={16} className="text-success" />;
-    title = `Lumio ${status.currentVersion} is up to date`;
+    title = `Lummo ${status.currentVersion} is up to date`;
   } else if (phase === "available" || phase === "ready") {
     icon = <Sparkles size={16} className="text-accent" />;
-    title = `Lumio ${latest?.version} is available`;
+    title = `Lummo ${latest?.version} is available`;
     detail = `You have ${status.currentVersion}${latest?.date ? ` · released ${latest.date}` : ""}.`;
   } else if (phase === "downloading") {
     icon = <LoaderCircle size={16} className="animate-spin text-accent" />;
-    title = `Downloading Lumio ${latest?.version}…`;
+    title = `Downloading Lummo ${latest?.version}…`;
     detail = status.phase.total
       ? `${formatBytes(status.phase.downloaded)} of ${formatBytes(status.phase.total)}`
       : formatBytes(status.phase.downloaded);
   } else if (phase === "installing") {
     icon = <LoaderCircle size={16} className="animate-spin text-accent" />;
-    title = `Installing Lumio ${latest?.version}…`;
-    detail = "Lumio will restart when the installation finishes.";
+    title = `Installing Lummo ${latest?.version}…`;
+    detail = "Lummo will restart when the installation finishes.";
   } else if (phase === "error") {
     icon = <CircleAlert size={16} className="text-danger" />;
     title = "Update failed";

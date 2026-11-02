@@ -37,14 +37,14 @@ impl Default for Settings {
     }
 }
 
-/// Lumio always runs in the background (started at login it stays hidden,
+/// Lummo always runs in the background (started at login it stays hidden,
 /// closing Settings keeps it running), shows its tray icon where the desktop
 /// has a tray, and checks for updates: these are not settings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GeneralSettings {
     pub launch_at_startup: bool,
-    /// Download and install found updates without asking, then restart Lumio.
+    /// Download and install found updates without asking, then restart Lummo.
     pub auto_install_updates: bool,
 }
 

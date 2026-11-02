@@ -21,7 +21,7 @@ export default function App() {
   if (error && windowLabel === "settings") {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center text-[13px] text-secondary">
-        Lumio could not load its settings: {error.message || String(error)}
+        Lummo could not load its settings: {error.message || String(error)}
       </div>
     );
   }

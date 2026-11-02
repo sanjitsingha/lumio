@@ -1,4 +1,4 @@
-//! Lumio: a keyboard-first productivity utility (Spotlight-style search and a
+//! Lummo: a keyboard-first productivity utility (Spotlight-style search and a
 //! cursor-anchored Caps Lock indicator) for Linux and Windows.
 
 mod app_state;
@@ -82,7 +82,7 @@ fn choose_shortcut_backend(app: &AppHandle, plugin_map: PluginShortcutMap, plugi
         None,
         Some(
             "This Wayland desktop does not let applications register global shortcuts. Add a custom keyboard \
-             shortcut in your system settings that runs the command “lumio --toggle”."
+             shortcut in your system settings that runs the command “lummo --toggle”."
                 .into(),
         ),
     )
@@ -99,11 +99,11 @@ fn handle_launch(app: &AppHandle, launch: cli::Launch, secondary: bool) {
         cli::Launch::Updated => {
             let version = app.package_info().version.to_string();
             log::info!("restarted after updating to {version}");
-            updater::notify(app, "Lumio was updated", &format!("You're now running version {version}."));
+            updater::notify(app, "Lummo was updated", &format!("You're now running version {version}."));
         }
         // started at login: stay in the background
         cli::Launch::Autostart => {}
-        // opening Lumio from the app menu brings up Settings (there is no tray on stock elementary OS)
+        // opening Lummo from the app menu brings up Settings (there is no tray on stock elementary OS)
         cli::Launch::Manual => window_manager::open_settings(app, None),
     }
 }
@@ -111,7 +111,7 @@ fn handle_launch(app: &AppHandle, launch: cli::Launch, secondary: bool) {
 fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMap, plugin_loaded: bool) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     if launch.requires_running_instance() {
-        // e.g. `lumio --quit` with nothing running: never become the main instance
+        // e.g. `lummo --quit` with nothing running: never become the main instance
         handle.exit(0);
         return Ok(());
     }
@@ -209,7 +209,7 @@ pub fn run() {
     let log_plugin = tauri_plugin_log::Builder::new()
         .targets([
             Target::new(TargetKind::Stdout),
-            Target::new(TargetKind::LogDir { file_name: Some("lumio".into()) }),
+            Target::new(TargetKind::LogDir { file_name: Some("lummo".into()) }),
         ])
         .level(log_level())
         .level_for("tao", log::LevelFilter::Warn)
@@ -296,14 +296,14 @@ pub fn run() {
     let app = match app {
         Ok(app) => app,
         Err(e) => {
-            eprintln!("Lumio failed to start: {e}");
+            eprintln!("Lummo failed to start: {e}");
             std::process::exit(1);
         }
     };
 
     app.run(|app, event| match event {
         RunEvent::ExitRequested { code: None, api, .. } => {
-            // last window closed: Lumio keeps running in the background
+            // last window closed: Lummo keeps running in the background
             api.prevent_exit();
         }
         RunEvent::Exit => {
@@ -318,10 +318,10 @@ pub fn run() {
     });
 }
 
-/// `LUMIO_LOG=debug` (or `trace`, `warn`, …) overrides the default level:
+/// `LUMMO_LOG=debug` (or `trace`, `warn`, …) overrides the default level:
 /// debug in development builds, info in releases.
 fn log_level() -> log::LevelFilter {
-    std::env::var("LUMIO_LOG")
+    std::env::var("LUMMO_LOG")
         .ok()
         .and_then(|v| v.trim().parse().ok())
         .unwrap_or(if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info })

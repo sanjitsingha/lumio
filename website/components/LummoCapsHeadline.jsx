@@ -7,10 +7,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 /*
- * A headline that types itself, with Lumio's Caps Lock indicator under the
+ * A headline that types itself, with Lummo's Caps Lock indicator under the
  * text cursor: it pops in when Caps Lock goes on, glides along as the capitals
  * are typed, and shows "off" for a moment when Caps Lock goes off. Artwork,
- * placement and timings are the app's (src-tauri/src/capslock in the Lumio repo).
+ * placement and timings are the app's (src-tauri/src/capslock in the Lummo repo).
  */
 
 const HEADLINE = "get spotlight search and a caps lock indicator";
@@ -25,17 +25,17 @@ const plain = (line) => line.map((part) => (typeof part === "string" ? part : pa
 
 /** The indicator's size, relative to the headline's font size. */
 const INDICATOR_EM = 0.8;
-/** Lumio's "Normal" animation speed, and how long "off" stays up. */
+/** Lummo's "Normal" animation speed, and how long "off" stays up. */
 const ANIMATION_MS = 170;
 const OFF_FLASH_MS = 900;
-/** How quickly the indicator catches up with the cursor (Lumio: 0.4 × the animation time). */
+/** How quickly the indicator catches up with the cursor (Lummo: 0.4 × the animation time). */
 const GLIDE_S = 0.07;
 
 /** Milliseconds before the next character: a little uneven, like a person typing. */
 const RHYTHM = [0, 30, -15, 45, 10, -20, 60, 5, -10, 35];
 const typingDelay = (char, i) => 85 + RHYTHM[i % RHYTHM.length] + (char === " " ? 50 : 0);
 
-export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indicator = "dark" }) {
+export default function LummoCapsHeadline({ as: Tag = "h1", className = "", indicator = "dark" }) {
   const root = useRef(null);
   const caret = useRef(null);
   const [active, setActive] = useState(false);
@@ -48,7 +48,7 @@ export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indi
   const [target, setTarget] = useState(null);
   const glide = useGlide(target, appearance);
 
-  // where the indicator goes: Lumio's "near" placement, 6 px below the cursor and 4 px left of it (for a 40 px body)
+  // where the indicator goes: Lummo's "near" placement, 6 px below the cursor and 4 px left of it (for a 40 px body)
   const measure = useCallback(() => {
     const c = caret.current;
     if (!c) return;
@@ -106,7 +106,7 @@ export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indi
           if (withCaps) {
             await wait(160);
             setCaps("off");
-            // like Lumio: "off" shows briefly, then the indicator fades away
+            // like Lummo: "off" shows briefly, then the indicator fades away
             later(() => setCaps((c) => (c === "off" ? "hidden" : c)), OFF_FLASH_MS);
           }
         }
@@ -142,7 +142,7 @@ export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indi
             ref={caret}
             key={text}
             className="ml-[0.04em] inline-block h-[1.05em] w-[0.055em] rounded-full bg-[#c7c7cc] align-[-0.2em]"
-            style={{ animation: "lumio-caret 1.06s linear infinite" }}
+            style={{ animation: "lummo-caret 1.06s linear infinite" }}
           />
         </span>
       </Tag>
@@ -162,7 +162,7 @@ export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indi
                 background: dark ? "rgba(40,40,44,0.96)" : "rgba(252,252,253,0.97)",
                 border: `1px solid ${dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.09)"}`,
                 boxShadow: dark ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(0,0,0,0.16)",
-                animation: `lumio-pop ${ANIMATION_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
+                animation: `lummo-pop ${ANIMATION_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
               }}
             >
               <CapsLockGlyph on={caps === "on"} dark={dark} size={size} />
@@ -172,14 +172,14 @@ export default function LumioCapsHeadline({ as: Tag = "h1", className = "", indi
       </div>
 
       <style>{`
-        @keyframes lumio-caret { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
-        @keyframes lumio-pop { from { opacity: 0; transform: scale(0.86) } to { opacity: 1; transform: scale(1) } }
+        @keyframes lummo-caret { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
+        @keyframes lummo-pop { from { opacity: 0; transform: scale(0.86) } to { opacity: 1; transform: scale(1) } }
       `}</style>
     </div>
   );
 }
 
-/** The ⇪ glyph and its "LED", as Lumio draws them; on/off cross-fades. */
+/** The ⇪ glyph and its "LED", as Lummo draws them; on/off cross-fades. */
 function CapsLockGlyph({ on, dark, size }) {
   const glyph = dark ? "#F5F5F7" : "#1D1D1F";
   const led = on ? (dark ? "#30D158" : "#28BE50") : dark ? "rgba(152,152,157,0.55)" : "rgba(134,134,139,0.55)";
@@ -204,7 +204,7 @@ function CapsLockGlyph({ on, dark, size }) {
 }
 
 /**
- * Moves the returned element toward `target` on Lumio's glide: a critically
+ * Moves the returned element toward `target` on Lummo's glide: a critically
  * damped spring that starts gently, never overshoots, and keeps its momentum
  * when the next keystroke moves the cursor again. A new `appearance` starts
  * exactly at the target.
@@ -253,7 +253,7 @@ const place = (node, p) => {
   if (node) node.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
 };
 
-/** Lumio's `smooth_damp` (src-tauri/src/capslock/mod.rs). */
+/** Lummo's `smooth_damp` (src-tauri/src/capslock/mod.rs). */
 function smoothDamp(current, target, vel, axis, dt) {
   const omega = 2 / GLIDE_S;
   const x = omega * dt;
