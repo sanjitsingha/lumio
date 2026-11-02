@@ -27,7 +27,6 @@ pub struct AppState {
     pub capslock: Arc<CapsLockController>,
     pub updates: Arc<crate::updater::UpdateService>,
     pub platform: PlatformInfo,
-    pub started: std::time::Instant,
 }
 
 impl AppState {
@@ -124,15 +123,15 @@ fn apply_side_effects(app: &AppHandle, state: &AppState, old: &Settings, new: &S
     if old.caps_lock != new.caps_lock {
         state.capslock.update_settings(new.caps_lock.clone());
     }
+    if old.appearance.theme != new.appearance.theme {
+        state.capslock.set_theme(new.appearance.theme);
+    }
     if old.caps_lock.enabled != new.caps_lock.enabled {
         crate::tray::set_caps_checked(app, new.caps_lock.enabled);
     }
     let (old_cfg, new_cfg) = (index_config(state, old), index_config(state, new));
     if old_cfg != new_cfg || files_enabled(old) != files_enabled(new) {
         state.engine.files.configure(new_cfg, files_enabled(new));
-    }
-    if old.general.show_tray_icon != new.general.show_tray_icon {
-        crate::tray::sync(app, new);
     }
     if !new.spotlight.enabled {
         crate::window_manager::hide_spotlight(app);

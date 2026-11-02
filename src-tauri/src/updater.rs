@@ -366,7 +366,7 @@ pub fn start_background_checks(app: &AppHandle) {
         loop {
             let Some(state) = app.try_state::<AppState>() else { return };
             let general = state.settings().general;
-            if general.check_for_updates && state.updates.status().configured {
+            if state.updates.status().configured {
                 let found = tauri::async_runtime::block_on(state.updates.check(&app));
                 if let Ok(status) = found {
                     if let (Phase::Available, Some(latest)) = (&status.phase, &status.latest) {

@@ -132,7 +132,7 @@ When the workflow finishes, installed copies notice the update (at the next 6-ho
 
 **Settings → General**:
 
-- *Automatically check for updates* (on by default) notifies you when a release appears.
+- Lumio checks for updates shortly after it starts and every few hours, and notifies you when a release appears.
 - *Install updates automatically* installs it without asking.
 
 **Manual update** is always possible: About → **Release Page** opens the latest GitHub release, where you can download the installer yourself.

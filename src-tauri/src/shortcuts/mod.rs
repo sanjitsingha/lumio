@@ -340,26 +340,29 @@ mod tests {
         s.parse().unwrap()
     }
 
+    /// The Spotlight shortcut's default on this platform.
+    fn default_shortcut() -> &'static str {
+        actions::SLOTS[0].default.unwrap()
+    }
+
     #[test]
     fn applies_default_bindings() {
         let (m, backend) = manager(&[]);
         m.apply(&defaults());
         let reg = backend.registered.lock().unwrap().clone();
-        assert!(reg.contains(&acc("Alt+Space")) && reg.contains(&acc("Ctrl+Space")));
+        assert!(reg.contains(&acc(default_shortcut())) && reg.len() == 1);
         let report = m.report();
         assert!(report.slots.iter().filter(|s| s.accelerator.is_some()).all(|s| s.registered));
     }
 
     #[test]
     fn os_conflicts_are_reported_per_slot() {
-        let (m, _) = manager(&["Alt+Space"]);
+        let (m, _) = manager(&[default_shortcut()]);
         m.apply(&defaults());
         let report = m.report();
         let primary = report.slots.iter().find(|s| s.id == "spotlight.toggle").unwrap();
         assert!(!primary.registered);
         assert_eq!(primary.error.as_ref().unwrap().code, "conflict");
-        let alt = report.slots.iter().find(|s| s.id == "spotlight.toggleAlternate").unwrap();
-        assert!(alt.registered && alt.error.is_none());
     }
 
     #[test]
@@ -370,7 +373,7 @@ mod tests {
         let saved = m.set_binding("spotlight.toggle", Some("ctrl+alt+k")).unwrap();
         assert_eq!(saved.as_deref(), Some("Ctrl+Alt+K"));
         let calls = backend.calls.lock().unwrap().clone();
-        assert_eq!(calls, vec!["+Ctrl+Alt+K", "-Alt+Space"]);
+        assert_eq!(calls, vec!["+Ctrl+Alt+K".to_string(), format!("-{}", default_shortcut())]);
     }
 
     #[test]
@@ -379,17 +382,16 @@ mod tests {
         m.apply(&defaults());
         let e = m.set_binding("spotlight.toggle", Some("Ctrl+Alt+T")).unwrap_err();
         assert_eq!(e.code(), "conflict");
-        assert!(backend.registered.lock().unwrap().contains(&acc("Alt+Space")));
-        assert_eq!(m.report().slots[0].accelerator.as_deref(), Some("Alt+Space"));
+        assert!(backend.registered.lock().unwrap().contains(&acc(default_shortcut())));
+        assert_eq!(m.report().slots[0].accelerator.as_deref(), Some(default_shortcut()));
     }
 
     #[test]
-    fn rejects_duplicates_and_invalid_shortcuts() {
+    fn rejects_invalid_shortcuts() {
         let (m, _) = manager(&[]);
         m.apply(&defaults());
-        assert_eq!(m.set_binding("settings.open", Some("Ctrl+Space")).unwrap_err().code(), "duplicate");
-        assert_eq!(m.set_binding("settings.open", Some("Q")).unwrap_err().code(), "invalid-shortcut");
-        assert_eq!(m.set_binding("settings.open", Some("Ctrl+Nope")).unwrap_err().code(), "invalid-shortcut");
+        assert_eq!(m.set_binding("spotlight.toggle", Some("Q")).unwrap_err().code(), "invalid-shortcut");
+        assert_eq!(m.set_binding("spotlight.toggle", Some("Ctrl+Nope")).unwrap_err().code(), "invalid-shortcut");
         assert_eq!(m.set_binding("no.such.slot", Some("Ctrl+K")).unwrap_err().code(), "invalid-shortcut");
     }
 
@@ -397,8 +399,8 @@ mod tests {
     fn clearing_a_binding_unregisters_it() {
         let (m, backend) = manager(&[]);
         m.apply(&defaults());
-        assert_eq!(m.set_binding("spotlight.toggleAlternate", None).unwrap(), None);
-        assert!(!backend.registered.lock().unwrap().contains(&acc("Ctrl+Space")));
+        assert_eq!(m.set_binding("spotlight.toggle", None).unwrap(), None);
+        assert!(!backend.registered.lock().unwrap().contains(&acc(default_shortcut())));
     }
 
     #[test]
@@ -408,17 +410,17 @@ mod tests {
         m.suspend();
         assert!(backend.registered.lock().unwrap().is_empty());
         assert!(m.report().recording);
-        assert!(m.resolve_activation(acc("Alt+Space")).is_none());
+        assert!(m.resolve_activation(acc(default_shortcut())).is_none());
         m.resume();
-        assert_eq!(backend.registered.lock().unwrap().len(), 2);
+        assert_eq!(backend.registered.lock().unwrap().len(), 1);
     }
 
     #[test]
     fn activation_resolves_slot_and_ignores_auto_repeat() {
         let (m, _) = manager(&[]);
         m.apply(&defaults());
-        assert_eq!(m.resolve_activation(acc("Ctrl+Space")).unwrap().id, "spotlight.toggleAlternate");
-        assert!(m.resolve_activation(acc("Ctrl+Space")).is_none(), "repeat within guard window");
+        assert_eq!(m.resolve_activation(acc(default_shortcut())).unwrap().id, "spotlight.toggle");
+        assert!(m.resolve_activation(acc(default_shortcut())).is_none(), "repeat within guard window");
         assert!(m.resolve_activation(acc("Ctrl+Shift+Q")).is_none(), "not bound");
     }
 
@@ -437,6 +439,6 @@ mod tests {
         let report = m.report();
         assert!(!report.available);
         assert!(report.slots.iter().filter(|s| s.accelerator.is_some()).all(|s| s.error.as_ref().unwrap().code == "unavailable"));
-        assert_eq!(m.set_binding("settings.open", Some("Ctrl+Alt+K")).unwrap_err().code(), "unavailable");
+        assert_eq!(m.set_binding("spotlight.toggle", Some("Ctrl+Alt+K")).unwrap_err().code(), "unavailable");
     }
 }

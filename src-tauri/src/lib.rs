@@ -20,7 +20,6 @@ mod updater;
 mod window_manager;
 
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use tauri::{AppHandle, Manager, RunEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -60,13 +59,6 @@ fn run_shortcut_action(app: &AppHandle, accel: Accelerator, timestamp: Option<u3
     log::debug!("shortcut {accel} -> {}", slot.id);
     match slot.action {
         ShortcutAction::ToggleSpotlight => window_manager::toggle_spotlight(app, timestamp),
-        ShortcutAction::OpenSettings => window_manager::open_settings(app, None),
-        ShortcutAction::ToggleCapsLockIndicator => {
-            let enabled = !state.settings().caps_lock.enabled;
-            if let Err(e) = app_state::update_settings(app, &serde_json::json!({ "capsLock": { "enabled": enabled } })) {
-                log::error!("could not toggle the Caps Lock indicator: {e}");
-            }
-        }
     }
 }
 
@@ -109,12 +101,8 @@ fn handle_launch(app: &AppHandle, launch: cli::Launch, secondary: bool) {
             log::info!("restarted after updating to {version}");
             updater::notify(app, "Lumio was updated", &format!("You're now running version {version}."));
         }
-        cli::Launch::Autostart => {
-            let start_minimized = app.state::<AppState>().settings().general.start_minimized;
-            if !start_minimized {
-                window_manager::open_settings(app, None);
-            }
-        }
+        // started at login: stay in the background
+        cli::Launch::Autostart => {}
         // opening Lumio from the app menu brings up Settings (there is no tray on stock elementary OS)
         cli::Launch::Manual => window_manager::open_settings(app, None),
     }
@@ -160,7 +148,7 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
         log::warn!("global shortcuts unavailable");
     }
     let shortcuts = Arc::new(ShortcutManager::new(backend, unavailable));
-    let capslock = CapsLockController::start(handle.clone(), settings.caps_lock.clone());
+    let capslock = CapsLockController::start(handle.clone(), settings.caps_lock.clone(), settings.appearance.theme);
     let platform = platform::info();
     log::info!(
         "platform: {} (version {}) session={:?} desktop={:?} tray={}",
@@ -181,7 +169,6 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
         capslock,
         updates: Arc::new(updater::UpdateService::new(handle.package_info().version.to_string())),
         platform,
-        started: Instant::now(),
     });
 
     #[cfg(target_os = "linux")]
@@ -290,13 +277,9 @@ pub fn run() {
             commands::shortcuts::reset_shortcuts,
             commands::shortcuts::validate_shortcut,
             commands::capslock::get_capslock_support,
-            commands::capslock::preview_capslock_indicator,
             commands::system::get_platform_info,
             commands::system::get_system_appearance,
             commands::system::get_browsers,
-            commands::system::get_diagnostics,
-            commands::system::read_log_tail,
-            commands::system::open_log_folder,
             commands::system::clear_cache,
             commands::system::open_repository,
             commands::system::quit_app,
@@ -320,10 +303,8 @@ pub fn run() {
 
     app.run(|app, event| match event {
         RunEvent::ExitRequested { code: None, api, .. } => {
-            // last window closed: stay resident when running in the background
-            if app.try_state::<AppState>().is_some_and(|s| s.settings().general.run_in_background) {
-                api.prevent_exit();
-            }
+            // last window closed: Lumio keeps running in the background
+            api.prevent_exit();
         }
         RunEvent::Exit => {
             if let Some(state) = app.try_state::<AppState>() {

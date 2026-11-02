@@ -31,15 +31,11 @@ export const api = {
 
   // caps lock
   getCapsLockSupport: () => invoke("get_capslock_support"),
-  previewCapsLock: (on = true) => invoke("preview_capslock_indicator", { on }),
 
   // system
   getPlatformInfo: () => invoke("get_platform_info"),
   getSystemAppearance: () => invoke("get_system_appearance"),
   getBrowsers: () => invoke("get_browsers"),
-  getDiagnostics: () => invoke("get_diagnostics"),
-  readLogTail: (lines = 200) => invoke("read_log_tail", { lines }),
-  openLogFolder: () => invoke("open_log_folder"),
   clearCache: () => invoke("clear_cache"),
   openRepository: () => invoke("open_repository"),
   quitApp: () => invoke("quit_app"),

@@ -17,8 +17,6 @@ pub struct ArgbContext {
     pub root: Window,
     pub visual: Visualid,
     pub colormap: u32,
-    pub width: u16,
-    pub height: u16,
 }
 
 pub fn err(e: impl std::fmt::Display) -> String {
@@ -30,7 +28,7 @@ impl ArgbContext {
     pub fn connect() -> Result<Self, String> {
         let (conn, screen) = x11rb::connect(None).map_err(|e| format!("cannot reach the X server ({e})"))?;
         let s = conn.setup().roots.get(screen).ok_or("X11 screen not found")?;
-        let (root, width, height) = (s.root, s.width_in_pixels, s.height_in_pixels);
+        let root = s.root;
         let visual = s
             .allowed_depths
             .iter()
@@ -41,7 +39,7 @@ impl ArgbContext {
             .ok_or("the X server has no 32-bit visual for transparent windows")?;
         let colormap = conn.generate_id().map_err(err)?;
         conn.create_colormap(ColormapAlloc::NONE, colormap, root, visual).map_err(err)?;
-        Ok(Self { conn, screen, root, visual, colormap, width, height })
+        Ok(Self { conn, screen, root, visual, colormap })
     }
 
     /// An override-redirect (unmanaged: never focused, decorated or listed)
@@ -100,44 +98,5 @@ impl ArgbContext {
 
     pub fn has_shape(&self) -> bool {
         self.conn.extension_information(shape::X11_EXTENSION_NAME).ok().flatten().is_some()
-    }
-}
-
-/// Input region covering the whole `w`x`h` area except a square of radius
-/// `r` around `(cx, cy)`.
-pub fn rects_with_hole(w: i32, h: i32, cx: i32, cy: i32, r: i32) -> Vec<Rectangle> {
-    let (x0, y0) = ((cx - r).clamp(0, w), (cy - r).clamp(0, h));
-    let (x1, y1) = ((cx + r).clamp(0, w), (cy + r).clamp(0, h));
-    let rect = |x: i32, y: i32, rw: i32, rh: i32| Rectangle { x: x as i16, y: y as i16, width: rw.max(0) as u16, height: rh.max(0) as u16 };
-    [rect(0, 0, w, y0), rect(0, y1, w, h - y1), rect(0, y0, x0, y1 - y0), rect(x1, y0, w - x1, y1 - y0)]
-        .into_iter()
-        .filter(|r| r.width > 0 && r.height > 0)
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn covers(rects: &[Rectangle], x: i32, y: i32) -> bool {
-        rects.iter().any(|r| x >= r.x as i32 && y >= r.y as i32 && x < r.x as i32 + r.width as i32 && y < r.y as i32 + r.height as i32)
-    }
-
-    #[test]
-    fn hole_leaves_pointer_area_click_through() {
-        let rects = rects_with_hole(1920, 1080, 500, 400, 40);
-        assert!(!covers(&rects, 500, 400), "pointer hot spot passes clicks through");
-        assert!(!covers(&rects, 539, 439));
-        assert!(covers(&rects, 541, 400) && covers(&rects, 500, 441) && covers(&rects, 0, 0) && covers(&rects, 1919, 1079));
-        let area: i64 = rects.iter().map(|r| r.width as i64 * r.height as i64).sum();
-        assert_eq!(area, 1920 * 1080 - 80 * 80, "no overlaps, no gaps");
-    }
-
-    #[test]
-    fn hole_is_clamped_at_screen_edges() {
-        let rects = rects_with_hole(1920, 1080, 5, 5, 40);
-        assert!(!covers(&rects, 0, 0));
-        let area: i64 = rects.iter().map(|r| r.width as i64 * r.height as i64).sum();
-        assert_eq!(area, 1920 * 1080 - 45 * 45);
     }
 }

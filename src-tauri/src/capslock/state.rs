@@ -104,11 +104,6 @@ impl IndicatorState {
         }
     }
 
-    /// Shows a sample of the indicator (Settings "Preview" button).
-    pub fn preview(&mut self, on: bool, now: Instant) -> Command {
-        self.show(on, Some(now + Duration::from_millis(1800)))
-    }
-
     fn show(&mut self, on: bool, hide_at: Option<Instant>) -> Command {
         self.visible = Some(on);
         self.hide_at = hide_at;
@@ -254,11 +249,4 @@ mod tests {
         assert_eq!(s.on_settings(t0, &persistent), Command::Show { on: true });
     }
 
-    #[test]
-    fn preview_shows_requested_state_temporarily() {
-        let t0 = Instant::now();
-        let mut s = IndicatorState::default();
-        assert_eq!(s.preview(true, t0), Command::Show { on: true });
-        assert_eq!(s.on_tick(t0 + Duration::from_secs(2)), Command::Hide);
-    }
 }

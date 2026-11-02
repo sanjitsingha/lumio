@@ -1,13 +1,11 @@
-import { ArrowBigUpDash, Info, Keyboard, Paintbrush, Search, Settings, Wrench } from "lucide-react";
+import { ArrowBigUpDash, Info, Paintbrush, Search, Settings } from "lucide-react";
 import { cx } from "../../utils/cx";
 
 export const PANES = [
   { id: "general", label: "General", Icon: Settings, tint: "#8E8E93" },
   { id: "spotlight", label: "Spotlight", Icon: Search, tint: "#007AFF" },
-  { id: "shortcuts", label: "Keyboard Shortcuts", Icon: Keyboard, tint: "#6E6E73" },
   { id: "capslock", label: "Caps Lock Indicator", Icon: ArrowBigUpDash, tint: "#34C759" },
   { id: "appearance", label: "Appearance", Icon: Paintbrush, tint: "#AF52DE" },
-  { id: "advanced", label: "Advanced", Icon: Wrench, tint: "#636366" },
   { id: "about", label: "About", Icon: Info, tint: "#0A84FF" },
 ];
 

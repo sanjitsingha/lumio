@@ -23,19 +23,14 @@ pub fn sync(app: &AppHandle, settings: &Settings) {
     // Without a StatusNotifier host (stock elementary OS) the icon would be
     // invisible, and libappindicator logs GTK assertions while creating it.
     #[cfg(target_os = "linux")]
-    if settings.general.show_tray_icon && !exists && !crate::platform::linux::tray_host_available() {
+    if !exists && !crate::platform::linux::tray_host_available() {
         log::info!("no system tray host is running; the tray icon is not created");
         return;
     }
-    if settings.general.show_tray_icon && !exists {
+    if !exists {
         if let Err(e) = create(app, settings.caps_lock.enabled) {
             log::error!("could not create the tray icon: {e}");
             let _ = app.emit(events::NOTICE, format!("The tray icon could not be created: {e}"));
-        }
-    } else if !settings.general.show_tray_icon && exists {
-        app.remove_tray_by_id(TRAY_ID);
-        if let Some(state) = app.try_state::<TrayState>() {
-            *state.caps_item.lock().unwrap_or_else(|e| e.into_inner()) = None;
         }
     }
 }

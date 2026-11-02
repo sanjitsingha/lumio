@@ -147,11 +147,6 @@ impl History {
         self.persist();
     }
 
-    pub fn len(&self) -> (usize, usize) {
-        let data = self.data.read().unwrap_or_else(|e| e.into_inner());
-        (data.recent.len(), data.queries.len())
-    }
-
     fn persist(&self) {
         let Some(path) = &self.path else { return };
         let mut snapshot = self.data.read().unwrap_or_else(|e| e.into_inner()).clone();
@@ -233,7 +228,7 @@ mod tests {
         h.forget("app:a");
         assert_eq!(h.recent(10).len(), 1);
         h.clear();
-        assert_eq!(h.len(), (0, 0));
+        assert!(h.recent(10).is_empty());
     }
 
     #[test]

@@ -105,7 +105,7 @@ On X11, and for XWayland apps, toolkits report screen coordinates. Native Waylan
 
 Rich editors in Chromium (`contenteditable`: ChatGPT, WhatsApp Web, Gmail) keep their text in child objects: the focused field's text holds one object-replacement character per child and its caret offset points at the child holding the caret, so Lumio follows `Hypertext` links down to the object whose own caret is the real one. Chromium also reports its window and its own controls (the address bar) scaled by the text scaling factor, while web pages are not scaled; fields outside a `document web` are therefore divided by the window's scale.
 
-Apps that do not expose text accessibility report no caret, and the *Without a text cursor* setting applies: nothing (default), the pointer, or the system OSD. Chromium and Electron apps (Chrome, VS Code, Slack…) build their accessibility tree only when started with `--force-renderer-accessibility`; the desktop accessibility switch alone does not enable it.
+Where neither source knows a text cursor, the indicator is not shown (since 0.1.14 it is always anchored to the text cursor; the pointer anchor and its XWayland tracker were removed). Chromium and Electron apps (Chrome, VS Code, Slack…) build their accessibility tree only when started with `--force-renderer-accessibility`; the desktop accessibility switch alone does not enable it.
 
 **Override-redirect windows have no window type.** Gala moves windows typed `_NET_WM_WINDOW_TYPE_NOTIFICATION` into its notification stack, which animated the first indicator and left every later one invisible (0.1.3 and earlier). The indicator and tracker windows therefore set only `WM_CLASS`.
 

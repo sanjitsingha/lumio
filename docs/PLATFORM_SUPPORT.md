@@ -21,9 +21,9 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Text cursor from the input method (IBus) | ✅ | GTK apps, the GTK 4 Terminal, VS Code, Chrome (with `--enable-wayland-ime --wayland-text-input-version=3`): the cursor every app reports to the input method, live while typing, including Chrome's address bar. Typing is unaffected (checked in GTK, Terminal and Chrome). |
 | Indicator when a field gets focus with Caps Lock on | ✅ | Chrome field and Terminal prompt, no key press. |
 | Text cursor in Chrome (with the flag) | ✅ | Plain fields, text areas and rich editors (ChatGPT, WhatsApp Web, Gmail: the caret is followed into the paragraph holding it), and the address bar (below its text: Chrome reports no character positions there). |
-| Text cursor in Chromium/Electron apps | ⚠️ | Chrome, VS Code and other Chromium-based apps expose their text fields only when started with `--force-renderer-accessibility` (for Flatpak: `flatpak run com.google.Chrome --force-renderer-accessibility`). Otherwise the *Without a text cursor* setting applies (by default the indicator is not shown). |
+| Text cursor in Chromium/Electron apps | ⚠️ | Chrome, VS Code and other Chromium-based apps expose their text fields only when started with `--force-renderer-accessibility` (for Flatpak: `flatpak run com.google.Chrome --force-renderer-accessibility`). Otherwise no indicator is shown there, unless they report their cursor to the input method (VS Code does). |
 | Caps Lock indicator **at the pointer** | ✅ | Pointer position comes from XWayland (see [ARCHITECTURE](ARCHITECTURE.md#caps-lock-indicator)). It follows the pointer. While the indicator is visible, apps under a *moving* pointer may see brief hover enter/leave flicker; clicks are never blocked at the pointer. Turn off *Follow the pointer* to avoid this. |
-| Indicator fallback | ✅ | Without a text cursor: nothing (default), the pointer, or Gala's on-screen display. If the pointer cannot be located either (another app holds a pointer grab), Gala's on-screen display is shown. |
+| No text cursor | ✅ | No indicator (it belongs to text fields). Where no floating indicator is possible at all, Gala's on-screen display is used. |
 | Repeated toggles | ✅ | 8 of 8 consecutive on/off toggles visible (0.1.3 showed only the first one, see [ARCHITECTURE](ARCHITECTURE.md#caps-lock-indicator)). |
 | System tray | ⚠️ | Stock elementary OS has no tray host, so no icon is shown. Install `wingpanel-indicator-ayatana` to get one. Opening Lumio from the Applications menu brings up Settings. |
 | Launch at login | ✅ | XDG autostart entry (`~/.config/autostart/com.lumio.desktop.desktop`). |
@@ -60,7 +60,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Files | 🟡 | Same index; recursive `ReadDirectoryChangesW`; hidden/system attributes respected; `ShellExecuteW` to open, `explorer /select,` to reveal. |
 | Quick actions | 🟡 | `ms-settings:`, `calculator:`, Explorer, default browser (`AssocQueryStringW`), Windows Terminal or PowerShell. |
 | Caps Lock detection | 🟡 | `WH_KEYBOARD_LL` hook wakes a thread that reads `GetKeyState(VK_CAPITAL)`. |
-| Indicator at the text cursor | 🟡 | The foreground thread's system caret (`GetGUIThreadInfo`), else the MSAA caret object (`OBJID_CARET`) of the focused window. Apps that expose neither get the *Without a text cursor* setting (by default no indicator). |
+| Indicator at the text cursor | 🟡 | The foreground thread's system caret (`GetGUIThreadInfo`), else the MSAA caret object (`OBJID_CARET`) of the focused window. Apps that expose neither show no indicator. |
 | Indicator at the pointer | 🟡 | `GetCursorPos`; per-pixel-alpha layered window (`WS_EX_LAYERED|TRANSPARENT|NOACTIVATE|TOOLWINDOW|TOPMOST`) via `UpdateLayeredWindow`. |
 | Launch at login | 🟡 | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. |
 | Tray | 🟡 | Standard notification-area icon and menu. |

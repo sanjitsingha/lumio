@@ -17,9 +17,9 @@ Built with Tauri 2 (Rust) and React. It is a native desktop app, not Electron or
 | **Apps** | Linux: XDG desktop entries, including Flatpak and Snap, with icons from your icon theme. Windows: the Start menu's AppsFolder, including Store apps such as Calculator and Settings, with real shell icons. |
 | **Files** | A background index of your home folder (or folders you choose). It is cached to disk and kept current with native change notifications (inotify / ReadDirectoryChangesW). Exclusions such as `node_modules`, `.git` or `*.tmp` keep it fast. |
 | **Quick actions** | Open Settings, Calculator, File Manager, Browser, Terminal, and Lumio Settings. The list is extensible. |
-| **Caps Lock indicator** | Anchored to the text cursor (read from the input method on Linux, where every app that types reports its cursor, and through accessibility; the system caret on Windows), shown also when you click into a text field while Caps Lock is on, or to the mouse pointer: near, below or above it. Where there is no text cursor it is not shown (or, if you prefer, it appears at the pointer or as the system OSD). You can set size, opacity, duration (or "while on"), animation speed, light/dark appearance, and a brief "off" flash. It is click-through and never takes keyboard focus. |
+| **Caps Lock indicator** | Anchored to the text cursor (read from the input method on Linux, where every app that types reports its cursor, and through accessibility; the system caret on Windows), shown also when you click into a text field while Caps Lock is on: near, below or above the cursor. Where there is no text cursor it is not shown. You can set size, opacity, corner radius, duration (or "while on"), animation speed and a brief "off" flash; it follows the app's light or dark appearance. It is click-through and never takes keyboard focus. |
 | **Global shortcuts** | Configurable, with a live recorder, validation, duplicate and system-conflict detection (Lumio names the owner, e.g. *"Alt+Space is already used by the system shortcut “Activate window menu”"*), reset, clear, and persistence. |
-| **Settings** | A macOS System Settings–style window: General, Spotlight, Keyboard Shortcuts, Caps Lock Indicator, Appearance (light/dark/system, accent colours including the system accent), Advanced (cache, history, reset, diagnostics, live logs), About (with an update check). |
+| **Settings** | A macOS System Settings–style window: General (startup, updates, clearing the cache and history, resetting settings), Spotlight (including its keyboard shortcut), Caps Lock Indicator, Appearance (light/dark/system, accent colours including the system accent), About (with an update check). |
 | **Background** | Runs in the background, single instance, launch at login, tray menu (where the desktop shows tray icons), clean shutdown that releases its shortcuts. |
 
 ## Quick start (development)
@@ -34,7 +34,7 @@ npm install
 npm run tauri dev        # starts Lumio with hot reload; Settings opens
 ```
 
-Press **Ctrl+Space** to open Spotlight. Alt+Space is the window menu shortcut on elementary OS, so Lumio reports that conflict and uses the alternative.
+Press **Ctrl+Space** to open Spotlight (**Alt+Space** on Windows); change it in Settings → Spotlight.
 
 > **Running inside the VS Code Flatpak?** Use the elementary **Terminal** app instead; the VS Code sandbox does not contain WebKitGTK.
 

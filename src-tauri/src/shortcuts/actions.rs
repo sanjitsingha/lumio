@@ -6,12 +6,9 @@ use serde::Serialize;
 #[serde(rename_all = "camelCase")]
 pub enum ShortcutAction {
     ToggleSpotlight,
-    OpenSettings,
-    ToggleCapsLockIndicator,
 }
 
-/// A configurable binding position. Several slots may trigger the same action
-/// (e.g. a primary and an alternative Spotlight shortcut).
+/// A configurable binding position.
 pub struct SlotInfo {
     pub id: &'static str,
     pub action: ShortcutAction,
@@ -26,28 +23,8 @@ pub const SLOTS: &[SlotInfo] = &[
         action: ShortcutAction::ToggleSpotlight,
         label: "Open Spotlight",
         description: "Show or hide the search window.",
-        default: Some("Alt+Space"),
-    },
-    SlotInfo {
-        id: "spotlight.toggleAlternate",
-        action: ShortcutAction::ToggleSpotlight,
-        label: "Open Spotlight (alternative)",
-        description: "A second shortcut for the search window.",
-        default: Some("Ctrl+Space"),
-    },
-    SlotInfo {
-        id: "settings.open",
-        action: ShortcutAction::OpenSettings,
-        label: "Open Lumio Settings",
-        description: "Bring up this window from anywhere.",
-        default: None,
-    },
-    SlotInfo {
-        id: "capsLock.toggle",
-        action: ShortcutAction::ToggleCapsLockIndicator,
-        label: "Toggle Caps Lock Indicator",
-        description: "Turn the cursor indicator on or off.",
-        default: None,
+        // Linux desktops keep Alt+Space for the window menu
+        default: Some(if cfg!(windows) { "Alt+Space" } else { "Ctrl+Space" }),
     },
 ];
 

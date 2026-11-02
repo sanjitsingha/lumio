@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
-import { Button, Group, KeyCaps, Row, Select, Slider, ToggleRow } from "../../common/controls";
+import { Button, Group, Row, Select, Slider, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
+import { ShortcutEditor } from "../../shortcuts/ShortcutEditor";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { usePlatform } from "../../../hooks/usePlatform";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
-import { shortcutKeys } from "../../../utils/keys";
+
+const SPOTLIGHT_SHORTCUTS = ["spotlight.toggle"];
 
 function formatTime(seconds) {
   if (!seconds) return "never";
@@ -93,7 +95,7 @@ function useBrowserOptions(current) {
   return options;
 }
 
-export default function SpotlightPane({ onNavigate }) {
+export default function SpotlightPane() {
   const settings = useSettings();
   const update = useUpdateSettings();
   const platform = usePlatform();
@@ -106,26 +108,15 @@ export default function SpotlightPane({ onNavigate }) {
   useEffect(() => setMaxResults(s.maxResults), [s.maxResults]);
   useEffect(() => setDelay(s.searchDelayMs), [s.searchDelayMs]);
 
-  const primary = settings.shortcuts.bindings["spotlight.toggle"];
-  const alternate = settings.shortcuts.bindings["spotlight.toggleAlternate"];
-
   return (
     <>
       <PaneHeader pane="spotlight" subtitle="Find apps, files, folders and actions from anywhere." />
       <Group>
         <ToggleRow label="Enable Spotlight" checked={s.enabled} onChange={(v) => set({ enabled: v })} />
-        <Row label="Keyboard shortcut" description="Shows or hides the search window.">
-          <KeyCaps keys={shortcutKeys(primary, platform?.os)} />
-          {alternate && (
-            <>
-              <span className="text-[11px] text-tertiary">or</span>
-              <KeyCaps keys={shortcutKeys(alternate, platform?.os)} />
-            </>
-          )}
-          <Button variant="plain" onClick={() => onNavigate("shortcuts")}>
-            Change…
-          </Button>
-        </Row>
+      </Group>
+
+      <Group title="Keyboard shortcut">
+        <ShortcutEditor slotIds={SPOTLIGHT_SHORTCUTS} os={platform?.os} />
       </Group>
 
       <Group title="Search in">

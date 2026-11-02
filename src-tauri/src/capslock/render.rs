@@ -20,6 +20,8 @@ pub struct Style {
     pub scale: f64,
     pub dark: bool,
     pub on: bool,
+    /// Corner radius as a fraction of the edge length (0.5 = a circle).
+    pub radius: f32,
 }
 
 /// Shadow margin as a fraction of the body size.
@@ -80,7 +82,7 @@ pub fn render(style: Style, progress: f32) -> Option<Frame> {
     let s = body * grow;
     let x = margin + (body - s) / 2.0;
     let y = margin + (body - s) / 2.0;
-    let radius = s * 0.27;
+    let radius = s * style.radius.clamp(0.0, 0.5);
 
     // soft shadow: stacked, expanding translucent rounded rects
     let layers = 14;
@@ -132,8 +134,8 @@ mod tests {
 
     #[test]
     fn frame_dimensions_follow_size_and_scale() {
-        let f1 = render(Style { size: 40, scale: 1.0, dark: false, on: true }, 1.0).unwrap();
-        let f2 = render(Style { size: 40, scale: 2.0, dark: false, on: true }, 1.0).unwrap();
+        let f1 = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
+        let f2 = render(Style { size: 40, scale: 2.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
         assert_eq!(f1.width, 40 + 2 * margin_px(40, 1.0));
         assert_eq!(f2.width, 80 + 2 * margin_px(40, 2.0));
         assert_eq!(f1.rgba.len(), (f1.width * f1.height * 4) as usize);
@@ -141,7 +143,7 @@ mod tests {
 
     #[test]
     fn corners_are_transparent_and_body_is_opaque() {
-        let f = render(Style { size: 48, scale: 1.0, dark: true, on: true }, 1.0).unwrap();
+        let f = render(Style { size: 48, scale: 1.0, dark: true, on: true, radius: 0.27 }, 1.0).unwrap();
         assert_eq!(alpha_at(&f, 0, 0), 0, "canvas corner");
         let c = f.width / 2;
         assert!(alpha_at(&f, c, f.margin + 3) > 200, "body near top edge");
@@ -149,14 +151,14 @@ mod tests {
 
     #[test]
     fn on_and_off_states_differ() {
-        let on = render(Style { size: 40, scale: 1.0, dark: false, on: true }, 1.0).unwrap();
-        let off = render(Style { size: 40, scale: 1.0, dark: false, on: false }, 1.0).unwrap();
+        let on = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
+        let off = render(Style { size: 40, scale: 1.0, dark: false, on: false, radius: 0.27 }, 1.0).unwrap();
         assert_ne!(on.rgba, off.rgba);
     }
 
     #[test]
     fn data_is_premultiplied() {
-        let f = render(Style { size: 40, scale: 1.0, dark: false, on: true }, 0.5).unwrap();
+        let f = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 0.5).unwrap();
         assert!(f.rgba.chunks(4).all(|p| p[0] <= p[3] && p[1] <= p[3] && p[2] <= p[3]));
     }
 
@@ -167,7 +169,7 @@ mod tests {
     fn render_previews() {
         let Some(dir) = std::env::var_os("LUMIO_RENDER_PREVIEW") else { return };
         for (dark, on) in [(false, true), (false, false), (true, true), (true, false)] {
-            let f = render(Style { size: 64, scale: 2.0, dark, on }, 1.0).unwrap();
+            let f = render(Style { size: 64, scale: 2.0, dark, on, radius: 0.27 }, 1.0).unwrap();
             let pixmap = Pixmap::from_vec(f.rgba, tiny_skia::IntSize::from_wh(f.width, f.height).unwrap()).unwrap();
             let name = format!("capslock-{}-{}.png", if dark { "dark" } else { "light" }, if on { "on" } else { "off" });
             pixmap.save_png(std::path::Path::new(&dir).join(name)).unwrap();

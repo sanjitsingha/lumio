@@ -11,7 +11,7 @@ use crate::shortcuts::accelerator::Accelerator;
 use crate::shortcuts::actions::SLOTS;
 
 /// Current settings schema. Bump together with a new entry in `migrate::MIGRATIONS`.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -37,35 +37,15 @@ impl Default for Settings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Lumio always runs in the background (started at login it stays hidden,
+/// closing Settings keeps it running), shows its tray icon where the desktop
+/// has a tray, and checks for updates: these are not settings.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GeneralSettings {
     pub launch_at_startup: bool,
-    /// When launched at login, stay in the background instead of opening Settings.
-    pub start_minimized: bool,
-    /// Keep shortcuts and the Caps Lock indicator active with no windows open.
-    pub run_in_background: bool,
-    pub show_tray_icon: bool,
-    /// Check the release feed in the background (at startup and every few hours).
-    pub check_for_updates: bool,
     /// Download and install found updates without asking, then restart Lumio.
     pub auto_install_updates: bool,
-    /// The Settings close button keeps Lumio running instead of quitting it.
-    pub close_to_background: bool,
-}
-
-impl Default for GeneralSettings {
-    fn default() -> Self {
-        Self {
-            launch_at_startup: false,
-            start_minimized: true,
-            run_in_background: true,
-            show_tray_icon: true,
-            check_for_updates: true,
-            auto_install_updates: false,
-            close_to_background: true,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -146,29 +126,6 @@ pub enum IndicatorPosition {
     Above,
 }
 
-/// What the indicator is placed next to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum IndicatorAnchor {
-    /// The blinking text cursor (insertion point) of the focused text field.
-    Caret,
-    /// The mouse pointer.
-    Pointer,
-}
-
-/// What happens when the indicator is anchored to the text cursor but the
-/// focused app does not report one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum CaretFallback {
-    /// Do not show the indicator (like macOS: it belongs to text fields).
-    Hide,
-    /// Show it next to the mouse pointer instead.
-    Pointer,
-    /// Use the system on-screen display (elementary OS); nothing elsewhere.
-    Osd,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AnimationSpeed {
@@ -197,37 +154,30 @@ pub enum AppearanceMode {
     Dark,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum WaylandFallback {
-    /// Use the compositor's on-screen display (elementary OS / Gala).
-    Osd,
-    None,
-}
-
+/// The indicator always sits at the text cursor (where there is none, it is
+/// not shown) and takes its light or dark look from the app's appearance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CapsLockSettings {
     pub enabled: bool,
-    pub anchor: IndicatorAnchor,
-    pub caret_fallback: CaretFallback,
     pub position: IndicatorPosition,
     /// Edge length of the indicator in logical pixels.
     pub size: u32,
     pub opacity: f32,
+    /// Corner radius in percent of the edge length (50 = a circle).
+    pub corner_radius: u32,
     /// How long the indicator stays visible. `0` = while Caps Lock is on.
     pub duration_ms: u32,
     pub animation: AnimationSpeed,
-    pub appearance: AppearanceMode,
     /// Briefly show the "off" state when Caps Lock is turned off.
     pub show_when_disabled: bool,
     /// Show the indicator when a text field gets focus while Caps Lock is on.
     pub show_on_focus: bool,
     pub follow_cursor: bool,
-    pub wayland_fallback: WaylandFallback,
 }
 
 pub const INDICATOR_SIZE_RANGE: (u32, u32) = (24, 96);
+pub const INDICATOR_RADIUS_MAX: u32 = 50;
 pub const INDICATOR_OPACITY_RANGE: (f32, f32) = (0.3, 1.0);
 pub const INDICATOR_DURATION_MAX: u32 = 10_000;
 
@@ -235,18 +185,15 @@ impl Default for CapsLockSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            anchor: IndicatorAnchor::Caret,
-            caret_fallback: CaretFallback::Hide,
             position: IndicatorPosition::Near,
             size: 40,
             opacity: 0.96,
+            corner_radius: 27,
             duration_ms: 1500,
             animation: AnimationSpeed::Normal,
-            appearance: AppearanceMode::System,
             show_when_disabled: true,
             show_on_focus: true,
             follow_cursor: true,
-            wayland_fallback: WaylandFallback::Osd,
         }
     }
 }
@@ -366,6 +313,10 @@ impl Settings {
             c.duration_ms = INDICATOR_DURATION_MAX;
             fixes.push("Indicator duration adjusted.".into());
         }
+        if c.corner_radius > INDICATOR_RADIUS_MAX {
+            c.corner_radius = INDICATOR_RADIUS_MAX;
+            fixes.push("Indicator corner radius adjusted.".into());
+        }
 
         fixes.extend(self.shortcuts.sanitize());
         self.schema_version = SCHEMA_VERSION;
@@ -377,9 +328,10 @@ impl ShortcutSettings {
     pub fn sanitize(&mut self) -> Vec<String> {
         let mut fixes = Vec::new();
         let known: HashSet<&str> = SLOTS.iter().map(|s| s.id).collect();
-        self.bindings.retain(|k, _| {
+        self.bindings.retain(|k, v| {
             let keep = known.contains(k.as_str());
-            if !keep {
+            // shortcuts that no longer exist go silently unless one was assigned
+            if !keep && v.is_some() {
                 fixes.push(format!("Removed unknown shortcut \"{k}\"."));
             }
             keep
@@ -546,10 +498,10 @@ mod tests {
         let value = serde_json::to_value(Settings::default()).unwrap();
         assert_eq!(value["schemaVersion"], SCHEMA_VERSION);
         assert_eq!(value["capsLock"]["position"], "near");
-        assert_eq!(value["capsLock"]["anchor"], "caret");
-        assert_eq!(value["capsLock"]["caretFallback"], "hide");
-        assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggle"], "Alt+Space");
-        assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggleAlternate"], "Ctrl+Space");
+        assert_eq!(value["capsLock"]["cornerRadius"], 27);
+        let shortcut = if cfg!(windows) { "Alt+Space" } else { "Ctrl+Space" };
+        assert_eq!(value["shortcuts"]["bindings"]["spotlight.toggle"], shortcut);
+        assert_eq!(value["shortcuts"]["bindings"].as_object().unwrap().len(), 1);
     }
 
     #[test]
@@ -561,21 +513,17 @@ mod tests {
     }
 
     #[test]
-    fn settings_from_0_1_show_the_indicator_only_at_the_text_cursor() {
-        let (settings, warnings) =
-            Settings::from_value_lenient(&json!({ "capsLock": { "position": "below", "followCursor": false } }));
+    fn removed_indicator_options_are_ignored() {
+        // options of 0.1.x that no longer exist: the rest of the section is kept
+        let (settings, warnings) = Settings::from_value_lenient(&json!({ "capsLock": {
+            "position": "below", "followCursor": false, "anchor": "pointer", "caretFallback": "osd",
+            "appearance": "dark", "waylandFallback": "none"
+        } }));
         assert!(warnings.is_empty());
-        assert_eq!(settings.caps_lock.anchor, IndicatorAnchor::Caret);
-        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Hide);
         assert!(settings.caps_lock.show_on_focus);
         assert_eq!(settings.caps_lock.position, IndicatorPosition::Below);
         assert!(!settings.caps_lock.follow_cursor);
-    }
-
-    #[test]
-    fn a_chosen_pointer_fallback_is_kept() {
-        let (settings, _) = Settings::from_value_lenient(&json!({ "capsLock": { "caretFallback": "pointer" } }));
-        assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Pointer);
+        assert_eq!(settings.caps_lock.corner_radius, 27);
     }
 
     #[test]
@@ -607,26 +555,26 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_repairs_invalid_and_duplicate_shortcuts() {
+    fn sanitize_repairs_invalid_shortcuts() {
         let mut s = Settings::default();
-        s.shortcuts.bindings.insert("spotlight.toggle".into(), Some("Ctrl+Space".into()));
-        s.shortcuts.bindings.insert("spotlight.toggleAlternate".into(), Some("ctrl+space".into()));
-        s.shortcuts.bindings.insert("settings.open".into(), Some("Banana".into()));
+        s.shortcuts.bindings.insert("spotlight.toggle".into(), Some("Banana".into()));
         s.shortcuts.bindings.insert("unknown.action".into(), Some("Alt+K".into()));
+        // a removed shortcut that was never assigned goes silently
+        s.shortcuts.bindings.insert("settings.open".into(), None);
         let fixes = s.sanitize();
-        assert_eq!(s.shortcuts.bindings["spotlight.toggle"].as_deref(), Some("Ctrl+Space"));
-        assert_eq!(s.shortcuts.bindings["spotlight.toggleAlternate"], None);
-        assert_eq!(s.shortcuts.bindings["settings.open"], None);
+        let default = crate::shortcuts::actions::SLOTS[0].default;
+        assert_eq!(s.shortcuts.bindings["spotlight.toggle"].as_deref(), default);
         assert!(!s.shortcuts.bindings.contains_key("unknown.action"));
-        assert_eq!(fixes.len(), 3);
+        assert!(!s.shortcuts.bindings.contains_key("settings.open"));
+        assert_eq!(fixes.len(), 2, "{fixes:?}");
     }
 
     #[test]
     fn sanitize_normalizes_shortcut_spelling() {
         let mut s = Settings::default();
-        s.shortcuts.bindings.insert("settings.open".into(), Some("shift+control+comma".into()));
+        s.shortcuts.bindings.insert("spotlight.toggle".into(), Some("shift+control+comma".into()));
         s.sanitize();
-        assert_eq!(s.shortcuts.bindings["settings.open"].as_deref(), Some("Ctrl+Shift+Comma"));
+        assert_eq!(s.shortcuts.bindings["spotlight.toggle"].as_deref(), Some("Ctrl+Shift+Comma"));
     }
 
     #[test]

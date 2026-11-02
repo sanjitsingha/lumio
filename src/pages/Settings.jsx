@@ -4,10 +4,8 @@ import { TriangleAlert, X } from "lucide-react";
 import { Sidebar, PANES } from "../components/settings/Sidebar";
 import GeneralPane from "../components/settings/panes/GeneralPane";
 import SpotlightPane from "../components/settings/panes/SpotlightPane";
-import ShortcutsPane from "../components/settings/panes/ShortcutsPane";
 import CapsLockPane from "../components/settings/panes/CapsLockPane";
 import AppearancePane from "../components/settings/panes/AppearancePane";
-import AdvancedPane from "../components/settings/panes/AdvancedPane";
 import About from "./About";
 import { Toaster } from "../components/common/Toaster";
 import { useSettingsState } from "../hooks/useSettings";
@@ -43,11 +41,9 @@ export default function SettingsPage({ appearance }) {
 
   const content = {
     general: <GeneralPane onCheckUpdates={onCheckUpdates} />,
-    spotlight: <SpotlightPane onNavigate={setPane} />,
-    shortcuts: <ShortcutsPane />,
+    spotlight: <SpotlightPane />,
     capslock: <CapsLockPane appearance={appearance} />,
     appearance: <AppearancePane appearance={appearance} />,
-    advanced: <AdvancedPane />,
     about: <About updates={updates} />,
   }[pane];
 

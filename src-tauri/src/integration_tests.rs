@@ -74,15 +74,13 @@ mod linux {
         eprintln!("caps lock is {} (via {method})", if state { "on" } else { "off" });
     }
 
-    /// The pointer tracker returns real coordinates and releases cleanly.
+    /// The input method (IBus) accepts Lumio's watch for text cursor positions.
+    #[cfg(target_os = "linux")]
     #[test]
     #[ignore]
-    fn pointer_tracker_reports_position() {
-        let mut tracker = platform::cursor::Tracker::new().expect("tracker available");
-        let (x, y) = tracker.position().expect("pointer position");
-        tracker.release();
-        assert!(x >= 0 && y >= 0, "({x}, {y})");
-        eprintln!("pointer at ({x}, {y})");
+    fn input_method_watch_connects() {
+        let watch = platform::ime::ImeWatch::start(|event| eprintln!("{event:?}")).expect("IBus is running");
+        assert!(watch.is_alive());
     }
 
     /// Creating a file in a watched folder becomes searchable without a full rescan.

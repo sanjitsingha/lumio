@@ -56,12 +56,6 @@ pub fn render_entry(name: &str, exec: &str) -> String {
     )
 }
 
-pub fn is_enabled(app_id: &str) -> bool {
-    entry_path(app_id)
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .is_some_and(|text| !text.lines().any(|l| l.trim() == "Hidden=true" || l.trim() == "X-GNOME-Autostart-enabled=false"))
-}
-
 pub fn set_enabled(app_id: &str, name: &str, enabled: bool) -> Result<(), String> {
     let path = entry_path(app_id).ok_or("could not determine the autostart folder")?;
     if enabled {

@@ -308,15 +308,8 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
                 }
             }
         }
-        (SETTINGS, WindowEvent::CloseRequested { api, .. }) => {
-            let general = app.state::<AppState>().settings().general;
-            if general.run_in_background && general.close_to_background {
-                log::info!("Settings closed; Lumio keeps running in the background");
-            } else {
-                api.prevent_close();
-                log::info!("Settings closed with background mode off; quitting");
-                app.exit(0);
-            }
+        (SETTINGS, WindowEvent::CloseRequested { .. }) => {
+            log::info!("Settings closed; Lumio keeps running in the background");
         }
         _ => {}
     }

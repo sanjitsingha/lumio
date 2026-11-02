@@ -1,34 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Eye, X } from "lucide-react";
-import { Button, Group, Row, Segmented, Select, Slider, StatusDot, ToggleRow } from "../../common/controls";
+import { TriangleAlert } from "lucide-react";
+import { Group, Row, Segmented, Select, Slider, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
 import { IndicatorPreview } from "../../capslock/IndicatorPreview";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
-
-const MODE = {
-  cursor: { tone: "ok", title: "Floating indicator" },
-  osd: { tone: "warn", title: "Shown as a system on-screen display" },
-  unavailable: { tone: "error", title: "Not available in this session" },
-};
-
-function CapabilityLine({ label, cap }) {
-  return (
-    <div className="flex gap-2.5 px-3.5 py-2">
-      {cap.available ? (
-        <Check size={14} className="mt-[1px] shrink-0 text-success" />
-      ) : (
-        <X size={14} className="mt-[1px] shrink-0 text-danger" />
-      )}
-      <div className="text-[12px] leading-[16px]">
-        <span className="text-label">{label}</span>
-        <span className="text-secondary"> — {cap.method}</span>
-        <div className="text-[11.5px] text-secondary">{cap.detail}</div>
-      </div>
-    </div>
-  );
-}
 
 const DURATIONS = [
   { value: "0", label: "While Caps Lock is on" },
@@ -44,6 +21,13 @@ const DURATIONS = [
   { value: "10000", label: "10 seconds" },
 ];
 
+/** One short sentence when the indicator cannot work normally here. */
+function problem(support) {
+  if (!support) return null;
+  if (support.monitorError) return `Something went wrong: ${support.monitorError}`;
+  return support.mode === "cursor" ? null : support.summary || null;
+}
+
 export default function CapsLockPane({ appearance }) {
   const settings = useSettings();
   const update = useUpdateSettings();
@@ -52,118 +36,47 @@ export default function CapsLockPane({ appearance }) {
   const set = (patch) => update({ capsLock: patch });
   const [size, setSize] = useState(c.size);
   const [opacity, setOpacity] = useState(Math.round(c.opacity * 100));
+  const [radius, setRadius] = useState(c.cornerRadius);
   useEffect(() => setSize(c.size), [c.size]);
   useEffect(() => setOpacity(Math.round(c.opacity * 100)), [c.opacity]);
+  useEffect(() => setRadius(c.cornerRadius), [c.cornerRadius]);
 
   useEffect(() => {
-    const load = () => api.getCapsLockSupport().then(setSupport).catch((e) => toast.error(errorMessage(e)));
-    load();
-    const timer = setInterval(load, 1500); // reflects live Caps Lock state
-    return () => clearInterval(timer);
+    api.getCapsLockSupport().then(setSupport).catch((e) => toast.error(errorMessage(e)));
   }, []);
 
-  const previewDark = c.appearance === "dark" || (c.appearance === "system" && appearance.theme === "dark");
   const durationOptions = DURATIONS.some((d) => d.value === String(c.durationMs))
     ? DURATIONS
     : [...DURATIONS, { value: String(c.durationMs), label: `${c.durationMs / 1000} seconds` }];
-  const cursorMode = support?.mode === "cursor";
-  const mode = support ? MODE[support.mode] : null;
-  const caretAvailable = support?.caret?.available ?? true;
-  const atCaret = c.anchor === "caret" && caretAvailable;
-  const anchorName = atCaret ? "text cursor" : "pointer";
-  const fallbackOptions = [
-    { value: "hide", label: "Don’t show" },
-    { value: "pointer", label: "Mouse pointer" },
-    ...(support?.osdAvailable ? [{ value: "osd", label: "System OSD" }] : []),
-  ];
+  const message = problem(support);
+  const atCursor = !support || support.mode === "cursor";
 
   return (
     <>
-      <PaneHeader pane="capslock" subtitle="A small indicator at the text cursor when Caps Lock is turned on." />
+      <PaneHeader pane="capslock" subtitle="A small indicator at the text cursor when Caps Lock is on." />
 
-      {support && (
-        <Group title="Compatibility">
-          <div className="flex items-start gap-3 px-3.5 py-3">
-            <StatusDot tone={mode.tone} />
-            <div className="-mt-1 min-w-0 flex-1">
-              <div className="text-[13px] text-label">{mode.title}</div>
-              <div className="text-[12px] leading-[16px] text-secondary">{support.summary}</div>
-              {support.alternatives.map((alt) => (
-                <div key={alt} className="mt-1 text-[12px] leading-[16px] text-secondary">
-                  → {alt}
-                </div>
-              ))}
-              {support.monitorError && <div className="mt-1 text-[12px] text-danger">{support.monitorError}</div>}
-            </div>
-            {support.capsLockOn !== null && support.capsLockOn !== undefined && (
-              <span className="shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11px] text-secondary">
-                Caps Lock {support.capsLockOn ? "on" : "off"}
-              </span>
-            )}
-          </div>
-          <CapabilityLine label="Caps Lock detection" cap={support.detection} />
-          <CapabilityLine label="Text cursor position" cap={support.caret} />
-          <CapabilityLine label="Pointer position" cap={support.cursor} />
-          <CapabilityLine label="Floating overlay" cap={support.overlay} />
-        </Group>
+      {message && (
+        <div className="mb-5 flex gap-2 rounded-[10px] bg-fill px-3.5 py-2.5 text-[12px] leading-[16px] text-secondary">
+          <TriangleAlert size={14} className="mt-[1px] shrink-0 text-warning" />
+          <span>{message}</span>
+        </div>
       )}
 
       <Group>
         <ToggleRow label="Show Caps Lock indicator" checked={c.enabled} onChange={(v) => set({ enabled: v })} />
-        <div className="px-3.5 py-3">
-          <IndicatorPreview settings={{ ...c, anchor: atCaret ? "caret" : "pointer", size, opacity: opacity / 100 }} dark={previewDark} />
-          <div className="mt-2.5 flex items-center justify-between">
-            <span className="text-[11.5px] text-secondary">
-              {cursorMode ? "The preview shows the real indicator at your pointer." : "The preview uses the system display."}
-            </span>
-            <Button icon={Eye} disabled={!support || support.mode === "unavailable"} onClick={() => api.previewCapsLock(true)}>
-              Show Preview
-            </Button>
-          </div>
+        <div className="px-3.5 pb-3.5 pt-1">
+          <IndicatorPreview
+            settings={{ ...c, size, opacity: opacity / 100, cornerRadius: radius }}
+            dark={appearance.theme === "dark"}
+          />
         </div>
       </Group>
 
-      <Group
-        title="Placement"
-        footer={!cursorMode && support ? "Placement options apply when a floating indicator is available." : undefined}
-      >
-        <Row
-          label="Show next to"
-          description={
-            caretAvailable
-              ? "The blinking text cursor of the field you are typing in, or the mouse pointer."
-              : support?.caret?.detail
-          }
-          disabled={!cursorMode}
-        >
-          <Segmented
-            value={atCaret ? "caret" : "pointer"}
-            disabled={!cursorMode || !caretAvailable}
-            onChange={(v) => set({ anchor: v })}
-            options={[
-              { value: "caret", label: "Text cursor" },
-              { value: "pointer", label: "Mouse pointer" },
-            ]}
-          />
-        </Row>
-        {atCaret && (
-          <Row
-            label="Without a text cursor"
-            description="When nothing is being typed into, or the app does not report its text cursor (Chrome and VS Code, for example)."
-            disabled={!cursorMode}
-          >
-            <Segmented
-              value={fallbackOptions.some((o) => o.value === c.caretFallback) ? c.caretFallback : "hide"}
-              disabled={!cursorMode}
-              onChange={(v) => set({ caretFallback: v })}
-              options={fallbackOptions}
-            />
-          </Row>
-        )}
-        <Row label="Position" description={`Relative to the ${anchorName}.`} disabled={!cursorMode}>
+      <Group title="Placement">
+        <Row label="Position" description="Relative to the text cursor." disabled={!atCursor}>
           <Segmented
             value={c.position}
-            disabled={!cursorMode}
+            disabled={!atCursor}
             onChange={(v) => set({ position: v })}
             options={[
               { value: "near", label: "Near" },
@@ -173,10 +86,10 @@ export default function CapsLockPane({ appearance }) {
           />
         </Row>
         <ToggleRow
-          label={atCaret ? "Follow the text cursor" : "Follow the pointer"}
-          description={`Keep the indicator next to the ${anchorName} while it moves.`}
+          label="Follow the text cursor"
+          description="Keep the indicator next to the text cursor while you type."
           checked={c.followCursor}
-          disabled={!cursorMode}
+          disabled={!atCursor}
           onChange={(v) => set({ followCursor: v })}
         />
       </Group>
@@ -188,16 +101,8 @@ export default function CapsLockPane({ appearance }) {
         <Row label="Opacity">
           <Slider value={opacity} min={30} max={100} onChange={setOpacity} onCommit={(v) => set({ opacity: v / 100 })} format={(v) => `${v}%`} />
         </Row>
-        <Row label="Appearance">
-          <Segmented
-            value={c.appearance}
-            onChange={(v) => set({ appearance: v })}
-            options={[
-              { value: "system", label: "Automatic" },
-              { value: "light", label: "Light" },
-              { value: "dark", label: "Dark" },
-            ]}
-          />
+        <Row label="Corner radius">
+          <Slider value={radius} min={0} max={50} onChange={setRadius} onCommit={(v) => set({ cornerRadius: v })} format={(v) => `${v}%`} />
         </Row>
       </Group>
 
@@ -225,27 +130,11 @@ export default function CapsLockPane({ appearance }) {
         />
         <ToggleRow
           label="Show when you click into a text field"
-          description="With Caps Lock already on, the indicator appears at the text cursor as soon as a field gets focus."
+          description="With Caps Lock already on, the indicator appears as soon as a field gets focus."
           checked={c.showOnFocus}
-          disabled={!atCaret}
           onChange={(v) => set({ showOnFocus: v })}
         />
       </Group>
-
-      {support?.osdAvailable && (
-        <Group title="Wayland" footer="Used only when neither the text cursor nor the pointer position is available.">
-          <Row label="Fallback display">
-            <Segmented
-              value={c.waylandFallback}
-              onChange={(v) => set({ waylandFallback: v })}
-              options={[
-                { value: "osd", label: "System OSD" },
-                { value: "none", label: "Off" },
-              ]}
-            />
-          </Row>
-        </Group>
-      )}
     </>
   );
 }

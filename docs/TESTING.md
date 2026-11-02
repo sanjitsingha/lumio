@@ -82,7 +82,6 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | GTK 4 search field (System Settings, maximized) | ✅ indicator below the field; first press 310 ms, then 30 ms |
 | GTK 4 Terminal | ✅ no indicator (VTE for GTK 4 reports no text) |
 | No text cursor (VS Code, Chrome without the flag) | ✅ lookup returns nothing in 10–18 ms; no indicator (default since 0.1.5; 0.1.4 used the pointer) |
-| Settings → Show Preview | ✅ always at the pointer |
 
 ## Platform checklist
 
@@ -97,7 +96,7 @@ Run this on each platform and record the results.
 | 5 | Search stays responsive with a large home folder | ✅ about 1,900 entries here; the 250k cap is tested by unit tests | ☐ | ☐ | ☐ |
 | 6 | Change Shortcut records, validates, saves, survives restart | ✅ | ☐ | ☐ | ☐ |
 | 7 | Caps Lock ON shows the indicator below the text cursor (in a text field) | ✅ | ☐ | ☐ | ☐ |
-| 7a | …and nothing outside text fields (default *Without a text cursor: Don't show*) | ✅ | ☐ | ☐ | ☐ |
+| 7a | …and nothing outside text fields | ✅ | ☐ | ☐ | ☐ |
 | 7b | Toggling 10 times in a row shows it every time | ✅ | ☐ | ☐ | ☐ |
 | 8 | Caps Lock OFF hides it (brief off state) | ✅ | ☐ | ☐ | ☐ |
 | 9 | Indicator follows the text cursor while typing, and the pointer when anchored to it | ✅ | ☐ | ☐ | ☐ |

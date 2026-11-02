@@ -16,9 +16,32 @@ pub struct Migration {
     pub apply: fn(&mut Map<String, Value>),
 }
 
-/// Registered migrations, ordered by `from`. Schema v1 is the first public
-/// schema, so there are no steps yet.
-pub const MIGRATIONS: &[Migration] = &[];
+/// Registered migrations, ordered by `from`.
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    from: 1,
+    describe: "one Spotlight shortcut instead of two",
+    apply: single_spotlight_shortcut,
+}];
+
+/// v1 had a second Spotlight shortcut (Ctrl+Space) next to Alt+Space, which
+/// Linux desktops keep for the window menu, and two optional shortcuts that
+/// no longer exist. On Linux the second one takes the remaining place when
+/// the first was Alt+Space or empty, so the shortcut that worked keeps working.
+fn single_spotlight_shortcut(obj: &mut Map<String, Value>) {
+    let Some(bindings) = obj.get_mut("shortcuts").and_then(|s| s.get_mut("bindings")).and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let alternate = bindings.remove("spotlight.toggleAlternate");
+    bindings.remove("settings.open");
+    bindings.remove("capsLock.toggle");
+    let primary = bindings.get("spotlight.toggle").and_then(Value::as_str);
+    if cfg!(target_os = "linux") && matches!(primary, None | Some("Alt+Space")) {
+        if let Some(Value::String(alternate)) = alternate {
+            bindings.insert("spotlight.toggle".into(), Value::String(alternate));
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MigrationOutcome {
@@ -67,6 +90,27 @@ pub fn migrate_with(value: &mut Value, current: u32, steps: &[Migration]) -> Res
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn v1_keeps_the_spotlight_shortcut_that_worked() {
+        let mut doc = json!({ "schemaVersion": 1, "shortcuts": { "bindings": {
+            "spotlight.toggle": "Alt+Space", "spotlight.toggleAlternate": "Ctrl+Space",
+            "settings.open": null, "capsLock.toggle": null
+        } } });
+        assert_eq!(migrate(&mut doc), Ok(MigrationOutcome::Migrated { from: 1 }));
+        let expected = if cfg!(target_os = "linux") { "Ctrl+Space" } else { "Alt+Space" };
+        assert_eq!(doc["shortcuts"]["bindings"], json!({ "spotlight.toggle": expected }));
+        assert_eq!(doc["schemaVersion"], 2);
+    }
+
+    #[test]
+    fn v1_custom_spotlight_shortcut_is_kept() {
+        let mut doc = json!({ "schemaVersion": 1, "shortcuts": { "bindings": {
+            "spotlight.toggle": "Super+Space", "spotlight.toggleAlternate": "Ctrl+Space"
+        } } });
+        migrate(&mut doc).unwrap();
+        assert_eq!(doc["shortcuts"]["bindings"], json!({ "spotlight.toggle": "Super+Space" }));
+    }
 
     fn rename_theme(obj: &mut Map<String, Value>) {
         if let Some(theme) = obj.remove("theme") {
