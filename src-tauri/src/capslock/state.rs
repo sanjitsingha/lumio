@@ -139,6 +139,20 @@ mod tests {
     }
 
     #[test]
+    fn short_durations_hide_on_time() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        s.on_caps(false, t0, &timed(200));
+        assert_eq!(s.on_caps(true, t0, &timed(200)), Command::Show { on: true });
+        assert_eq!(s.on_tick(t0 + Duration::from_millis(199)), Command::None);
+        assert_eq!(s.on_tick(t0 + Duration::from_millis(200)), Command::Hide);
+        // the off flash never outlasts the chosen duration
+        s.on_caps(true, t0, &timed(300));
+        assert_eq!(s.on_caps(false, t0, &timed(300)), Command::Show { on: false });
+        assert_eq!(s.deadline(), Some(t0 + Duration::from_millis(300)));
+    }
+
+    #[test]
     fn turning_off_flashes_off_state_briefly() {
         let t0 = Instant::now();
         let mut s = IndicatorState::default();

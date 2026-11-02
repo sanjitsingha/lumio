@@ -32,6 +32,10 @@ function CapabilityLine({ label, cap }) {
 
 const DURATIONS = [
   { value: "0", label: "While Caps Lock is on" },
+  { value: "200", label: "0.2 seconds" },
+  { value: "300", label: "0.3 seconds" },
+  { value: "500", label: "0.5 seconds" },
+  { value: "800", label: "0.8 seconds" },
   { value: "1000", label: "1 second" },
   { value: "1500", label: "1.5 seconds" },
   { value: "2000", label: "2 seconds" },
