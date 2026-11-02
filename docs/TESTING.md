@@ -72,6 +72,13 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | ChatGPT input (empty) | ✅ at the start of the box |
 | Chrome, one window: rich editor tab → Google tab → new tab (address bar) → Google tab again | ✅ each press at its own field (0.1.10 reused the field found before, so after one field the others showed nothing) |
 | Dribbble and Google search boxes (real pages) | ✅ below the caret; first press in a field 110–155 ms, later ones about 30 ms |
+| Input method (IBus) source, 0.1.13: GTK 3 text view (typed text arrives intact while Lumio listens) | ✅ cursor after the typed text |
+| Terminal (GTK 4, floating window) | ✅ below the prompt's cursor (accessibility reports nothing there) |
+| VS Code chat input | ✅ (771, 969); the cursor measured on screen: (771, 968) |
+| Chrome with `--enable-wayland-ime`: page field, address bar after End | ✅ field within 1 px of accessibility's answer; address bar under the URL's end; typed text arrives intact |
+| Stale input method position (page laid out after the report) | ✅ rejected: outside the focused field, accessibility's answer is used |
+| Click into a field with Caps Lock already on (Chrome, Terminal) | ✅ indicator appears without a key press |
+| 4 presses each in VS Code, Terminal, Chrome | ✅ 12/12 at the same, correct place |
 | GTK 4 search field (System Settings, maximized) | ✅ indicator below the field; first press 310 ms, then 30 ms |
 | GTK 4 Terminal | ✅ no indicator (VTE for GTK 4 reports no text) |
 | No text cursor (VS Code, Chrome without the flag) | ✅ lookup returns nothing in 10–18 ms; no indicator (default since 0.1.5; 0.1.4 used the pointer) |

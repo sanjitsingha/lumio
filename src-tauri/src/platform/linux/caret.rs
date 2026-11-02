@@ -55,6 +55,8 @@ const MANAGES_DESCENDANTS: u32 = 31;
 
 /// Per call: an app that hangs must not stall the indicator.
 const CALL_TIMEOUT_MS: i32 = 150;
+/// How long the focused window's place is reused for input method positions.
+const GEOMETRY_REUSE: Duration = Duration::from_secs(4);
 /// Bounds for the search of the focused object inside one window.
 const MAX_NODES: usize = 3000;
 const MAX_DEPTH: usize = 60;
@@ -142,6 +144,22 @@ pub struct CaretTracker {
     /// The last focused field and its path from its window: checked first,
     /// so toggling again in the same field needs no search.
     last_path: Option<Vec<Obj>>,
+    /// Where the focused window was last found, for input method positions:
+    /// (when, Gala's focused window it belongs to, geometry).
+    geometry: Option<(Instant, FocusedWindow, WindowGeometry)>,
+}
+
+/// Where the focused window is on screen, for positions an app reports
+/// relative to it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct WindowGeometry {
+    /// Gala's actor of the window: its surface, shadows included.
+    actor: Rect,
+    /// How much the toolkit scales its positions (Chromium with a text
+    /// scaling factor), 1 otherwise.
+    scale: f64,
+    /// An X11 client (or session): positions are screen positions already.
+    x11: bool,
 }
 
 impl CaretTracker {
@@ -154,7 +172,81 @@ impl CaretTracker {
             gala: None,
             target: None,
             last_path: None,
+            geometry: None,
         })
+    }
+
+    /// Converts a text cursor reported to the input method into screen
+    /// coordinates. `relative` positions are relative to the focused window
+    /// (GTK, Qt); the others are screen positions (Wayland text-input clients
+    /// through Gala, X11 apps). `None` when the focused window cannot be
+    /// placed or the position lies outside it (a field of another window
+    /// that kept its focus).
+    pub fn map_input_method(&mut self, rect: Rect, relative: bool, fresh: bool) -> Option<Rect> {
+        let geometry = self.window_geometry(fresh)?;
+        let caret = map_reported(rect, relative, &geometry);
+        let inside = geometry.x11 || within(geometry.actor, caret, 8);
+        if !inside {
+            log::debug!("input method cursor {caret:?} lies outside the focused window {:?}", geometry.actor);
+        }
+        inside.then_some(caret)
+    }
+
+    /// The focused window's geometry, reused for a few seconds unless `fresh`
+    /// (Caps Lock pressed: the window may have moved since).
+    fn window_geometry(&mut self, fresh: bool) -> Option<WindowGeometry> {
+        let focus = self.focused_window();
+        if !self.wayland || focus.as_ref().is_some_and(|f| f.x11) {
+            return Some(WindowGeometry { actor: Rect { x: 0, y: 0, width: 0, height: 0 }, scale: 1.0, x11: true });
+        }
+        let focus = focus?;
+        if let Some((at, of, g)) = &self.geometry {
+            if !fresh && *of == focus && at.elapsed() < GEOMETRY_REUSE {
+                return Some(*g);
+            }
+        }
+        let started = Instant::now();
+        let actors = self.gala_actors()?;
+        let frame = (focus.width, focus.height);
+        let surface = self.focused_windows(Some(&focus)).first().and_then(|w| self.extents(w));
+        let geometry = surface
+            .and_then(|s| {
+                let actor = pick_window_actor(&actors, (s.width, s.height), Some(frame))?;
+                Some(WindowGeometry { actor, scale: toolkit_scale(s, actor), x11: false })
+            })
+            // GTK 4 reports only its frame; its positions are surface positions
+            .or_else(|| actor_around_frame(&actors, frame).map(|actor| WindowGeometry { actor, scale: 1.0, x11: false }));
+        log::debug!("focused window geometry {geometry:?} for {surface:?} (frame {frame:?}) in {:?}", started.elapsed());
+        let geometry = geometry?;
+        self.geometry = Some((Instant::now(), focus, geometry));
+        Some(geometry)
+    }
+
+    fn focused_window(&self) -> Option<FocusedWindow> {
+        let focused = || self.session_bus.as_ref().and_then(gala::focused_window);
+        // right after a focus change Gala can briefly report no focused window
+        focused().or_else(|| {
+            session::is_pantheon().then(|| std::thread::sleep(Duration::from_millis(60)))?;
+            focused()
+        })
+    }
+
+    /// AT-SPI windows that can be the focused one, most likely first. Gala
+    /// knows the focused window, so its title is matched: Chromium sets the
+    /// active flag late after a window is focused and keeps it on background
+    /// windows. Active windows are tried first.
+    fn focused_windows(&self, focus: Option<&FocusedWindow>) -> Vec<Obj> {
+        let all: Vec<Obj> = self.children(&Obj::root()).iter().flat_map(|app| self.children(app)).collect();
+        let (active, inactive): (Vec<Obj>, Vec<Obj>) = all.into_iter().partition(|w| has(self.state(w), ACTIVE));
+        match focus {
+            Some(f) => {
+                // titles are read only where needed: some apps answer slowly
+                let matches = |w: &Obj| same_window(&self.name(w), &f.title);
+                let found: Vec<Obj> = active.into_iter().filter(|w| matches(w)).collect();
+                if found.is_empty() { inactive.into_iter().filter(|w| matches(w)).collect() } else { found }
+            }
+            None => active,
+        }
     }
 
     /// Finds the focused text field and returns its caret in screen
@@ -185,28 +277,17 @@ impl CaretTracker {
         self.target = None;
     }
 
+    /// The text field `locate` found, on screen (where the caret must be).
+    pub fn focused_field(&self) -> Option<Rect> {
+        let target = self.target.as_ref()?;
+        let field = self.field_extents(&target.field)?;
+        Some(to_screen(field, target.scale, target.offset))
+    }
+
     fn find_target(&mut self) -> Option<Target> {
         let started = Instant::now();
-        let focused = || self.session_bus.as_ref().and_then(gala::focused_window);
-        // right after a focus change Gala can briefly report no focused window
-        let focus = focused().or_else(|| {
-            session::is_pantheon().then(|| std::thread::sleep(Duration::from_millis(60)))?;
-            focused()
-        });
-        // Gala knows the focused window, so match its title: Chromium sets
-        // the active flag late after a window is focused and keeps it on
-        // background windows. Active windows are tried first.
-        let all: Vec<Obj> = self.children(&Obj::root()).iter().flat_map(|app| self.children(app)).collect();
-        let (active, inactive): (Vec<Obj>, Vec<Obj>) = all.into_iter().partition(|w| has(self.state(w), ACTIVE));
-        let windows: Vec<Obj> = match &focus {
-            Some(f) => {
-                // titles are read only where needed: some apps answer slowly
-                let matches = |w: &Obj| same_window(&self.name(w), &f.title);
-                let found: Vec<Obj> = active.into_iter().filter(|w| matches(w)).collect();
-                if found.is_empty() { inactive.into_iter().filter(|w| matches(w)).collect() } else { found }
-            }
-            None => active,
-        };
+        let focus = self.focused_window();
+        let windows = self.focused_windows(focus.as_ref());
         let windows_found = started.elapsed();
         windows.into_iter().find_map(|window| {
             // Collection names the focused object reliably and fast; the last
@@ -260,9 +341,7 @@ impl CaretTracker {
             log::debug!("no Gala window matches the {}x{} surface (frame {frame:?})", surface.width, surface.height);
             return None;
         };
-        let scale = if actor.width > 0 { surface.width as f64 / actor.width as f64 } else { 1.0 };
-        let scale = if (scale - 1.0).abs() < 0.01 { 1.0 } else { scale };
-        Some((actor.x - surface.x, actor.y - surface.y, scale))
+        Some((actor.x - surface.x, actor.y - surface.y, toolkit_scale(surface, actor)))
     }
 
     /// The path found last time, if its field in this window still has focus
@@ -557,6 +636,52 @@ fn same_window(accessible_name: &str, title: &str) -> bool {
         && (accessible_name.starts_with(title) || title.starts_with(accessible_name))
 }
 
+/// How much a toolkit scales its window size relative to Gala's actor: 1.2
+/// for Chromium with a 0.83 text scaling factor, otherwise 1.
+fn toolkit_scale(surface: Rect, actor: Rect) -> f64 {
+    let scale = if actor.width > 0 { surface.width as f64 / actor.width as f64 } else { 1.0 };
+    if (scale - 1.0).abs() < 0.01 {
+        1.0
+    } else {
+        scale
+    }
+}
+
+/// The topmost actor that can hold a window frame of this size with its
+/// shadows (for toolkits that report only the frame).
+fn actor_around_frame(actors: &[(usize, Rect)], (fw, fh): (i32, i32)) -> Option<Rect> {
+    let fits = |r: &Rect| (fw..=fw + MAX_SHADOW).contains(&r.width) && (fh..=fh + MAX_SHADOW).contains(&r.height);
+    // deepest level first: window actors sit below the stage's full-screen panels
+    let depth = actors.iter().filter(|(_, r)| fits(r)).map(|(d, _)| *d).max()?;
+    actors.iter().rev().find(|(d, r)| *d == depth && fits(r)).map(|(_, r)| *r)
+}
+
+/// An input method position to screen coordinates. Chromium reports its
+/// text-input positions scaled like its window, so they are unscaled around
+/// the window's origin.
+fn map_reported(r: Rect, relative: bool, g: &WindowGeometry) -> Rect {
+    if g.x11 {
+        return Rect { width: r.width.max(1), ..r };
+    }
+    let (ax, ay) = (g.actor.x as f64, g.actor.y as f64);
+    let s = g.scale;
+    let (x, y) = if relative {
+        (ax + r.x as f64 / s, ay + r.y as f64 / s)
+    } else {
+        (ax + (r.x as f64 - ax) / s, ay + (r.y as f64 - ay) / s)
+    };
+    let size = |v: i32| ((v as f64 / s).round() as i32).max(1);
+    Rect { x: x.round() as i32, y: y.round() as i32, width: size(r.width), height: size(r.height) }
+}
+
+/// Whether `inner`'s top-left lies within `outer`, give or take `margin`.
+fn within(outer: Rect, inner: Rect, margin: i32) -> bool {
+    inner.x >= outer.x - margin
+        && inner.y >= outer.y - margin
+        && inner.x <= outer.x + outer.width + margin
+        && inner.y <= outer.y + outer.height + margin
+}
+
 /// Toolkit coordinates to screen coordinates.
 fn to_screen(r: Rect, scale: f64, (dx, dy): (i32, i32)) -> Rect {
     let s = |v: i32| (v as f64 / scale).round() as i32;
@@ -702,6 +827,33 @@ mod tests {
         assert_eq!(to_screen(r(253, 72, 1, 20), 1.2, (-22, 8)), r(189, 68, 1, 17));
         // web page caret: unscaled
         assert_eq!(to_screen(r(128, 197, 1, 20), 1.0, (-22, 8)), r(106, 205, 1, 20));
+    }
+
+    #[test]
+    fn input_method_positions_map_to_the_screen() {
+        // GTK: relative to the window surface (Gala's actor), unscaled
+        let gtk = WindowGeometry { actor: r(661, 355, 598, 426), scale: 1.0, x11: false };
+        assert_eq!(map_reported(r(84, 77, 0, 13), true, &gtk), r(745, 432, 1, 13));
+        // Chromium through Gala: screen positions scaled by 1.2 around the window's origin
+        let chrome = WindowGeometry { actor: r(0, 30, 1921, 1051), scale: 1.2, x11: false };
+        assert_eq!(map_reported(r(931, 1163, 0, 18), false, &chrome), r(776, 974, 1, 15));
+        // X11 clients: screen positions as they are
+        let x11 = WindowGeometry { actor: r(0, 0, 0, 0), scale: 1.0, x11: true };
+        assert_eq!(map_reported(r(300, 400, 2, 18), false, &x11), r(300, 400, 2, 18));
+    }
+
+    #[test]
+    fn frames_without_their_shadow_find_their_window() {
+        // a floating GTK 4 window: 797x778 frame inside an 851x832 actor
+        assert_eq!(actor_around_frame(&desktop(), (797, 778)), Some(r(743, 117, 851, 832)));
+        assert_eq!(actor_around_frame(&desktop(), (300, 200)), None);
+    }
+
+    #[test]
+    fn positions_outside_the_focused_window_are_rejected() {
+        let window = r(100, 100, 800, 600);
+        assert!(within(window, r(500, 300, 1, 18), 8));
+        assert!(!within(window, r(1500, 300, 1, 18), 8));
     }
 
     #[test]

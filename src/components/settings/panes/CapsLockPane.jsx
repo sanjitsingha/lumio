@@ -223,6 +223,13 @@ export default function CapsLockPane({ appearance }) {
           checked={c.showWhenDisabled}
           onChange={(v) => set({ showWhenDisabled: v })}
         />
+        <ToggleRow
+          label="Show when you click into a text field"
+          description="With Caps Lock already on, the indicator appears at the text cursor as soon as a field gets focus."
+          checked={c.showOnFocus}
+          disabled={!atCaret}
+          onChange={(v) => set({ showOnFocus: v })}
+        />
       </Group>
 
       {support?.osdAvailable && (

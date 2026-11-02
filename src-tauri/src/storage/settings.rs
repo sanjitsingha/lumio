@@ -221,6 +221,8 @@ pub struct CapsLockSettings {
     pub appearance: AppearanceMode,
     /// Briefly show the "off" state when Caps Lock is turned off.
     pub show_when_disabled: bool,
+    /// Show the indicator when a text field gets focus while Caps Lock is on.
+    pub show_on_focus: bool,
     pub follow_cursor: bool,
     pub wayland_fallback: WaylandFallback,
 }
@@ -242,6 +244,7 @@ impl Default for CapsLockSettings {
             animation: AnimationSpeed::Normal,
             appearance: AppearanceMode::System,
             show_when_disabled: true,
+            show_on_focus: true,
             follow_cursor: true,
             wayland_fallback: WaylandFallback::Osd,
         }
@@ -564,6 +567,7 @@ mod tests {
         assert!(warnings.is_empty());
         assert_eq!(settings.caps_lock.anchor, IndicatorAnchor::Caret);
         assert_eq!(settings.caps_lock.caret_fallback, CaretFallback::Hide);
+        assert!(settings.caps_lock.show_on_focus);
         assert_eq!(settings.caps_lock.position, IndicatorPosition::Below);
         assert!(!settings.caps_lock.follow_cursor);
     }

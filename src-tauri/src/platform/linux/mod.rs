@@ -10,6 +10,7 @@ pub mod cursor;
 pub mod desktop_entry;
 pub mod gala;
 pub mod icon_theme;
+pub mod ime;
 pub mod keybindings;
 pub mod launch;
 pub mod overlay;

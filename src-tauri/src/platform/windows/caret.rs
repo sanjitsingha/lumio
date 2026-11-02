@@ -48,6 +48,16 @@ impl CaretTracker {
     }
 
     pub fn release(&mut self) {}
+
+    /// The system caret needs no cross-check against its field.
+    pub fn focused_field(&self) -> Option<Rect> {
+        None
+    }
+
+    /// Input method positions are not watched on Windows.
+    pub fn map_input_method(&mut self, _rect: Rect, _relative: bool, _fresh: bool) -> Option<Rect> {
+        None
+    }
 }
 
 fn gui_thread_info() -> Option<(GUITHREADINFO, HWND)> {

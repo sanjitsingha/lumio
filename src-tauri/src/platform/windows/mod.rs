@@ -7,6 +7,7 @@ pub mod browser;
 pub mod capslock;
 pub mod caret;
 pub mod cursor;
+pub mod ime;
 pub mod launch;
 pub mod overlay;
 pub mod quick_actions;

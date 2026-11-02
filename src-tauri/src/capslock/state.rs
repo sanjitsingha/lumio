@@ -11,6 +11,8 @@ pub struct Behavior {
     /// `None` = keep showing while Caps Lock is on.
     pub duration: Option<Duration>,
     pub show_when_disabled: bool,
+    /// Show the indicator when a text field gets focus with Caps Lock on.
+    pub show_on_focus: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +70,17 @@ impl IndicatorState {
         }
     }
 
+    /// A text field got keyboard focus: with Caps Lock already on, show the
+    /// indicator there as if it had just been turned on, so typing never
+    /// starts in capitals unnoticed.
+    pub fn on_focus(&mut self, now: Instant, b: &Behavior) -> Command {
+        if b.enabled && b.show_on_focus && self.known == Some(true) {
+            self.show(true, b.duration.map(|d| now + d))
+        } else {
+            Command::None
+        }
+    }
+
     /// Call when the deadline passes.
     pub fn on_tick(&mut self, now: Instant) -> Command {
         match self.hide_at {
@@ -117,7 +130,7 @@ mod tests {
     use super::*;
 
     fn timed(ms: u64) -> Behavior {
-        Behavior { enabled: true, duration: Some(Duration::from_millis(ms)), show_when_disabled: true }
+        Behavior { enabled: true, duration: Some(Duration::from_millis(ms)), show_when_disabled: true, show_on_focus: true }
     }
 
     #[test]
@@ -136,6 +149,30 @@ mod tests {
         assert_eq!(s.on_tick(t0 + Duration::from_millis(1000)), Command::None);
         assert_eq!(s.on_tick(t0 + Duration::from_millis(1500)), Command::Hide);
         assert!(!s.is_visible());
+    }
+
+    #[test]
+    fn focusing_a_field_with_caps_lock_on_shows_it() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        s.on_caps(true, t0, &timed(1500));
+        assert_eq!(s.on_tick(t0 + Duration::from_secs(5)), Command::None);
+        let t1 = t0 + Duration::from_secs(10);
+        assert_eq!(s.on_focus(t1, &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.on_tick(t1 + Duration::from_millis(1500)), Command::Hide);
+    }
+
+    #[test]
+    fn focusing_a_field_with_caps_lock_off_or_the_option_off_shows_nothing() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        assert_eq!(s.on_focus(t0, &timed(1500)), Command::None, "state unknown");
+        s.on_caps(false, t0, &timed(1500));
+        assert_eq!(s.on_focus(t0, &timed(1500)), Command::None);
+        s.on_caps(true, t0, &timed(1500));
+        let off = Behavior { show_on_focus: false, ..timed(1500) };
+        s.on_tick(t0 + Duration::from_secs(2));
+        assert_eq!(s.on_focus(t0 + Duration::from_secs(3), &off), Command::None);
     }
 
     #[test]

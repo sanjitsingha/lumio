@@ -6,6 +6,7 @@ pub mod geometry;
 pub mod render;
 pub mod state;
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -27,6 +28,13 @@ const IDLE_POLL: Duration = Duration::from_millis(100);
 const MOVE_WINDOW: Duration = Duration::from_millis(500);
 /// How often the text cursor is re-read while the indicator follows it.
 const CARET_POLL: Duration = Duration::from_millis(50);
+/// After a text field gets focus, how long to wait for its cursor position
+/// before looking for it through accessibility instead.
+const FOCUS_CURSOR_WAIT: Duration = Duration::from_millis(250);
+/// How soon to try again after the input method could not be watched.
+const IME_RETRY: Duration = Duration::from_secs(10);
+/// Input contexts remembered (one per text field or app).
+const MAX_IME_CONTEXTS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,8 +70,21 @@ pub struct CapsLockSupport {
     pub caps_lock_on: Option<bool>,
 }
 
+/// What the input method (IBus) reports about text fields: the cursor is the
+/// position apps give it so that candidate windows appear next to the text.
+#[derive(Debug, Clone, PartialEq)]
+// Windows reads its system caret directly and watches no input method
+#[cfg_attr(windows, allow(dead_code))]
+pub enum InputMethodEvent {
+    /// A text field (input context) got or lost keyboard focus.
+    Focus { context: String, focused: bool },
+    /// Its text cursor, relative to its window or (`relative == false`) on screen.
+    Cursor { context: String, rect: Rect, relative: bool },
+}
+
 enum Msg {
     Caps(bool),
+    InputMethod(InputMethodEvent),
     Settings(CapsLockSettings),
     Preview(bool),
     Shutdown,
@@ -162,6 +183,7 @@ impl CapsLockController {
             support.overlay.method
         );
         let (tx, rx) = mpsc::channel();
+        let runner_tx = tx.clone();
         let caps_state: Arc<Mutex<Option<bool>>> = Arc::default();
         let controller = Arc::new(Self {
             tx,
@@ -174,7 +196,7 @@ impl CapsLockController {
         let initial = settings.clone();
         let spawned = std::thread::Builder::new()
             .name("lumio-capslock".into())
-            .spawn(move || Runner::new(app, mode, initial, caps_state).run(rx));
+            .spawn(move || Runner::new(app, mode, initial, caps_state, runner_tx).run(rx));
         if let Err(e) = spawned {
             log::error!("could not start the Caps Lock indicator thread: {e}");
         }
@@ -239,6 +261,7 @@ fn behavior(s: &CapsLockSettings) -> Behavior {
         enabled: s.enabled,
         duration: (s.duration_ms > 0).then(|| Duration::from_millis(s.duration_ms as u64)),
         show_when_disabled: s.show_when_disabled,
+        show_on_focus: s.show_on_focus,
     }
 }
 
@@ -265,6 +288,25 @@ impl Anchor {
             Anchor::Caret(r) => geometry::place_at_caret(r, body, monitor.work, position, monitor.scale),
             Anchor::Pointer(x, y) => geometry::place_body((x, y), body, monitor.work, position, monitor.scale),
         }
+    }
+}
+
+/// Picks the text cursor from the input method (`ime`) and accessibility
+/// (`accessible`: the caret and, if known, its field). The input method is
+/// exact everywhere (also in fields whose characters accessibility cannot
+/// place, like Chrome's address bar) but can be stale; when its position
+/// lies outside the field accessibility reports as focused, accessibility's
+/// fresh answer wins.
+fn choose_caret(ime: Option<Rect>, accessible: Option<(Rect, Option<Rect>)>) -> Option<Rect> {
+    match (ime, accessible) {
+        (Some(ime), Some((caret, field))) => {
+            let in_field = field.is_some_and(|f| {
+                let m = 8;
+                ime.x >= f.x - m && ime.x <= f.x + f.width + m && ime.y >= f.y - m && ime.y <= f.y + f.height + m
+            });
+            Some(if in_field { ime } else { caret })
+        }
+        (ime, accessible) => ime.or(accessible.map(|(caret, _)| caret)),
     }
 }
 
@@ -345,10 +387,30 @@ struct Runner {
     anchor: Option<Anchor>,
     last_move: Instant,
     last_caret_poll: Instant,
+    /// Input method events come back through the controller's own queue.
+    tx: Sender<Msg>,
+    ime: Option<platform::ime::ImeWatch>,
+    ime_retry_at: Instant,
+    ime_error: Option<String>,
+    /// The input context that has keyboard focus, and the last cursor each
+    /// context reported.
+    ime_focus: Option<String>,
+    ime_cursors: HashMap<String, (Rect, bool)>,
+    /// The focused context reported a new cursor since it was last placed.
+    ime_moved: bool,
+    /// A text field got focus with Caps Lock on: show the indicator once its
+    /// cursor is known, or at this deadline.
+    focus_show_at: Option<Instant>,
 }
 
 impl Runner {
-    fn new(app: AppHandle, mode: Mode, settings: CapsLockSettings, caps_state: Arc<Mutex<Option<bool>>>) -> Self {
+    fn new(
+        app: AppHandle,
+        mode: Mode,
+        settings: CapsLockSettings,
+        caps_state: Arc<Mutex<Option<bool>>>,
+        tx: Sender<Msg>,
+    ) -> Self {
         Self {
             app,
             mode,
@@ -364,10 +426,19 @@ impl Runner {
             anchor: None,
             last_move: Instant::now(),
             last_caret_poll: Instant::now(),
+            tx,
+            ime: None,
+            ime_retry_at: Instant::now(),
+            ime_error: None,
+            ime_focus: None,
+            ime_cursors: HashMap::new(),
+            ime_moved: false,
+            focus_show_at: None,
         }
     }
 
     fn run(mut self, rx: mpsc::Receiver<Msg>) {
+        self.ensure_ime(Instant::now());
         loop {
             let timeout = self.next_wake();
             let msg = match timeout {
@@ -380,11 +451,14 @@ impl Runner {
                     self.previewing = false;
                     *self.caps_state.lock().unwrap_or_else(|e| e.into_inner()) = Some(on);
                     log::debug!("caps lock {}", if on { "on" } else { "off" });
+                    self.ensure_ime(now);
                     self.state.on_caps(on, now, &behavior(&self.settings))
                 }
+                Ok(Msg::InputMethod(event)) => self.on_input_method(event, now),
                 Ok(Msg::Settings(s)) => {
                     let restyle = s.size != self.settings.size || s.appearance != self.settings.appearance;
                     self.settings = s;
+                    self.ensure_ime(now);
                     if restyle {
                         if let Some(v) = self.visual.as_mut() {
                             v.frame = None;
@@ -400,7 +474,15 @@ impl Runner {
                     self.hide_now();
                     break;
                 }
-                Err(RecvTimeoutError::Timeout) => self.state.on_tick(now),
+                Err(RecvTimeoutError::Timeout) => match self.focus_show_at {
+                    // the focused field never reported a cursor to the input
+                    // method: show anyway, accessibility may know it
+                    Some(at) if now >= at => {
+                        self.focus_show_at = None;
+                        self.state.on_focus(now, &behavior(&self.settings))
+                    }
+                    _ => self.state.on_tick(now),
+                },
             };
             match command {
                 Command::Show { on } => self.show(on, now),
@@ -413,7 +495,11 @@ impl Runner {
 
     fn next_wake(&self) -> Option<Duration> {
         let now = Instant::now();
-        let deadline = self.state.deadline().map(|d| d.saturating_duration_since(now));
+        let deadline = match (self.state.deadline(), self.focus_show_at) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+        .map(|d| d.saturating_duration_since(now));
         let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.gliding());
         let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
         let follow_poll = match self.anchor {
@@ -432,6 +518,88 @@ impl Runner {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
         }
+    }
+
+    /// Watches the input method while the indicator follows the text cursor
+    /// (and again after IBus restarts).
+    fn ensure_ime(&mut self, now: Instant) {
+        let wanted = self.settings.enabled && self.settings.anchor == IndicatorAnchor::Caret && self.mode == Mode::Cursor;
+        if !wanted {
+            if self.ime.take().is_some() {
+                self.ime_focus = None;
+                self.ime_cursors.clear();
+            }
+            return;
+        }
+        if self.ime.as_ref().is_some_and(|w| w.is_alive()) || now < self.ime_retry_at {
+            return;
+        }
+        let tx = self.tx.clone();
+        match platform::ime::ImeWatch::start(move |event| {
+            let _ = tx.send(Msg::InputMethod(event));
+        }) {
+            Ok(watch) => {
+                self.ime = Some(watch);
+                self.ime_error = None;
+            }
+            Err(e) => {
+                self.ime = None;
+                if self.ime_error.as_deref() != Some(e.as_str()) {
+                    log::info!("text cursor positions from the input method are unavailable: {e}");
+                    self.ime_error = Some(e);
+                }
+                self.ime_retry_at = now + IME_RETRY;
+            }
+        }
+    }
+
+    fn on_input_method(&mut self, event: InputMethodEvent, now: Instant) -> Command {
+        match event {
+            InputMethodEvent::Focus { context, focused: true } => {
+                // a field's position from before it got focus can be stale
+                // (reported while its page was still being laid out)
+                self.ime_cursors.remove(&context);
+                self.ime_focus = Some(context);
+                self.ime_moved = true;
+                // with Caps Lock already on, show the indicator in the new field
+                if self.settings.show_on_focus && self.settings.anchor == IndicatorAnchor::Caret {
+                    self.focus_show_at = Some(now + FOCUS_CURSOR_WAIT);
+                }
+                Command::None
+            }
+            InputMethodEvent::Focus { context, focused: false } => {
+                if self.ime_focus.as_ref() == Some(&context) {
+                    self.ime_focus = None;
+                }
+                Command::None
+            }
+            InputMethodEvent::Cursor { context, rect, relative } => {
+                if self.ime_cursors.len() >= MAX_IME_CONTEXTS && !self.ime_cursors.contains_key(&context) {
+                    self.ime_cursors.retain(|c, _| self.ime_focus.as_ref() == Some(c));
+                }
+                let focused = self.ime_focus.as_ref() == Some(&context);
+                self.ime_cursors.insert(context, (rect, relative));
+                if !focused {
+                    return Command::None;
+                }
+                self.ime_moved = true;
+                if self.focus_show_at.take().is_some() {
+                    return self.state.on_focus(now, &behavior(&self.settings));
+                }
+                Command::None
+            }
+        }
+    }
+
+    /// The focused field's cursor as last reported to the input method, on
+    /// screen. `fresh` re-reads where its window is.
+    fn ime_caret(&mut self, fresh: bool) -> Option<Rect> {
+        let context = self.ime_focus.clone()?;
+        let (rect, relative) = *self.ime_cursors.get(&context)?;
+        self.ime_moved = false;
+        let caret = self.caret_tracker()?.map_input_method(rect, relative, fresh);
+        log::debug!("input method cursor {rect:?} (relative: {relative}) -> {caret:?}");
+        caret
     }
 
     fn dark(&self) -> bool {
@@ -523,7 +691,12 @@ impl Runner {
     /// shown instead, if `allow_osd`).
     fn find_anchor(&mut self, on: bool, allow_osd: bool) -> Option<Anchor> {
         if self.settings.anchor == IndicatorAnchor::Caret && !self.previewing {
-            if let Some(caret) = self.caret_tracker().and_then(|c| c.locate()) {
+            // the input method knows the cursor of every app that types through
+            // it; accessibility covers the others and catches stale reports
+            let ime = self.ime_caret(true);
+            let accessible = self.caret_tracker().and_then(|c| c.locate().map(|caret| (caret, c.focused_field())));
+            let caret = choose_caret(ime, accessible);
+            if let Some(caret) = caret {
                 self.release_pointer();
                 return Some(Anchor::Caret(caret));
             }
@@ -603,6 +776,15 @@ impl Runner {
         let next = match self.anchor? {
             Anchor::Pointer(..) => self.tracker.as_mut()?.position().map(|(x, y)| Anchor::Pointer(x, y)),
             Anchor::Caret(_) => {
+                // the input method reports every move as it happens
+                if self.ime_moved {
+                    if let Some(caret) = self.ime_caret(false) {
+                        return Some(Anchor::Caret(caret)).filter(|a| Some(*a) != self.anchor);
+                    }
+                }
+                if self.ime_focus.as_ref().is_some_and(|c| self.ime_cursors.contains_key(c)) {
+                    return None;
+                }
                 if now.duration_since(self.last_caret_poll) < CARET_POLL {
                     return None;
                 }
@@ -787,6 +969,33 @@ mod tests {
         // the next keystroke moves the cursor further: no stop, no jump
         let next = smooth_damp(pos, 20.0, &mut velocity, glide_time(170), 1.0 / 60.0);
         assert!(next > pos && next < 20.0);
+    }
+
+    fn r(x: i32, y: i32, width: i32, height: i32) -> Rect {
+        Rect { x, y, width, height }
+    }
+
+    #[test]
+    fn the_input_method_wins_inside_the_focused_field() {
+        // Chrome's address bar: accessibility only knows the field's start
+        let bar = r(184, 66, 1600, 24);
+        assert_eq!(choose_caret(Some(r(1457, 71, 1, 15)), Some((r(188, 68, 1, 20), Some(bar)))), Some(r(1457, 71, 1, 15)));
+    }
+
+    #[test]
+    fn a_stale_input_method_position_loses_to_accessibility() {
+        let field = r(47, 150, 330, 22);
+        assert_eq!(choose_caret(Some(r(571, 240, 1, 19)), Some((r(93, 152, 1, 18), Some(field)))), Some(r(93, 152, 1, 18)));
+        // without a known field, the fresh accessibility answer wins too
+        assert_eq!(choose_caret(Some(r(571, 240, 1, 19)), Some((r(93, 152, 1, 18), None))), Some(r(93, 152, 1, 18)));
+    }
+
+    #[test]
+    fn either_source_alone_is_used() {
+        // VS Code and Terminal report only to the input method
+        assert_eq!(choose_caret(Some(r(771, 969, 1, 15)), None), Some(r(771, 969, 1, 15)));
+        assert_eq!(choose_caret(None, Some((r(10, 20, 1, 18), None))), Some(r(10, 20, 1, 18)));
+        assert_eq!(choose_caret(None, None), None);
     }
 
     #[test]
