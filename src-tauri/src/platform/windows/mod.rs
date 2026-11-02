@@ -3,6 +3,7 @@
 pub mod appearance;
 pub mod apps;
 pub mod autostart;
+pub mod browser;
 pub mod capslock;
 pub mod caret;
 pub mod cursor;

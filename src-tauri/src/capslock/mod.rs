@@ -272,6 +272,32 @@ fn ease_out_cubic(t: f32) -> f32 {
     1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
 }
 
+/// How long the indicator takes to glide to a new place: 0.4 × the animation
+/// duration (Normal, 170 ms: about 0.25 s to settle). `0` jumps.
+fn glide_time(animation_ms: u64) -> f32 {
+    animation_ms as f32 * 0.4 / 1000.0
+}
+
+/// One frame of a critically damped spring toward `target`: it starts gently,
+/// never overshoots, and keeps its momentum when the target moves on (each
+/// keystroke moves the text cursor), so following the cursor looks continuous.
+fn smooth_damp(current: f32, target: f32, velocity: &mut f32, smooth_time: f32, dt: f32) -> f32 {
+    let omega = 2.0 / smooth_time;
+    let x = omega * dt;
+    let decay = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+    let change = current - target;
+    let temp = (*velocity + omega * change) * dt;
+    *velocity = (*velocity - omega * temp) * decay;
+    let next = target + (change + temp) * decay;
+    // never past the target; done within half a pixel
+    let overshot = (target > current) == (next > target);
+    if overshot || ((next - target).abs() < 0.5 && velocity.abs() < 10.0) {
+        *velocity = 0.0;
+        return target;
+    }
+    next
+}
+
 #[derive(Clone, Copy)]
 struct MonitorGeom {
     bounds: Rect,
@@ -288,7 +314,18 @@ struct Visual {
     progress: f32,
     frame: Option<Frame>,
     monitor: MonitorGeom,
+    /// Where the body belongs (next to the anchor)…
     body_pos: (i32, i32),
+    /// …and where it is drawn, gliding toward `body_pos`.
+    pos: (f32, f32),
+    velocity: (f32, f32),
+    stepped: Instant,
+}
+
+impl Visual {
+    fn gliding(&self) -> bool {
+        self.pos != (self.body_pos.0 as f32, self.body_pos.1 as f32)
+    }
 }
 
 struct Runner {
@@ -377,7 +414,7 @@ impl Runner {
     fn next_wake(&self) -> Option<Duration> {
         let now = Instant::now();
         let deadline = self.state.deadline().map(|d| d.saturating_duration_since(now));
-        let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to);
+        let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.gliding());
         let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
         let follow_poll = match self.anchor {
             Some(Anchor::Caret(_)) => CARET_POLL,
@@ -448,8 +485,13 @@ impl Runner {
         self.last_caret_poll = now;
         let animate = self.settings.animation.duration_ms() > 0;
         match self.visual.as_mut() {
-            // already visible: swap the artwork, keep opacity
+            // already visible: swap the artwork, keep opacity, glide to the new place
             Some(v) if v.to > 0.0 => {
+                // another monitor can have another scale: jump there rather than glide
+                if v.monitor.bounds != monitor.bounds {
+                    v.pos = (body_pos.0 as f32, body_pos.1 as f32);
+                    v.velocity = (0.0, 0.0);
+                }
                 v.on = on;
                 v.dark = dark;
                 v.frame = None;
@@ -467,6 +509,9 @@ impl Runner {
                     frame: None,
                     monitor,
                     body_pos,
+                    pos: (body_pos.0 as f32, body_pos.1 as f32),
+                    velocity: (0.0, 0.0),
+                    stepped: now,
                 });
             }
         }
@@ -601,6 +646,7 @@ impl Runner {
         let position = self.settings.position;
         let size = self.settings.size;
         let opacity = self.settings.opacity;
+        let glide = glide_time(self.settings.animation.duration_ms());
 
         let moved_to = if follow && self.visual.is_some() { self.poll_anchor(now) } else { None };
         if let Some(a) = moved_to {
@@ -624,6 +670,17 @@ impl Runner {
                 v.body_pos = a.place(body, &v.monitor, position);
                 log::debug!("caps lock indicator follows to {:?} for {a:?}", v.body_pos);
             }
+            // after a pause (polling slows down when nothing moves) a glide starts with one frame's step
+            let dt = now.duration_since(v.stepped).as_secs_f32().min(2.0 * FRAME.as_secs_f32());
+            v.stepped = now;
+            let target = (v.body_pos.0 as f32, v.body_pos.1 as f32);
+            if new_monitor.is_some() || glide <= 0.0 {
+                v.pos = target;
+                v.velocity = (0.0, 0.0);
+            } else if dt > 0.0 {
+                v.pos.0 = smooth_damp(v.pos.0, target.0, &mut v.velocity.0, glide, dt);
+                v.pos.1 = smooth_damp(v.pos.1, target.1, &mut v.velocity.1, glide, dt);
+            }
             let t = (now.duration_since(v.start).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
             let progress = if v.from == v.to { v.to } else { v.from + (v.to - v.from) * ease_out_cubic(t) };
             let changed = (progress - v.progress).abs() > f32::EPSILON;
@@ -645,7 +702,7 @@ impl Runner {
         }
         let Some(frame) = v.frame.as_ref() else { return };
         let margin = frame.margin as i32;
-        let (x, y) = (v.body_pos.0 - margin, v.body_pos.1 - margin);
+        let (x, y) = (v.pos.0.round() as i32 - margin, v.pos.1.round() as i32 - margin);
         if let Some(o) = overlay.as_mut() {
             o.present(rerender.then_some(frame), x, y, opacity * progress);
         }
@@ -689,5 +746,52 @@ impl Runner {
                 work: Rect { x: 0, y: 0, width: 1920, height: 1080 },
                 scale: 1.0,
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::settings::AnimationSpeed;
+
+    /// Glides from `from` to `to` at 60 frames per second.
+    fn glide(from: f32, to: f32, smooth_time: f32, frames: usize) -> Vec<f32> {
+        let (mut pos, mut velocity) = (from, 0.0);
+        (0..frames)
+            .map(|_| {
+                pos = smooth_damp(pos, to, &mut velocity, smooth_time, 1.0 / 60.0);
+                pos
+            })
+            .collect()
+    }
+
+    #[test]
+    fn glide_starts_gently_never_overshoots_and_settles_exactly() {
+        let path = glide(0.0, 100.0, glide_time(170), 40);
+        assert!(path.windows(2).all(|w| w[1] >= w[0]), "moves one way only: {path:?}");
+        assert!(path.iter().all(|p| *p <= 100.0), "never passes the target: {path:?}");
+        assert!(path[0] < 15.0, "first frame moves only a little: {path:?}");
+        let settled = path.iter().position(|p| *p == 100.0).expect("settles on the target");
+        assert!((10..=20).contains(&settled), "settles in about a quarter second, took {settled} frames");
+        // leftward too
+        assert_eq!(*glide(100.0, 40.0, glide_time(170), 40).last().unwrap(), 40.0);
+    }
+
+    #[test]
+    fn glide_keeps_its_momentum_when_the_target_moves_on() {
+        let (mut pos, mut velocity) = (0.0, 0.0);
+        for _ in 0..3 {
+            pos = smooth_damp(pos, 10.0, &mut velocity, glide_time(170), 1.0 / 60.0);
+        }
+        assert!(velocity > 0.0);
+        // the next keystroke moves the cursor further: no stop, no jump
+        let next = smooth_damp(pos, 20.0, &mut velocity, glide_time(170), 1.0 / 60.0);
+        assert!(next > pos && next < 20.0);
+    }
+
+    #[test]
+    fn animations_off_means_no_glide() {
+        assert_eq!(glide_time(AnimationSpeed::Off.duration_ms()), 0.0);
+        assert!(glide_time(AnimationSpeed::Slow.duration_ms()) > glide_time(AnimationSpeed::Fast.duration_ms()));
     }
 }

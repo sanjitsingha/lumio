@@ -7,6 +7,8 @@ pub enum ResultKind {
     Action,
     Folder,
     File,
+    /// "Search Google for …", always listed last.
+    Web,
 }
 
 impl ResultKind {
@@ -17,6 +19,8 @@ impl ResultKind {
             ResultKind::Action => 0.97,
             ResultKind::Folder => 0.86,
             ResultKind::File => 0.84,
+            // placed after the ranking, see `engine::finish`
+            ResultKind::Web => 0.0,
         }
     }
 
@@ -26,6 +30,7 @@ impl ResultKind {
             ResultKind::Action => ("actions", "Quick Actions"),
             ResultKind::Folder => ("folders", "Folders"),
             ResultKind::File => ("files", "Files"),
+            ResultKind::Web => ("web", "Web"),
         }
     }
 }
@@ -56,6 +61,16 @@ pub struct SearchResult {
     pub reveal: bool,
     /// Short note shown on the selected row.
     pub note: Option<String>,
+    /// The app's own actions (e.g. "New Private Window"), shown below it while it is selected.
+    pub actions: Vec<ResultAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultAction {
+    /// Executable result id, issued by the backend like any other.
+    pub id: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

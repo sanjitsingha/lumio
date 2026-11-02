@@ -1,5 +1,6 @@
 //! Spotlight and Settings window lifecycle.
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -16,19 +17,27 @@ pub const SPOTLIGHT: &str = "spotlight";
 pub const SETTINGS: &str = "settings";
 
 /// Logical width of the Spotlight window: 680 px panel + transparent margin for its shadow.
-pub const SPOTLIGHT_WIDTH: f64 = 720.0;
-/// Transparent margin around the panel in CSS pixels (`MARGIN` in `pages/Spotlight.jsx`).
-const SPOTLIGHT_MARGIN: f64 = 20.0;
+pub const SPOTLIGHT_WIDTH: f64 = 752.0;
+/// Transparent margin around the panel in CSS pixels (`MARGIN` in `pages/Spotlight.jsx`);
+/// the panel's shadow (`--lm-shadow`) must fade out within it.
+const SPOTLIGHT_MARGIN: f64 = 36.0;
 #[cfg(not(target_os = "linux"))]
 const SPOTLIGHT_MIN_HEIGHT: f64 = 60.0;
 /// On Linux the window keeps this fixed size: GTK cannot resize a mapped,
 /// non-resizable window on Wayland, so instead the input region is shrunk to
 /// the panel and the transparent rest of the window lets clicks through.
-const SPOTLIGHT_MAX_HEIGHT: f64 = 600.0;
+/// The results list's height cap in `ResultList.jsx` assumes this height.
+const SPOTLIGHT_MAX_HEIGHT: f64 = 632.0;
 /// Focus changes right after showing are window-manager noise, not the user leaving.
 const BLUR_GRACE: Duration = Duration::from_millis(300);
+/// How long the page fades the panel out (on `SPOTLIGHT_HIDING`) before the window hides.
+const FADE_OUT: Duration = Duration::from_millis(120);
 
 static SHOWN_AT: Mutex<Option<Instant>> = Mutex::new(None);
+/// Spotlight is open: shown and not closing (the window stays visible while it fades out).
+static OPEN: AtomicBool = AtomicBool::new(false);
+/// Bumped by every show and hide, so a pending hide can tell it was overtaken.
+static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// Last panel rectangle (x, y, width, height) in window pixels (Linux input region).
 #[cfg(target_os = "linux")]
 static PANEL_RECT: Mutex<Option<(i32, i32, i32, i32)>> = Mutex::new(None);
@@ -55,14 +64,15 @@ pub fn create_spotlight(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(window)
 }
 
-pub fn is_spotlight_visible(app: &AppHandle) -> bool {
-    app.get_webview_window(SPOTLIGHT).and_then(|w| w.is_visible().ok()).unwrap_or(false)
+/// Open, and not fading out: toggling now closes it.
+pub fn is_spotlight_open() -> bool {
+    OPEN.load(Ordering::SeqCst)
 }
 
 /// `timestamp` is the input event that triggered the request, if known; on
 /// Wayland it is what lets the compositor hand keyboard focus to Spotlight.
 pub fn toggle_spotlight(app: &AppHandle, timestamp: Option<u32>) {
-    if is_spotlight_visible(app) {
+    if is_spotlight_open() {
         hide_spotlight(app);
     } else {
         show_spotlight(app, timestamp);
@@ -90,6 +100,9 @@ pub fn show_spotlight(app: &AppHandle, timestamp: Option<u32>) {
         center_on_active_monitor(app, &window);
     }
     *SHOWN_AT.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+    OPEN.store(true, Ordering::SeqCst);
+    // cancels a fade-out that is still running
+    GENERATION.fetch_add(1, Ordering::SeqCst);
     if let Err(e) = window.show() {
         log::error!("could not show Spotlight: {e}");
         return;
@@ -129,14 +142,29 @@ fn focus_window(_app: &AppHandle, window: &WebviewWindow, _timestamp: Option<u32
     }
 }
 
+/// Closes Spotlight: the page fades the panel out (`SPOTLIGHT_HIDING`), then
+/// the window hides, unless Spotlight was opened again in the meantime.
 pub fn hide_spotlight(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window(SPOTLIGHT) {
-        if window.is_visible().unwrap_or(false) {
+    if !OPEN.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let Some(window) = app.get_webview_window(SPOTLIGHT) else { return };
+    log::debug!("spotlight closing");
+    let _ = window.emit(events::SPOTLIGHT_HIDING, ());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(FADE_OUT);
+        // decided on the main thread, where showing happens too, so a show cannot slip in between
+        let _ = app.run_on_main_thread(move || {
+            if GENERATION.load(Ordering::SeqCst) != generation {
+                return;
+            }
             log::debug!("spotlight hidden");
             let _ = window.hide();
             let _ = window.emit(events::SPOTLIGHT_HIDDEN, ());
-        }
-    }
+        });
+    });
 }
 
 /// Fits the window to its content. `css_height` (panel + margins) and
@@ -145,6 +173,7 @@ pub fn hide_spotlight(app: &AppHandle) {
 pub fn set_spotlight_height(app: &AppHandle, css_height: f64, css_width: f64) {
     let Some(window) = app.get_webview_window(SPOTLIGHT) else { return };
     let zoom = if css_width > 0.0 { SPOTLIGHT_WIDTH / css_width } else { 1.0 };
+    log::debug!("spotlight content {css_height} css px tall at width {css_width} (zoom {zoom:.3})");
     #[cfg(target_os = "linux")]
     {
         let margin = (SPOTLIGHT_MARGIN * zoom).round() as i32;
@@ -241,6 +270,12 @@ pub fn open_settings(app: &AppHandle, pane: Option<&str>) {
     }
 }
 
+/// After Spotlight loses focus: `None` to hide it now, or how long to wait
+/// before checking again (during [`BLUR_GRACE`] after it was shown).
+fn blur_recheck(since_shown: Option<Duration>) -> Option<Duration> {
+    since_shown.filter(|t| *t < BLUR_GRACE).map(|t| BLUR_GRACE - t)
+}
+
 /// Global window event handler (installed with `Builder::on_window_event`).
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     let app = window.app_handle();
@@ -251,9 +286,26 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
         }
         (SPOTLIGHT, WindowEvent::Focused(focused)) => {
             log::debug!("spotlight focus changed: {focused}");
-            let recently_shown = SHOWN_AT.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| t.elapsed() < BLUR_GRACE);
-            if !focused && !recently_shown {
-                hide_spotlight(app);
+            if *focused {
+                return;
+            }
+            let shown_at = *SHOWN_AT.lock().unwrap_or_else(|e| e.into_inner());
+            match blur_recheck(shown_at.map(|t| t.elapsed())) {
+                None => hide_spotlight(app),
+                Some(wait) => {
+                    // maybe noise while appearing, maybe a quick click outside: if focus
+                    // has not come back once the grace period is over, the user left
+                    let app = app.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(wait);
+                        let same_showing = *SHOWN_AT.lock().unwrap_or_else(|e| e.into_inner()) == shown_at;
+                        let Some(window) = app.get_webview_window(SPOTLIGHT) else { return };
+                        if same_showing && window.is_visible().unwrap_or(false) && !window.is_focused().unwrap_or(true) {
+                            log::debug!("spotlight lost focus while appearing and did not get it back");
+                            hide_spotlight(&app);
+                        }
+                    });
+                }
             }
         }
         (SETTINGS, WindowEvent::CloseRequested { api, .. }) => {
@@ -267,5 +319,18 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blur_right_after_showing_is_checked_again_once_the_grace_is_over() {
+        assert_eq!(blur_recheck(Some(Duration::from_millis(100))), Some(Duration::from_millis(200)));
+        assert_eq!(blur_recheck(Some(BLUR_GRACE)), None);
+        assert_eq!(blur_recheck(Some(Duration::from_secs(5))), None);
+        assert_eq!(blur_recheck(None), None);
     }
 }

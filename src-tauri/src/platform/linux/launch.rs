@@ -32,6 +32,22 @@ pub fn launch_app(target: &str) -> Result<(), String> {
     info.launch(&[], Some(&launch_context())).map_err(|e| e.message().to_string())
 }
 
+/// Runs one of the entry's `[Desktop Action …]` groups (GIO handles `Exec`
+/// field codes and D-Bus activation the same way as for the app itself).
+pub fn launch_app_action(target: &str, action: &str) -> Result<(), String> {
+    let info = gio::DesktopAppInfo::from_filename(target).ok_or("the application entry can no longer be read")?;
+    if !info.list_actions().iter().any(|a| a.as_str() == action) {
+        return Err("the application no longer offers this action".into());
+    }
+    info.launch_action(action, Some(&launch_context()));
+    Ok(())
+}
+
+/// Opens `uri` with a specific app (e.g. the browser chosen for web searches).
+pub fn launch_uri_with(info: &impl IsA<gio::AppInfo>, uri: &str) -> Result<(), String> {
+    info.launch_uris(&[uri], Some(&launch_context())).map_err(|e| e.message().to_string())
+}
+
 pub fn launch_app_info(info: &gio::AppInfo, files: &[gio::File]) -> Result<(), String> {
     info.launch(files, Some(&launch_context())).map_err(|e| e.message().to_string())
 }

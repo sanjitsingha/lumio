@@ -11,6 +11,8 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Spotlight window | ✅ | Opens, receives keyboard focus (Gala's input timestamp is used to satisfy focus-stealing prevention), closes on Esc or on blur. Gala centres new windows. The window has a fixed size and its input region is limited to the panel, so the empty area is click-through. |
 | Global shortcuts | ✅ | Via Gala's `GrabAccelerator` D-Bus API. **Alt+Space is reserved** by Gala's window menu; Lumio reports this and **Ctrl+Space** works by default. |
 | App search and launch | ✅ | XDG desktop entries, Flatpak exports, icons from the elementary icon theme; launched through GIO. |
+| Web search | 🟡 | Browsers are the apps registered for `https` links (`g_app_info_get_all_for_type`); the search opens with `g_app_info_launch_uris`. |
+| App actions | 🟡 | The selected app's `[Desktop Action]` groups (*New Window*, *New Private Window*…) are listed below it and run through GIO (`g_desktop_app_info_launch_action`). |
 | File search and open | ✅ | Index plus inotify updates, opening with the default app, revealing in Files. |
 | Quick actions | ✅ | Settings (`io.elementary.settings`), Calculator, Files, default browser, Terminal. |
 | Caps Lock detection | ✅ | Read from the keyboard's Caps Lock LED (`/sys/class/leds/*::capslock`), the only unprivileged system-wide source on Wayland. Polled every 150 ms (1 s while the indicator is disabled). Requires a keyboard that exposes a Caps Lock LED (practically all do). |
@@ -50,6 +52,8 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Global shortcuts | 🟡 | `RegisterHotKey` (Tauri plugin). Conflicts are reported when Windows refuses a combination. |
 | Spotlight window | 🟡 | Transparent undecorated window, positioned on the monitor with the pointer, resized to its content. |
 | App search | 🟡 | `shell:AppsFolder` enumeration (classic and Store apps) with `IShellItemImageFactory` icons; launch via `ShellExecuteW("shell:AppsFolder\\<AUMID>")`. |
+| Web search | 🟡 | Browsers come from `Clients\StartMenuInternet` (as in Default Apps); the chosen one is started with the search link, otherwise `ShellExecuteW` opens the default browser. |
+| App actions | ❌ | Jump-list tasks (Chrome's *New Incognito window*…) belong to each app; Windows has no public API to read them. |
 | Files | 🟡 | Same index; recursive `ReadDirectoryChangesW`; hidden/system attributes respected; `ShellExecuteW` to open, `explorer /select,` to reveal. |
 | Quick actions | 🟡 | `ms-settings:`, `calculator:`, Explorer, default browser (`AssocQueryStringW`), Windows Terminal or PowerShell. |
 | Caps Lock detection | 🟡 | `WH_KEYBOARD_LL` hook wakes a thread that reads `GetKeyState(VK_CAPITAL)`. |

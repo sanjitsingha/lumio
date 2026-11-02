@@ -29,6 +29,7 @@
     "allow-preview-capslock-indicator",
     "allow-get-platform-info",
     "allow-get-system-appearance",
+    "allow-get-browsers",
     "allow-get-diagnostics",
     "allow-read-log-tail",
     "allow-open-log-folder",

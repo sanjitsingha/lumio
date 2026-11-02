@@ -2,33 +2,11 @@
 
 use std::path::PathBuf;
 
-use windows::core::{w, PWSTR};
-use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE};
-
+use super::browser::default_executable as default_browser;
 use super::launch::shell_open;
 
 fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
-}
-
-/// Executable registered for the `https` protocol (the default browser).
-fn default_browser() -> Option<String> {
-    let mut len: u32 = 0;
-    unsafe {
-        let _ = AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE, w!("https"), None, None, &mut len);
-    }
-    if len == 0 {
-        return None;
-    }
-    let mut buf = vec![0u16; len as usize];
-    let hr = unsafe {
-        AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE, w!("https"), None, Some(PWSTR(buf.as_mut_ptr())), &mut len)
-    };
-    if hr.is_err() {
-        return None;
-    }
-    let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-    Some(String::from_utf16_lossy(&buf[..end])).filter(|s| !s.is_empty())
 }
 
 /// Windows Terminal is an app-execution alias in WindowsApps when installed.

@@ -6,6 +6,7 @@ use super::apps::{AppIndex, AppsProvider};
 use super::files::{FileIndex, FilesProvider};
 use super::fuzzy::Query;
 use super::types::{ExecuteMode, ResultKind, SearchResponse, SearchResult, Section};
+use super::web::WebSearchProvider;
 use super::{split_id, ExecutedItem, SearchContext, SearchProvider};
 use crate::error::{AppError, AppResult};
 use crate::storage::history::{frecency, now_secs, History};
@@ -13,7 +14,8 @@ use crate::storage::settings::SpotlightSettings;
 
 /// A result this strong (after weighting) is promoted to "Top Hit".
 const TOP_HIT_THRESHOLD: f32 = 700.0;
-const SECTION_ORDER: [ResultKind; 4] = [ResultKind::App, ResultKind::Action, ResultKind::Folder, ResultKind::File];
+const SECTION_ORDER: [ResultKind; 5] =
+    [ResultKind::App, ResultKind::Action, ResultKind::Folder, ResultKind::File, ResultKind::Web];
 
 pub struct SearchEngine {
     providers: Vec<Arc<dyn SearchProvider>>,
@@ -24,11 +26,18 @@ pub struct SearchEngine {
 }
 
 impl SearchEngine {
-    pub fn new(apps: Arc<AppIndex>, files: Arc<FileIndex>, actions: Arc<ActionsProvider>, history: Arc<History>) -> Self {
+    pub fn new(
+        apps: Arc<AppIndex>,
+        files: Arc<FileIndex>,
+        actions: Arc<ActionsProvider>,
+        web: Arc<WebSearchProvider>,
+        history: Arc<History>,
+    ) -> Self {
         let providers: Vec<Arc<dyn SearchProvider>> = vec![
             Arc::new(AppsProvider::new(apps.clone())),
             actions.clone(),
             Arc::new(FilesProvider::new(files.clone())),
+            web,
         ];
         Self { providers, apps, files, actions, history }
     }
@@ -51,8 +60,8 @@ impl SearchEngine {
         }
         let limit = settings.max_results as usize;
         let now = now_secs();
-        let mut results = self.history.with_usage(|usage| {
-            let ctx = SearchContext { query: &query, settings, limit };
+        let results = self.history.with_usage(|usage| {
+            let ctx = SearchContext { raw: raw.trim(), query: &query, settings, limit };
             let mut all = Vec::new();
             for provider in self.providers.iter().filter(|p| p.enabled(settings)) {
                 let before = all.len();
@@ -63,8 +72,7 @@ impl SearchEngine {
             }
             all
         });
-        rank(&mut results);
-        results.truncate(limit);
+        let results = finish(results, limit);
         let total = results.len();
         let sections = group(results);
         let suggestion = if settings.keep_history { self.history.suggestion(raw) } else { None };
@@ -116,6 +124,16 @@ impl SearchEngine {
     }
 }
 
+/// Ranks and trims to `limit`; the web search is then added at the end, so
+/// it is never ranked above a real match nor cut off by the limit.
+fn finish(results: Vec<SearchResult>, limit: usize) -> Vec<SearchResult> {
+    let (web, mut ranked): (Vec<_>, Vec<_>) = results.into_iter().partition(|r| r.kind == ResultKind::Web);
+    rank(&mut ranked);
+    ranked.truncate(limit);
+    ranked.extend(web);
+    ranked
+}
+
 fn rank(results: &mut [SearchResult]) {
     results.sort_by(|a, b| {
         b.score
@@ -158,6 +176,7 @@ mod tests {
             score,
             reveal: false,
             note: None,
+            actions: Vec::new(),
         }
     }
 
@@ -186,6 +205,23 @@ mod tests {
         let ids: Vec<_> = sections.iter().map(|s| s.id).collect();
         assert_eq!(ids, vec!["top", "apps", "actions", "files"]);
         assert_eq!(sections[0].results[0].title, "Reports");
+    }
+
+    #[test]
+    fn web_search_comes_last_and_survives_the_limit() {
+        let results = vec![
+            result("w", ResultKind::Web, "Search Google for “report”", 0.0),
+            result("a", ResultKind::File, "report.pdf", 900.0),
+            result("b", ResultKind::File, "report-old.pdf", 800.0),
+        ];
+        let kept = finish(results, 1);
+        let ids: Vec<_> = kept.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, ["a", "w"]);
+        let sections = group(kept);
+        assert_eq!(sections.last().map(|s| s.id), Some("web"));
+        // on its own it is not promoted to Top Hit
+        let alone = group(finish(vec![result("w", ResultKind::Web, "Search Google for “x”", 0.0)], 5));
+        assert_eq!(alone.iter().map(|s| s.id).collect::<Vec<_>>(), ["web"]);
     }
 
     #[test]

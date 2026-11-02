@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { CornerDownLeft } from "lucide-react";
+import { CornerDownLeft, CornerDownRight } from "lucide-react";
 import { ResultIcon } from "./ResultIcon";
 import { cx } from "../../utils/cx";
 
@@ -32,6 +32,64 @@ export const ResultRow = forwardRef(function ResultRow({ result, selected, onHov
           title={result.subtitle}
         >
           {selected && result.note ? result.note : result.subtitle || KIND_LABEL[result.kind]}
+        </span>
+      </span>
+      {selected && (
+        <span className="flex shrink-0 items-center gap-1 text-[11px] opacity-85">
+          <CornerDownLeft size={13} strokeWidth={2.2} />
+        </span>
+      )}
+    </div>
+  );
+});
+
+/** One of an app's own actions, indented below the app while it is selected. */
+export const ActionRow = forwardRef(function ActionRow({ action, selected, onHover, onOpen }, ref) {
+  return (
+    <div
+      ref={ref}
+      role="option"
+      aria-selected={selected}
+      onMouseMove={onHover}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onOpen}
+      className={cx(
+        "mx-2 flex h-[34px] items-center gap-3 rounded-[9px] px-2.5",
+        selected ? "bg-accent text-on-accent" : "text-label",
+      )}
+    >
+      <span className={cx("flex w-[30px] shrink-0 justify-center", !selected && "text-tertiary")}>
+        <CornerDownRight size={14} strokeWidth={2} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px]">{action.title}</span>
+      {selected && (
+        <span className="flex shrink-0 items-center gap-1 text-[11px] opacity-85">
+          <CornerDownLeft size={13} strokeWidth={2.2} />
+        </span>
+      )}
+    </div>
+  );
+});
+
+/** The calculator's answer on one line, "2 + 2 = 4"; a long sum shortens, the answer never does. */
+export const CalculatorRow = forwardRef(function CalculatorRow({ result, selected, onHover, onOpen }, ref) {
+  return (
+    <div
+      ref={ref}
+      role="option"
+      aria-selected={selected}
+      onMouseMove={onHover}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onOpen}
+      className={cx(
+        "mx-2 flex h-[46px] items-center gap-3 rounded-[9px] px-3",
+        selected ? "bg-accent text-on-accent" : "text-label",
+      )}
+    >
+      <span className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[16px] leading-[22px]">
+        <span className="truncate">{result.subtitle}</span>
+        <span className="shrink-0">
+          = <span className="font-semibold">{result.title}</span>
         </span>
       </span>
       {selected && (

@@ -84,6 +84,10 @@ pub struct SpotlightSettings {
     /// Folders indexed for file search. Empty means the user's home folder.
     pub index_roots: Vec<String>,
     pub index_hidden: bool,
+    /// Offer "Search Google for …" below the results.
+    pub web_search: bool,
+    /// Browser for web searches: an id from `get_browsers`, or empty for the system default.
+    pub web_browser: String,
 }
 
 pub const MAX_RESULTS_RANGE: (u32, u32) = (5, 60);
@@ -103,6 +107,8 @@ impl Default for SpotlightSettings {
             exclusions: default_exclusions(),
             index_roots: Vec::new(),
             index_hidden: false,
+            web_search: true,
+            web_browser: String::new(),
         }
     }
 }

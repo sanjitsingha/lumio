@@ -366,6 +366,7 @@ impl FileIndex {
             score,
             reveal: true,
             note: executable.then(|| "Programs open in the file manager for safety".into()),
+            actions: Vec::new(),
         }
     }
 

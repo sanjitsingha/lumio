@@ -1,8 +1,16 @@
-//! Minimal freedesktop Desktop Entry parser (`[Desktop Entry]` group only).
+//! Minimal freedesktop Desktop Entry parser (the `[Desktop Entry]` group and
+//! the `[Desktop Action …]` groups it lists).
 //! <https://specifications.freedesktop.org/desktop-entry-spec/latest/>
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+/// An action the app offers besides starting normally ("New Private Window").
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DesktopAction {
+    pub id: String,
+    pub name: String,
+}
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DesktopEntry {
@@ -20,6 +28,8 @@ pub struct DesktopEntry {
     pub terminal: bool,
     pub only_show_in: Vec<String>,
     pub not_show_in: Vec<String>,
+    /// In the order of the `Actions` key.
+    pub actions: Vec<DesktopAction>,
 }
 
 /// Locale fallbacks for `LANG`-style strings, most specific first:
@@ -117,34 +127,31 @@ fn split_list(value: &str) -> Vec<String> {
 }
 
 pub fn parse(text: &str, locales: &[String]) -> Option<DesktopEntry> {
-    let mut in_main = false;
-    let mut raw: HashMap<&str, &str> = HashMap::new();
+    let mut groups: HashMap<&str, HashMap<&str, &str>> = HashMap::new();
+    let mut group: Option<&str> = None;
     for line in text.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         if line.starts_with('[') {
-            in_main = line == "[Desktop Entry]";
+            group = line.strip_prefix('[').and_then(|l| l.strip_suffix(']'));
             continue;
         }
-        if !in_main {
-            continue;
-        }
+        let Some(name) = group else { continue };
         if let Some((k, v)) = line.split_once('=') {
-            raw.entry(k.trim()).or_insert(v.trim());
+            groups.entry(name).or_default().entry(k.trim()).or_insert(v.trim());
         }
     }
-    if raw.is_empty() {
-        return None;
-    }
-    let localized = |key: &str| -> Option<String> {
+    let raw = groups.get("Desktop Entry")?;
+    let localized_in = |group: &HashMap<&str, &str>, key: &str| -> Option<String> {
         locales
             .iter()
-            .find_map(|l| raw.get(format!("{key}[{l}]").as_str()))
-            .or_else(|| raw.get(key))
+            .find_map(|l| group.get(format!("{key}[{l}]").as_str()))
+            .or_else(|| group.get(key))
             .map(|v| unescape(v))
     };
+    let localized = |key: &str| localized_in(raw, key);
     let flag = |key: &str| raw.get(key).is_some_and(|v| v.eq_ignore_ascii_case("true"));
     let list = |key: &str| raw.get(key).map(|v| split_list(&unescape(v))).unwrap_or_default();
     let keywords = locales
@@ -153,6 +160,18 @@ pub fn parse(text: &str, locales: &[String]) -> Option<DesktopEntry> {
         .or_else(|| raw.get("Keywords"))
         .map(|v| split_list(&unescape(v)))
         .unwrap_or_default();
+    // an action needs a group with a name, and a command unless the app is D-Bus activated
+    let dbus_activatable = flag("DBusActivatable");
+    let actions = list("Actions")
+        .into_iter()
+        .filter_map(|id| {
+            let group = groups.get(format!("Desktop Action {id}").as_str())?;
+            if !dbus_activatable && !group.contains_key("Exec") {
+                return None;
+            }
+            Some(DesktopAction { name: localized_in(group, "Name")?, id })
+        })
+        .collect();
     Some(DesktopEntry {
         entry_type: raw.get("Type").map(|s| s.to_string()).unwrap_or_default(),
         name: localized("Name")?,
@@ -168,6 +187,7 @@ pub fn parse(text: &str, locales: &[String]) -> Option<DesktopEntry> {
         terminal: flag("Terminal"),
         only_show_in: list("OnlyShowIn"),
         not_show_in: list("NotShowIn"),
+        actions,
     })
 }
 
@@ -223,10 +243,23 @@ Icon=firefox
 Terminal=false
 Type=Application
 Categories=GNOME;GTK;Network;WebBrowser;
+Actions=new-window;new-private-window;no-group;no-exec;
 
 [Desktop Action new-window]
 Name=Open a New Window
 Exec=firefox -new-window
+
+[Desktop Action new-private-window]
+Name=Open a New Private Window
+Name[de]=Neues privates Fenster öffnen
+Exec=firefox -private-window
+
+[Desktop Action no-exec]
+Name=Does Nothing
+
+[Desktop Action profile-manager]
+Name=Not Listed
+Exec=firefox -P
 "#;
 
     #[test]
@@ -239,6 +272,18 @@ Exec=firefox -new-window
         assert_eq!(e.keywords, vec!["Internet", "WWW", "Browser", "Web", "Explorer"]);
         assert_eq!(e.categories.len(), 4);
         assert!(!e.terminal && !e.no_display);
+    }
+
+    #[test]
+    fn parses_listed_actions_in_order() {
+        let e = parse(FIREFOX, &[]).unwrap();
+        let actions: Vec<_> = e.actions.iter().map(|a| (a.id.as_str(), a.name.as_str())).collect();
+        assert_eq!(actions, [("new-window", "Open a New Window"), ("new-private-window", "Open a New Private Window")]);
+        let de = parse(FIREFOX, &locale_candidates("de_DE.UTF-8")).unwrap();
+        assert_eq!(de.actions[1].name, "Neues privates Fenster öffnen");
+        // D-Bus activated apps run actions without an Exec line
+        let dbus = FIREFOX.replace("Type=Application", "Type=Application\nDBusActivatable=true");
+        assert_eq!(parse(&dbus, &[]).unwrap().actions.len(), 3);
     }
 
     #[test]

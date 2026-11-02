@@ -18,7 +18,16 @@ use self::windows as imp;
 #[cfg(not(any(target_os = "linux", windows)))]
 compile_error!("Lumio supports Linux and Windows only.");
 
-pub use imp::{appearance, apps, autostart, capslock, caret, cursor, launch, overlay, quick_actions};
+pub use imp::{appearance, apps, autostart, browser, capslock, caret, cursor, launch, overlay, quick_actions};
+
+/// A web browser that can open links (Settings → Spotlight → Browser for web searches).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Browser {
+    /// Registry key name on Windows, desktop-file id on Linux.
+    pub id: String,
+    pub name: String,
+}
 
 /// Whether a directory entry is hidden (dot-files on Linux, the hidden or
 /// system attribute on Windows).

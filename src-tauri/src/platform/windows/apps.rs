@@ -64,6 +64,8 @@ fn enumerate() -> windows::core::Result<Vec<DiscoveredApp>> {
             keywords,
             icon,
             target: parsing,
+            // jump-list tasks are private to each app; Windows has no API to read them
+            actions: Vec::new(),
         });
     }
     Ok(apps)

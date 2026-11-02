@@ -50,9 +50,11 @@ Windows:
 2. ranks the results and trims them to *Maximum results*;
 3. promotes a strong first result to **Top Hit**, then groups the rest in a fixed section order.
 
-Result ids are `provider:local-id`. **Execution re-resolves the id inside the provider:** apps must be in the app index and files must be live entries of the file index. The frontend therefore cannot make the backend open arbitrary paths. Executable files are revealed in the file manager instead of being run.
+Result ids are `provider:local-id`. **Execution re-resolves the id inside the provider:** apps must be in the app index and files must be live entries of the file index. An app's own actions have ids `app:<key>#<action>` and run only if the indexed app declares that action. The web search (`web:<query>`, `search/web.rs`) is placed after the ranking so it is always last; its link is built in Rust and is always a Google results page, opened in the browser chosen in Settings (`platform::browser`: Windows' `Clients\StartMenuInternet` registrations, or Linux's `https` handlers) or the system default. The frontend therefore cannot make the backend open arbitrary paths. Executable files are revealed in the file manager instead of being run.
 
-To add a feature such as a calculator, clipboard history or plugins, implement `SearchProvider` and register it in `SearchEngine::new`.
+To add a feature such as clipboard history or plugins, implement `SearchProvider` and register it in `SearchEngine::new`.
+
+The **calculator** is the exception: it needs no system access, so the page computes it (`src/utils/calc.js`, a small parser; the CSP forbids `eval`) on every keystroke, without waiting for the backend, and shows it as a *Calculator* section above the backend's results. Enter copies the answer.
 
 The file index:
 
@@ -85,6 +87,8 @@ pointer tracker ─position──▶ geometry::place_body (edge flipping) ──
                                                                       ▼
                                                      render::render (tiny-skia) ─▶ platform overlay
 ```
+
+**Gliding.** A new caret or pointer position is a target: the indicator glides there at 60 fps on a critically damped spring (`smooth_damp`: gentle start, no overshoot, momentum kept when the next keystroke moves the caret again), settling in about 0.25 s at the *Normal* animation speed. Animation speed *Off*, a first appearance and a move to another monitor place it at once.
 
 | | Windows | Linux X11 | Linux Wayland (elementary) |
 |---|---|---|---|

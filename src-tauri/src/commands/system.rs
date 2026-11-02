@@ -46,6 +46,12 @@ pub fn get_system_appearance() -> SystemAppearance {
     platform::appearance::read()
 }
 
+/// Browsers that can be chosen for web searches.
+#[tauri::command]
+pub fn get_browsers() -> Vec<platform::Browser> {
+    platform::browser::installed()
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostics {

@@ -1,10 +1,34 @@
-//! Minimal registry helpers (string and DWORD values).
+//! Minimal registry helpers (string and DWORD values, subkey names).
 
-use windows::core::HSTRING;
+use windows::core::{HSTRING, PWSTR};
 use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::System::Registry::{
-    RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW, HKEY, REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+    RegCloseKey, RegDeleteKeyValueW, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, RegSetKeyValueW, HKEY, KEY_READ,
+    REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
 };
+
+/// Names of `key`'s subkeys (none if the key does not exist).
+pub fn subkeys(root: HKEY, key: &str) -> Vec<String> {
+    let mut handle = HKEY::default();
+    if unsafe { RegOpenKeyExW(root, &HSTRING::from(key), None, KEY_READ, &mut handle) } != ERROR_SUCCESS {
+        return Vec::new();
+    }
+    let mut names = Vec::new();
+    // key names are at most 255 characters
+    let mut buf = [0u16; 256];
+    for index in 0.. {
+        let mut len = buf.len() as u32;
+        let status = unsafe { RegEnumKeyExW(handle, index, Some(PWSTR(buf.as_mut_ptr())), &mut len, None, None, None, None) };
+        if status != ERROR_SUCCESS {
+            break;
+        }
+        names.push(String::from_utf16_lossy(&buf[..len as usize]));
+    }
+    unsafe {
+        let _ = RegCloseKey(handle);
+    }
+    names
+}
 
 pub fn read_string(root: HKEY, key: &str, value: &str) -> Option<String> {
     let (key, value) = (HSTRING::from(key), HSTRING::from(value));

@@ -103,6 +103,7 @@ impl ActionsProvider {
             score,
             reveal: false,
             note: None,
+            actions: Vec::new(),
         }
     }
 }
@@ -168,7 +169,7 @@ mod tests {
         let provider = ActionsProvider::new(Arc::new(|| {}));
         let query = super::super::fuzzy::Query::new("lumio");
         let settings = SpotlightSettings::default();
-        let ctx = SearchContext { query: &query, settings: &settings, limit: 10 };
+        let ctx = SearchContext { raw: "lumio", query: &query, settings: &settings, limit: 10 };
         let mut out = Vec::new();
         provider.search(&ctx, &mut out);
         assert_eq!(out[0].id, "action:lumio-settings");

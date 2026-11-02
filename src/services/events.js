@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 export const EVENTS = {
   settingsChanged: "lumio://settings-changed",
   spotlightShown: "lumio://spotlight-shown",
+  spotlightHiding: "lumio://spotlight-hiding",
   spotlightHidden: "lumio://spotlight-hidden",
   navigate: "lumio://navigate",
   appearanceChanged: "lumio://appearance-changed",

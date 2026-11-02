@@ -8,7 +8,7 @@ use gtk::gio::prelude::*;
 
 use super::desktop_entry::{self, DesktopEntry};
 use super::icon_theme::{icon_base_dirs, IconResolver};
-use crate::search::apps::{AppIcon, DiscoveredApp};
+use crate::search::apps::{AppAction, AppIcon, DiscoveredApp};
 
 pub fn data_home() -> PathBuf {
     std::env::var_os("XDG_DATA_HOME")
@@ -155,7 +155,16 @@ fn to_app(id: String, path: &Path, entry: DesktopEntry, icons: &IconResolver) ->
         .and_then(|name| icons.lookup(name, 64, 1))
         .map(AppIcon::File)
         .unwrap_or(AppIcon::None);
-    DiscoveredApp { key: id, name: entry.name, description, keywords, icon, target: path.to_string_lossy().into_owned() }
+    let actions = entry.actions.into_iter().map(|a| AppAction { id: a.id, name: a.name }).collect();
+    DiscoveredApp {
+        key: id,
+        name: entry.name,
+        description,
+        keywords,
+        icon,
+        target: path.to_string_lossy().into_owned(),
+        actions,
+    }
 }
 
 pub fn discover() -> Vec<DiscoveredApp> {

@@ -32,6 +32,7 @@ use search::actions::ActionsProvider;
 use search::apps::AppIndex;
 use search::engine::SearchEngine;
 use search::files::FileIndex;
+use search::web::WebSearchProvider;
 use shortcuts::accelerator::Accelerator;
 use shortcuts::actions::ShortcutAction;
 use shortcuts::backend::{ActivationSink, ShortcutBackend};
@@ -145,7 +146,12 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
     let files = FileIndex::new(paths.file_index_cache(), app_state::dirs_home());
     let settings_handle = handle.clone();
     let actions = Arc::new(ActionsProvider::new(Arc::new(move || window_manager::open_settings(&settings_handle, None))));
-    let engine = Arc::new(SearchEngine::new(apps, files, actions, history));
+    let browser_handle = handle.clone();
+    let web = Arc::new(WebSearchProvider::new(
+        Arc::new(move || browser_handle.try_state::<AppState>().map(|s| s.settings().spotlight.web_browser).unwrap_or_default()),
+        apps.clone(),
+    ));
+    let engine = Arc::new(SearchEngine::new(apps, files, actions, web, history));
 
     let (backend, unavailable) = choose_shortcut_backend(&handle, plugin_map, plugin_loaded);
     if let Some(b) = &backend {
@@ -287,6 +293,7 @@ pub fn run() {
             commands::capslock::preview_capslock_indicator,
             commands::system::get_platform_info,
             commands::system::get_system_appearance,
+            commands::system::get_browsers,
             commands::system::get_diagnostics,
             commands::system::read_log_tail,
             commands::system::open_log_folder,

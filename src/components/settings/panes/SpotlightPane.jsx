@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
-import { Button, Group, KeyCaps, Row, Slider, ToggleRow } from "../../common/controls";
+import { Button, Group, KeyCaps, Row, Select, Slider, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { usePlatform } from "../../../hooks/usePlatform";
@@ -82,12 +82,24 @@ function ListEditor({ items, placeholder, onChange, validate, mono = false }) {
 
 const isAbsolute = (p) => p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith("\\\\");
 
+/** "System default" plus the installed browsers; a saved one that is gone stays listed as such. */
+function useBrowserOptions(current) {
+  const [browsers, setBrowsers] = useState([]);
+  useEffect(() => {
+    api.getBrowsers().then(setBrowsers).catch(() => setBrowsers([]));
+  }, []);
+  const options = [{ value: "", label: "System default" }, ...browsers.map((b) => ({ value: b.id, label: b.name }))];
+  if (current && !browsers.some((b) => b.id === current)) options.push({ value: current, label: `${current} (not found)` });
+  return options;
+}
+
 export default function SpotlightPane({ onNavigate }) {
   const settings = useSettings();
   const update = useUpdateSettings();
   const platform = usePlatform();
   const [status, refreshStatus] = useIndexStatus();
   const s = settings.spotlight;
+  const browserOptions = useBrowserOptions(s.webBrowser);
   const set = (patch) => update({ spotlight: patch });
   const [maxResults, setMaxResults] = useState(s.maxResults);
   const [delay, setDelay] = useState(s.searchDelayMs);
@@ -127,6 +139,25 @@ export default function SpotlightPane({ onNavigate }) {
           onChange={(v) => set({ searchActions: v })}
           disabled={!s.enabled}
         />
+        <ToggleRow
+          label="Web search"
+          description="Ends every search with “Search Google for …”."
+          checked={s.webSearch}
+          onChange={(v) => set({ webSearch: v })}
+          disabled={!s.enabled}
+        />
+        <Row
+          label="Browser for web searches"
+          description="Missing or uninstalled browsers fall back to the system default."
+          disabled={!s.enabled || !s.webSearch}
+        >
+          <Select
+            value={s.webBrowser}
+            options={browserOptions}
+            onChange={(v) => set({ webBrowser: v })}
+            disabled={!s.enabled || !s.webSearch}
+          />
+        </Row>
       </Group>
 
       <Group title="Results">

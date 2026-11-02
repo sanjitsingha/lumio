@@ -36,6 +36,7 @@ export const api = {
   // system
   getPlatformInfo: () => invoke("get_platform_info"),
   getSystemAppearance: () => invoke("get_system_appearance"),
+  getBrowsers: () => invoke("get_browsers"),
   getDiagnostics: () => invoke("get_diagnostics"),
   readLogTail: (lines = 200) => invoke("read_log_tail", { lines }),
   openLogFolder: () => invoke("open_log_folder"),

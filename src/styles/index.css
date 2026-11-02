@@ -22,8 +22,10 @@
   --lm-success: #34c759;
   --lm-warning: #ff9500;
   --lm-panel: rgba(255, 255, 255, 0.96);
-  --lm-panel-border: rgba(0, 0, 0, 0.1);
-  --lm-shadow: 0 22px 48px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
+  --lm-panel-border: rgba(0, 0, 0, 0.14);
+  /* Fades out within Spotlight's 36 px transparent margin (offset + blur + spread <= 36),
+     or the window edge would cut it off. */
+  --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
   color-scheme: light;
 }
@@ -45,8 +47,9 @@
   --lm-success: #30d158;
   --lm-warning: #ff9f0a;
   --lm-panel: rgba(37, 37, 40, 0.97);
-  --lm-panel-border: rgba(255, 255, 255, 0.1);
-  --lm-shadow: 0 22px 48px -10px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
+  /* a lighter shade of the panel itself */
+  --lm-panel-border: rgba(255, 255, 255, 0.16);
+  --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
   color-scheme: dark;
 }

@@ -1,7 +1,7 @@
 //! Spotlight search: providers (apps, files, quick actions), ranking and
 //! result execution.
 //!
-//! New sources (calculator, clipboard history, plugins, ...) implement
+//! New sources (clipboard history, plugins, ...) implement
 //! [`SearchProvider`] and are registered in [`engine::SearchEngine::new`].
 
 pub mod actions;
@@ -11,6 +11,7 @@ pub mod files;
 pub mod fuzzy;
 pub mod icons;
 pub mod types;
+pub mod web;
 
 use crate::error::AppResult;
 use crate::storage::settings::SpotlightSettings;
@@ -18,6 +19,8 @@ use fuzzy::Query;
 use types::{ExecuteMode, ResultKind, SearchResult};
 
 pub struct SearchContext<'a> {
+    /// The text as typed (trimmed), for results that repeat it.
+    pub raw: &'a str,
     pub query: &'a Query,
     pub settings: &'a SpotlightSettings,
     /// Maximum candidates a provider should return.

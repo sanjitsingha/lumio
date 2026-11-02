@@ -48,6 +48,11 @@ pub fn launch_app(target: &str) -> Result<(), String> {
     shell_open(&format!("shell:AppsFolder\\{target}"), None)
 }
 
+/// Windows apps report no actions of their own (see `apps::discover`).
+pub fn launch_app_action(_target: &str, _action: &str) -> Result<(), String> {
+    Err("apps have no actions on Windows".into())
+}
+
 pub fn open_path(path: &Path) -> Result<(), String> {
     shell_open(&path.to_string_lossy(), None)
 }
