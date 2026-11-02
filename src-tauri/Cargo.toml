@@ -1,6 +1,6 @@
 [package]
 name = "lumio"
-version = "0.1.9"
+version = "0.1.10"
 description = "Spotlight-style search and a cursor-anchored Caps Lock indicator"
 authors = ["Lumio contributors"]
 license = "MIT"
