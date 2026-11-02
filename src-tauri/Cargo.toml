@@ -1,6 +1,6 @@
 [package]
 name = "lummo"
-version = "0.1.14"
+version = "0.1.15"
 description = "Spotlight-style search and a cursor-anchored Caps Lock indicator"
 authors = ["Lummo contributors"]
 license = "MIT"
