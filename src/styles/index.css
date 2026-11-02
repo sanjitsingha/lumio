@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* the landing-page components in website/ are not part of the app */
+@source not "../../website";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
