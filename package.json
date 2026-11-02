@@ -1,7 +1,7 @@
 {
   "name": "lumio",
   "private": true,
-  "version": "0.1.12",
+  "version": "0.1.13",
   "type": "module",
   "description": "Keyboard-first desktop productivity utility: Spotlight-style search and a cursor-anchored Caps Lock indicator.",
   "license": "MIT",
