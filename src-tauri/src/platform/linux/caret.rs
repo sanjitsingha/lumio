@@ -186,6 +186,7 @@ impl CaretTracker {
     }
 
     fn find_target(&mut self) -> Option<Target> {
+        let started = Instant::now();
         let focused = || self.session_bus.as_ref().and_then(gala::focused_window);
         // right after a focus change Gala can briefly report no focused window
         let focus = focused().or_else(|| {
@@ -206,11 +207,17 @@ impl CaretTracker {
             }
             None => active,
         };
+        let windows_found = started.elapsed();
         windows.into_iter().find_map(|window| {
-            let path = self
-                .remembered_path(&window)
-                .or_else(|| self.focused_by_collection(&window))
-                .or_else(|| self.find_focused(&window))?;
+            // Collection names the focused object reliably and fast; the last
+            // path only saves walking the tree again (Chromium keeps the
+            // focused flag on its address bar after focus moved into a page,
+            // so a remembered field is never trusted where Collection works)
+            let path = match self.focused_by_collection(&window) {
+                Some(field) => self.remembered_path_to(&window, &field).unwrap_or_else(|| self.path_to(&window, field)),
+                None => self.remembered_path(&window).or_else(|| self.find_focused(&window))?,
+            };
+            let path_found = started.elapsed();
             self.last_path = Some(path.clone());
             let field = path.last()?.clone();
             if !self.is_text_field(&field) {
@@ -218,12 +225,19 @@ impl CaretTracker {
                 return None;
             }
             let (x, y, window_scale) = self.screen_offset(&window, focus.as_ref())?;
+            let origin_found = started.elapsed();
             let extents: Vec<Option<Rect>> = path.iter().map(|o| self.extents(o)).collect();
             let (dx, dy) = embedded_toolkit_shift(&extents);
             // Chromium scales its window and its own controls (the address bar)
             // with the text scaling factor, but not its web pages
             let in_web_page = || path.iter().any(|o| self.role_name(o) == "document web");
             let scale = if window_scale != 1.0 && !in_web_page() { window_scale } else { 1.0 };
+            log::debug!(
+                "text cursor lookup: window {windows_found:?}, field {path_found:?} (depth {}), origin {origin_found:?}, \
+                 layout {:?}",
+                path.len(),
+                started.elapsed()
+            );
             Some(Target { field, scale, offset: (x + dx, y + dy) })
         })
     }
@@ -251,17 +265,24 @@ impl CaretTracker {
         Some((actor.x - surface.x, actor.y - surface.y, scale))
     }
 
-    /// The path found last time, if its field in this window still has focus.
+    /// The path found last time, if its field in this window still has focus
+    /// (toolkits without `Collection`, where finding it again is slow).
     fn remembered_path(&self, window: &Obj) -> Option<Vec<Obj>> {
         let path = self.last_path.as_ref()?;
         let still_focused = path.first() == Some(window) && has(self.state(path.last()?), FOCUSED);
         still_focused.then(|| path.clone())
     }
 
+    /// The path found last time, if it leads to `field` in this window.
+    fn remembered_path_to(&self, window: &Obj, field: &Obj) -> Option<Vec<Obj>> {
+        let path = self.last_path.as_ref()?;
+        (path.first() == Some(window) && path.last() == Some(field)).then(|| path.clone())
+    }
+
     /// The focused descendant in one `Collection.GetMatches` call, which GTK 3,
     /// LibreOffice, Firefox and Chromium implement (6 ms instead of 200 in
-    /// LibreOffice). Returns the path from `window` to it.
-    fn focused_by_collection(&self, window: &Obj) -> Option<Vec<Obj>> {
+    /// LibreOffice).
+    fn focused_by_collection(&self, window: &Obj) -> Option<Obj> {
         let rule = (
             vec![1i32 << FOCUSED, 0],
             MATCH_ALL,
@@ -275,17 +296,24 @@ impl CaretTracker {
         );
         let args = (rule, SORT_CANONICAL, 1i32, true).to_variant();
         let reply = self.call(window, COLLECTION, "GetMatches", Some(args), "(a(so))")?;
-        let field = refs(&reply.child_value(0)).into_iter().next()?;
+        refs(&reply.child_value(0)).into_iter().next()
+    }
+
+    /// The path from `window` down to `field`, through the parents.
+    fn path_to(&self, window: &Obj, field: Obj) -> Vec<Obj> {
         let mut path = vec![field];
         while path.last() != Some(window) {
-            let parent = self.property(path.last()?, ACCESSIBLE, "Parent").and_then(|v| reference(&v))?;
+            let Some(parent) = path.last().and_then(|o| self.property(o, ACCESSIBLE, "Parent")).and_then(|v| reference(&v))
+            else {
+                break;
+            };
             if path.len() > MAX_DEPTH || parent.path == ROOT_PATH {
                 break; // the app's root: the window was passed under another name
             }
             path.push(parent);
         }
         path.reverse();
-        Some(path)
+        path
     }
 
     /// Depth-first search for the focused descendant, through the visible
@@ -367,9 +395,12 @@ impl CaretTracker {
             if offset < 0 || self.text(&holder, offset, offset + 1).as_deref() != Some(EMBEDDED_OBJECT) {
                 break;
             }
+            // a child without a caret of its own (the page has not placed
+            // one yet) leaves the field's own position for that child
+            let child_offset = |c: &Obj| self.property(c, TEXT, "CaretOffset").and_then(|v| v.get::<i32>());
             match self.embedded_child(&holder, offset) {
-                Some(child) => holder = child,
-                None => break,
+                Some(child) if child_offset(&child).is_some_and(|o| o >= 0) => holder = child,
+                _ => break,
             }
         }
         holder

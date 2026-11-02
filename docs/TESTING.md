@@ -70,6 +70,8 @@ Since 0.1.4 the indicator is checked on **screenshots**, not only through X wind
 | Chrome rich editor, caret moving every 120 ms | ✅ the indicator follows along the line |
 | Chrome address bar | ✅ below the URL text (0.1.9 used scaled coordinates) |
 | ChatGPT input (empty) | ✅ at the start of the box |
+| Chrome, one window: rich editor tab → Google tab → new tab (address bar) → Google tab again | ✅ each press at its own field (0.1.10 reused the field found before, so after one field the others showed nothing) |
+| Dribbble and Google search boxes (real pages) | ✅ below the caret; first press in a field 110–155 ms, later ones about 30 ms |
 | GTK 4 search field (System Settings, maximized) | ✅ indicator below the field; first press 310 ms, then 30 ms |
 | GTK 4 Terminal | ✅ no indicator (VTE for GTK 4 reports no text) |
 | No text cursor (VS Code, Chrome without the flag) | ✅ lookup returns nothing in 10–18 ms; no indicator (default since 0.1.5; 0.1.4 used the pointer) |
