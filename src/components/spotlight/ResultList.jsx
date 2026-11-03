@@ -41,7 +41,7 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
         const section = sections[sectionIndex];
         return (
           <div key={section.id} role="group" aria-label={section.title}>
-            <div className="px-[22px] pt-2.5 pb-1 text-[11px] font-semibold tracking-[0.01em] text-secondary">
+            <div className="px-[22px] pt-2.5 pb-1 text-[11px] font-semibold tracking-[0.06em] text-secondary">
               {section.title}
             </div>
             {rows.map(([item, i]) => {

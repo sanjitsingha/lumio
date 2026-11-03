@@ -4,6 +4,32 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* SF Pro Display. The set has no upright Semibold, so font-semibold renders as Bold. */
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/SFProDisplay-Light.otf") format("opentype");
+  font-weight: 300;
+  font-display: block;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/SFProDisplay-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/SFProDisplay-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-display: block;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/SFProDisplay-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: block;
+}
+
 /* Design tokens. Values come from the Lummo palette; components only use the
    semantic names below so light/dark/accent switch instantly. */
 :root {
@@ -29,6 +55,14 @@
      or the window edge would cut it off. */
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+  /* Liquid glass on buttons, switches and segmented controls */
+  --lm-glass-top: rgba(255, 255, 255, 0.85);
+  --lm-glass-bottom: rgba(240, 240, 244, 0.65);
+  --lm-glass-rim: rgba(255, 255, 255, 0.95);
+  --lm-glass-glow: rgba(255, 255, 255, 0.85);
+  --lm-glass-edge: rgba(0, 0, 0, 0.13);
+  --lm-glass-shade: rgba(0, 0, 0, 0.07);
+  --lm-glass-sheen: rgba(255, 255, 255, 0.75);
   color-scheme: light;
 }
 
@@ -53,6 +87,13 @@
   --lm-panel-border: rgba(255, 255, 255, 0.16);
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
+  --lm-glass-top: rgba(255, 255, 255, 0.15);
+  --lm-glass-bottom: rgba(255, 255, 255, 0.05);
+  --lm-glass-rim: rgba(255, 255, 255, 0.32);
+  --lm-glass-glow: rgba(255, 255, 255, 0.12);
+  --lm-glass-edge: rgba(255, 255, 255, 0.13);
+  --lm-glass-shade: rgba(0, 0, 0, 0.3);
+  --lm-glass-sheen: rgba(255, 255, 255, 0.14);
   color-scheme: dark;
 }
 
@@ -76,7 +117,7 @@
   --color-panel: var(--lm-panel);
   --color-panel-border: var(--lm-panel-border);
 
-  --font-sans: system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
+  --font-sans: "SF Pro Display", system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
 
   --text-2xs: 11px;
@@ -99,6 +140,8 @@
   body {
     font-family: var(--font-sans);
     font-size: 13px;
+    /* SF Pro Display is spaced for large sizes; open it up for UI text */
+    letter-spacing: 0.045em;
     color: var(--lm-label);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -193,5 +236,89 @@
   }
   .lm-range:disabled {
     filter: grayscale(1);
+  }
+
+  /* Liquid glass: a translucent body lit from above, with a bright specular rim
+     along the top edge and refracted light pooling along the bottom. */
+  .lm-glass {
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(180deg, var(--lm-glass-top), var(--lm-glass-bottom));
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    backdrop-filter: blur(12px) saturate(180%);
+    box-shadow:
+      0 0 0 0.5px var(--lm-glass-edge),
+      inset 0 1px 0.5px var(--lm-glass-rim),
+      inset 0 -1px 1px var(--lm-glass-glow),
+      inset 0 -8px 10px -8px var(--lm-glass-shade);
+  }
+  .lm-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(130% 100% at 25% 0%, var(--lm-glass-sheen), transparent 55%);
+    pointer-events: none;
+  }
+  .lm-glass-tint {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--lm-accent) 70%, white), var(--lm-accent));
+    box-shadow:
+      0 0 0 0.5px color-mix(in srgb, var(--lm-accent) 70%, black),
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.55),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.3),
+      inset 0 -8px 10px -8px rgba(0, 0, 0, 0.18);
+  }
+
+  .lm-segmented {
+    background: var(--lm-fill);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.08),
+      inset 0 0 0 0.5px var(--lm-separator);
+  }
+
+  .lm-switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--lm-fill-strong);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.12),
+      inset 0 0 0 0.5px var(--lm-separator);
+    transition: background-color 200ms;
+  }
+  .lm-switch[aria-checked="true"] {
+    background: var(--lm-accent) linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 60%);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.15),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.25);
+  }
+  .lm-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.22),
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+    transition:
+      background-color 160ms,
+      box-shadow 160ms;
+  }
+  /* Pressed: the knob turns into a clear lens over the track. */
+  .lm-switch-knob[data-glass] {
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: saturate(180%) brightness(1.12);
+    backdrop-filter: saturate(180%) brightness(1.12);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.16),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.9),
+      inset 0 -2px 3px rgba(255, 255, 255, 0.45);
   }
 }

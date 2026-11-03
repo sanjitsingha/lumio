@@ -1,9 +1,25 @@
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 import { cx } from "../../utils/cx";
 
+const KNOB_TRAVEL = 12; // .lm-switch width - knob width - 2 * inset
+
 export function Switch({ checked, onChange, disabled = false, label }) {
+  // While pressed, and for a moment after so the slide plays as glass, the
+  // knob swells into a clear lens over the track.
+  const [glass, setGlass] = useState(false);
+  const settle = useRef();
+  useEffect(() => () => clearTimeout(settle.current), []);
+  const press = () => {
+    clearTimeout(settle.current);
+    setGlass(true);
+  };
+  const release = () => {
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => setGlass(false), 260);
+  };
+
   return (
     <button
       type="button"
@@ -12,17 +28,18 @@ export function Switch({ checked, onChange, disabled = false, label }) {
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cx(
-        "relative h-[20px] w-[34px] shrink-0 rounded-full transition-colors duration-200",
-        checked ? "bg-accent" : "bg-fill-strong",
-        disabled && "opacity-40",
-      )}
+      onPointerDown={press}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+      className={cx("lm-switch shrink-0", disabled && "opacity-40")}
     >
       <motion.span
-        layout
-        transition={{ type: "spring", stiffness: 700, damping: 38 }}
-        className="absolute top-[2px] h-[16px] w-[16px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25),0_0_0_0.5px_rgba(0,0,0,0.06)]"
-        style={{ left: checked ? 16 : 2 }}
+        className="lm-switch-knob"
+        data-glass={glass || undefined}
+        initial={false}
+        animate={{ x: checked ? KNOB_TRAVEL : 0, scaleX: glass ? 1.4 : 1, scaleY: glass ? 1.3 : 1 }}
+        transition={{ type: "spring", stiffness: 520, damping: 26 }}
       />
     </button>
   );
@@ -33,7 +50,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
   return (
     <div
       role="radiogroup"
-      className={cx("inline-flex rounded-[7px] bg-fill p-[2px]", disabled && "pointer-events-none opacity-40")}
+      className={cx("lm-segmented inline-flex rounded-full p-[2px]", disabled && "pointer-events-none opacity-40")}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -45,7 +62,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={cx(
-              "relative rounded-[5px] font-medium",
+              "relative rounded-full font-medium",
               size === "sm" ? "px-2.5 py-[2px] text-[11.5px]" : "px-3 py-[3px] text-[12px]",
               active ? "text-label" : "text-secondary hover:text-label",
             )}
@@ -53,8 +70,8 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
             {active && (
               <motion.span
                 layoutId={`seg-${id}`}
-                transition={{ type: "spring", stiffness: 600, damping: 40 }}
-                className="absolute inset-0 rounded-[5px] bg-surface shadow-control dark:bg-raised"
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                className="lm-glass absolute inset-0 rounded-full"
               />
             )}
             <span className="relative">{opt.label}</span>
@@ -109,24 +126,28 @@ export function Select({ value, options, onChange, disabled = false }) {
 
 export function Button({ children, onClick, variant = "default", busy = false, disabled = false, icon: Icon, type = "button" }) {
   const styles = {
-    default: "bg-surface text-label shadow-control hover:bg-fill dark:bg-raised dark:hover:bg-fill-strong",
-    primary: "bg-accent text-on-accent shadow-control hover:brightness-105",
-    destructive: "bg-surface text-danger shadow-control hover:bg-fill dark:bg-raised",
+    default: "lm-glass text-label hover:bg-fill dark:hover:bg-fill-strong",
+    primary: "lm-glass lm-glass-tint text-on-accent hover:brightness-105",
+    destructive: "lm-glass text-danger hover:bg-fill dark:hover:bg-fill-strong",
     plain: "text-accent hover:underline px-0",
   };
+  const inactive = disabled || busy;
   return (
-    <button
+    <motion.button
       type={type}
       onClick={onClick}
-      disabled={disabled || busy}
+      disabled={inactive}
+      // glass swells a little under the pointer
+      whileTap={variant === "plain" || inactive ? undefined : { scale: 1.05 }}
+      transition={{ type: "spring", stiffness: 600, damping: 22 }}
       className={cx(
-        "inline-flex h-[24px] shrink-0 items-center gap-1.5 rounded-[6px] px-3 text-[12.5px] font-medium whitespace-nowrap transition-[filter,background-color] disabled:opacity-45",
+        "inline-flex h-[24px] shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium whitespace-nowrap transition-[filter,background-color] disabled:opacity-45",
         styles[variant],
       )}
     >
       {busy ? <LoaderCircle size={13} className="animate-spin" /> : Icon ? <Icon size={13} /> : null}
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -134,11 +155,11 @@ export function Button({ children, onClick, variant = "default", busy = false, d
 export function Group({ title, footer, children }) {
   return (
     <section className="mb-5">
-      {title && <h3 className="mb-1.5 px-1 text-[12px] font-semibold text-secondary">{title}</h3>}
+      {title && <h3 className="mb-1.5 px-1 text-[12px] text-secondary">{title}</h3>}
       <div className="overflow-hidden rounded-[10px] border-[0.5px] border-separator bg-surface [&>*+*]:border-t-[0.5px] [&>*+*]:border-separator">
         {children}
       </div>
-      {footer && <p className="mt-1.5 px-1 text-[11.5px] leading-[15px] text-secondary">{footer}</p>}
+      {footer && <p className="mt-1.5 px-1 text-[11.5px] leading-[15px] font-light text-secondary">{footer}</p>}
     </section>
   );
 }
@@ -148,7 +169,7 @@ export function Row({ label, description, children, disabled = false, align = "c
     <div className={cx("flex min-h-[44px] gap-4 px-3.5 py-2.5", align === "start" ? "items-start" : "items-center", disabled && "opacity-50")}>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] text-label">{label}</div>
-        {description && <div className="mt-0.5 text-[11.5px] leading-[15px] text-secondary">{description}</div>}
+        {description && <div className="mt-0.5 text-[11.5px] leading-[15px] font-light text-secondary">{description}</div>}
       </div>
       {children !== undefined && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </div>

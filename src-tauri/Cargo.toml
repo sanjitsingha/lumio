@@ -2,7 +2,7 @@
 name = "lummo"
 version = "0.1.15"
 description = "Spotlight-style search and a cursor-anchored Caps Lock indicator"
-authors = ["Lummo contributors"]
+authors = ["Sanjit Singha"]
 license = "MIT"
 # GitHub repository: source of updates (releases/latest/download/latest.json) and the About links.
 repository = "https://github.com/sanjitsingha/lumio"
