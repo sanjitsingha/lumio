@@ -71,7 +71,7 @@ writeFileSync(files.pkg, `${JSON.stringify(pkg, null, 2)}\n`);
 writeFileSync(files.cargo, cargo.replace(/^(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m, `$1${next}$2`));
 try {
   const lock = readFileSync(files.lock, "utf8");
-  writeFileSync(files.lock, lock.replace(/(name = "lummo"\nversion = ")[^"]+(")/, `$1${next}$2`));
+  writeFileSync(files.lock, lock.replace(/(name = "lummo"\r?\nversion = ")[^"]+(")/, `$1${next}$2`));
 } catch {
   // no lockfile yet; cargo creates it on the next build
 }
