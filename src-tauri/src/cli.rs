@@ -25,6 +25,19 @@ impl Launch {
     pub fn requires_running_instance(self) -> bool {
         matches!(self, Launch::Quit | Launch::Dev)
     }
+
+    /// Name reported in usage statistics.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Launch::Autostart => "autostart",
+            Launch::Toggle => "toggle",
+            Launch::Settings => "settings",
+            Launch::Quit => "quit",
+            Launch::Dev => "dev",
+            Launch::Updated => "updated",
+            Launch::Manual => "manual",
+        }
+    }
 }
 
 pub fn parse<S: AsRef<str>>(args: &[S]) -> Launch {

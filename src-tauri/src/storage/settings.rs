@@ -40,12 +40,20 @@ impl Default for Settings {
 /// Lummo always runs in the background (started at login it stays hidden,
 /// closing Settings keeps it running), shows its tray icon where the desktop
 /// has a tray, and checks for updates: these are not settings.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GeneralSettings {
     pub launch_at_startup: bool,
     /// Download and install found updates without asking, then restart Lummo.
     pub auto_install_updates: bool,
+    /// Send anonymous usage counts (see `analytics`).
+    pub share_usage_statistics: bool,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self { launch_at_startup: false, auto_install_updates: false, share_usage_statistics: true }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -509,6 +517,7 @@ mod tests {
         let (settings, warnings) = Settings::from_value_lenient(&json!({ "general": { "launchAtStartup": true } }));
         assert!(warnings.is_empty());
         assert!(settings.general.launch_at_startup);
+        assert!(settings.general.share_usage_statistics);
         assert_eq!(settings.spotlight, SpotlightSettings::default());
     }
 

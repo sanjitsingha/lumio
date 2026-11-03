@@ -129,6 +129,9 @@ fn apply_side_effects(app: &AppHandle, state: &AppState, old: &Settings, new: &S
     if old.caps_lock.enabled != new.caps_lock.enabled {
         crate::tray::set_caps_checked(app, new.caps_lock.enabled);
     }
+    if old.general.share_usage_statistics != new.general.share_usage_statistics {
+        crate::analytics::set_enabled(new.general.share_usage_statistics);
+    }
     let (old_cfg, new_cfg) = (index_config(state, old), index_config(state, new));
     if old_cfg != new_cfg || files_enabled(old) != files_enabled(new) {
         state.engine.files.configure(new_cfg, files_enabled(new));

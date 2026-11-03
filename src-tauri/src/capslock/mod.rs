@@ -562,11 +562,11 @@ impl Runner {
     fn show(&mut self, on: bool, now: Instant) {
         match self.mode {
             Mode::Unavailable => {}
-            Mode::Osd => {
-                if let Err(e) = platform::overlay::show_osd(on) {
-                    log::warn!("could not show the Caps Lock OSD: {e}");
-                }
-            }
+            Mode::Osd => match platform::overlay::show_osd(on) {
+                Ok(()) if on => crate::analytics::count("caps_lock_osd_shown"),
+                Ok(()) => {}
+                Err(e) => log::warn!("could not show the Caps Lock OSD: {e}"),
+            },
             Mode::Cursor => self.show_cursor_overlay(on, now),
         }
     }
@@ -588,9 +588,17 @@ impl Runner {
             Some(a) => a,
             None => match self.anchor.filter(|_| visible) {
                 Some(a) => a,
-                None => return,
+                None => {
+                    if on {
+                        crate::analytics::count("caps_lock_no_cursor");
+                    }
+                    return;
+                }
             },
         };
+        if on {
+            crate::analytics::count("caps_lock_shown");
+        }
         let dark = self.dark();
         let monitor = self.monitor_for(anchor.point());
         let body = (self.settings.size as f64 * monitor.scale).round() as i32;

@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Emitter, State};
 
+use crate::analytics;
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
 use crate::events;
@@ -41,6 +42,7 @@ pub async fn execute_result(
     match outcome {
         Ok(item) => {
             log::info!("opened {:?} “{}”", item.kind, item.title);
+            analytics::result_opened(item.kind);
             window_manager::hide_spotlight(&app);
             Ok(())
         }

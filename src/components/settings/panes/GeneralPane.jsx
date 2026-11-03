@@ -58,6 +58,15 @@ export default function GeneralPane({ onCheckUpdates }) {
         </Row>
       </Group>
 
+      <Group title="Privacy">
+        <ToggleRow
+          label="Share usage statistics"
+          description="Send anonymous daily counts, such as how often Spotlight opens, to help improve Lummo. Never what you type, search for or open."
+          checked={g.shareUsageStatistics}
+          onChange={(v) => set({ shareUsageStatistics: v })}
+        />
+      </Group>
+
       <Group title="Maintenance">
         <Row label="Clear cache" description="Lummo rebuilds its list of your files in the background.">
           <Button

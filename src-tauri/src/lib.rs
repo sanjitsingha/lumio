@@ -1,6 +1,7 @@
 //! Lummo: a keyboard-first productivity utility (Spotlight-style search and a
 //! cursor-anchored Caps Lock indicator) for Linux and Windows.
 
+mod analytics;
 mod app_state;
 mod capslock;
 mod cli;
@@ -188,6 +189,7 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
     updater::start_background_checks(&handle);
 
     let launch = if loaded.first_run && launch == cli::Launch::Autostart { cli::Launch::Manual } else { launch };
+    analytics::start(&handle, launch, loaded.first_run);
     handle_launch(&handle, launch, false);
     Ok(())
 }
@@ -229,7 +231,8 @@ pub fn run() {
         }))
         .plugin(log_plugin)
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(analytics::plugin());
 
     if plugin_loaded {
         let map = plugin_map.clone();
@@ -312,6 +315,7 @@ pub fn run() {
                 state.shortcuts.shutdown();
                 state.capslock.shutdown();
                 state.engine.files.stop_worker();
+                analytics::shutdown(app);
             }
         }
         _ => {}

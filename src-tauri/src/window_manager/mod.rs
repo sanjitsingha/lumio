@@ -108,6 +108,7 @@ pub fn show_spotlight(app: &AppHandle, timestamp: Option<u32>) {
         return;
     }
     focus_window(app, &window, timestamp);
+    crate::analytics::count("spotlight_opens");
     #[cfg(target_os = "linux")]
     apply_input_region(app, &window);
     log::debug!("spotlight shown (input timestamp {timestamp:?})");

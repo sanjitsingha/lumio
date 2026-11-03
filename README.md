@@ -60,6 +60,10 @@ npm run release -- patch --notes "What changed" --push
 
 First-time setup (GitHub repository, signing-key secret) and local update testing are covered in **[docs/RELEASING.md](docs/RELEASING.md)**.
 
+## Privacy
+
+Lummo sends anonymous usage statistics to [Aptabase](https://aptabase.com) unless **Share usage statistics** is turned off in Settings → General. It sends one event when Lummo starts (how it was started, whether Spotlight and the Caps Lock indicator are on) and one a day with counts: how often Spotlight opened, how many apps, files, folders, actions and web searches were opened from it, and how often the Caps Lock indicator appeared or found no text cursor. Aptabase adds the Lummo version, the OS name and version and the locale; on Linux Lummo adds the session type (X11/Wayland) and the desktop. Nothing identifies you, and nothing you type, search for or open is ever sent. The code is in [`src-tauri/src/analytics.rs`](src-tauri/src/analytics.rs).
+
 ## Tests
 
 ```bash
