@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 /// Upper bound for how long the "off" state flashes.
-const OFF_FLASH: Duration = Duration::from_millis(900);
+const OFF_FLASH: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Behavior {
@@ -72,13 +72,20 @@ impl IndicatorState {
 
     /// A text field got keyboard focus: with Caps Lock already on, show the
     /// indicator there as if it had just been turned on, so typing never
-    /// starts in capitals unnoticed.
+    /// starts in capitals unnoticed. Persistent mode always comes back, as it
+    /// only went away with the previous field.
     pub fn on_focus(&mut self, now: Instant, b: &Behavior) -> Command {
-        if b.enabled && b.show_on_focus && self.known == Some(true) {
+        if b.enabled && (b.show_on_focus || b.duration.is_none()) && self.known == Some(true) {
             self.show(true, b.duration.map(|d| now + d))
         } else {
             Command::None
         }
+    }
+
+    /// No text field has keyboard focus any more: the indicator belongs to
+    /// the text cursor, so it goes too (even in persistent mode).
+    pub fn on_blur(&mut self) -> Command {
+        self.hide()
     }
 
     /// Call when the deadline passes.
@@ -236,6 +243,23 @@ mod tests {
         s.on_caps(false, t0, &timed(1500));
         s.on_caps(true, t0, &timed(1500));
         assert_eq!(s.on_settings(t0, &off), Command::Hide);
+    }
+
+    #[test]
+    fn leaving_the_field_hides_persistent_mode_until_the_next_field() {
+        let t0 = Instant::now();
+        let b = Behavior { duration: None, show_on_focus: false, ..timed(0) };
+        let mut s = IndicatorState::default();
+        s.on_caps(false, t0, &b);
+        assert_eq!(s.on_caps(true, t0, &b), Command::Show { on: true });
+        assert_eq!(s.on_blur(), Command::Hide);
+        assert!(!s.is_visible());
+        assert_eq!(s.on_blur(), Command::None, "already hidden");
+        assert_eq!(s.on_focus(t0 + Duration::from_secs(5), &b), Command::Show { on: true });
+        assert_eq!(s.deadline(), None, "stays while Caps Lock is on");
+        s.on_caps(false, t0, &b);
+        s.on_blur();
+        assert_eq!(s.on_focus(t0 + Duration::from_secs(9), &b), Command::None, "Caps Lock is off");
     }
 
     #[test]

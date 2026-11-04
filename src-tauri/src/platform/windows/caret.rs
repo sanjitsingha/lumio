@@ -90,10 +90,23 @@ fn msaa_caret(window: HWND) -> Option<Rect> {
         return None;
     }
     let caret = unsafe { IAccessible::from_raw(raw) };
+    // a field that loses focus only hides its caret, which keeps answering
+    // with its last place (Chromium's address bar after a click into the page)
+    if unsafe { caret.get_accState(&child_self()) }.is_ok_and(|state| invisible(&state)) {
+        return None;
+    }
     let (mut x, mut y, mut width, mut height) = (0, 0, 0, 0);
     unsafe { caret.accLocation(&mut x, &mut y, &mut width, &mut height, &child_self()) }.ok()?;
     // windows without a caret answer with an empty rectangle
     (height > 0 && (x, y) != (0, 0)).then_some(Rect { x, y, width: width.max(1), height })
+}
+
+/// `STATE_SYSTEM_INVISIBLE` from oleacc.h.
+const STATE_SYSTEM_INVISIBLE: i32 = 0x8000;
+
+fn invisible(state: &VARIANT) -> bool {
+    let v = unsafe { &state.Anonymous.Anonymous };
+    v.vt == VT_I4 && unsafe { v.Anonymous.lVal } & STATE_SYSTEM_INVISIBLE != 0
 }
 
 /// `CHILDID_SELF`: the caret object itself rather than one of its children.

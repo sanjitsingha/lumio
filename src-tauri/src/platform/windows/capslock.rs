@@ -28,7 +28,7 @@ pub fn support() -> DetectionSupport {
     }
 }
 
-fn caps_on() -> bool {
+pub(super) fn caps_on() -> bool {
     (unsafe { GetKeyState(VK_CAPITAL.0 as i32) } & 1) != 0
 }
 

@@ -25,8 +25,12 @@ const FRAME: Duration = Duration::from_millis(16);
 /// How often the text cursor is re-read while the indicator follows it.
 const CARET_POLL: Duration = Duration::from_millis(50);
 /// After a text field gets focus, how long to wait for its cursor position
-/// before looking for it through accessibility instead.
-const FOCUS_CURSOR_WAIT: Duration = Duration::from_millis(250);
+/// before looking for it through accessibility instead. Windows reports a
+/// field only once its caret exists, so there it looks right away.
+const FOCUS_CURSOR_WAIT: Duration = Duration::from_millis(if cfg!(windows) { 0 } else { 250 });
+/// How long the text cursor may be gone (its field lost focus) before the
+/// indicator hides; moving straight to another field keeps it.
+const FOCUS_LOST_GRACE: Duration = Duration::from_millis(300);
 /// How soon to try again after the input method could not be watched.
 const IME_RETRY: Duration = Duration::from_secs(10);
 /// Input contexts remembered (one per text field or app).
@@ -69,7 +73,7 @@ pub struct CapsLockSupport {
 /// What the input method (IBus) reports about text fields: the cursor is the
 /// position apps give it so that candidate windows appear next to the text.
 #[derive(Debug, Clone, PartialEq)]
-// Windows reads its system caret directly and watches no input method
+// Windows reports focus only and reads cursor positions from the system caret
 #[cfg_attr(windows, allow(dead_code))]
 pub enum InputMethodEvent {
     /// A text field (input context) got or lost keyboard focus.
@@ -352,6 +356,9 @@ struct Runner {
     /// A text field got focus with Caps Lock on: show the indicator once its
     /// cursor is known, or at this deadline.
     focus_show_at: Option<Instant>,
+    /// The text cursor went away: hide the indicator at this deadline unless
+    /// one turns up again.
+    blur_at: Option<Instant>,
 }
 
 impl Runner {
@@ -384,6 +391,7 @@ impl Runner {
             ime_cursors: HashMap::new(),
             ime_moved: false,
             focus_show_at: None,
+            blur_at: None,
         }
     }
 
@@ -428,10 +436,18 @@ impl Runner {
                     self.hide_now();
                     break;
                 }
-                Err(RecvTimeoutError::Timeout) => match self.focus_show_at {
+                Err(RecvTimeoutError::Timeout) => match (self.blur_at, self.focus_show_at) {
+                    (Some(at), _) if now >= at => {
+                        self.blur_at = None;
+                        let command = self.state.on_blur();
+                        if command == Command::Hide {
+                            log::debug!("no text field has focus; hiding the indicator");
+                        }
+                        command
+                    }
                     // the focused field never reported a cursor to the input
                     // method: show anyway, accessibility may know it
-                    Some(at) if now >= at => {
+                    (_, Some(at)) if now >= at => {
                         self.focus_show_at = None;
                         self.state.on_focus(now, &behavior(&self.settings))
                     }
@@ -449,11 +465,11 @@ impl Runner {
 
     fn next_wake(&self) -> Option<Duration> {
         let now = Instant::now();
-        let deadline = match (self.state.deadline(), self.focus_show_at) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        }
-        .map(|d| d.saturating_duration_since(now));
+        let deadline = [self.state.deadline(), self.focus_show_at, self.blur_at]
+            .into_iter()
+            .flatten()
+            .min()
+            .map(|d| d.saturating_duration_since(now));
         let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.gliding());
         let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
         let frame = if animating {
@@ -510,15 +526,19 @@ impl Runner {
                 self.ime_cursors.remove(&context);
                 self.ime_focus = Some(context);
                 self.ime_moved = true;
+                self.blur_at = None;
                 // with Caps Lock already on, show the indicator in the new field
-                if self.settings.show_on_focus {
-                    self.focus_show_at = Some(now + FOCUS_CURSOR_WAIT);
-                }
+                // (the state decides whether it should)
+                self.focus_show_at = Some(now + FOCUS_CURSOR_WAIT);
                 Command::None
             }
+            // also when no focus was seen yet: the indicator may have found
+            // the field itself when Caps Lock was turned on
             InputMethodEvent::Focus { context, focused: false } => {
-                if self.ime_focus.as_ref() == Some(&context) {
+                if self.ime_focus.as_ref().is_none_or(|c| *c == context) {
                     self.ime_focus = None;
+                    self.focus_show_at = None;
+                    self.blur_at.get_or_insert(now + FOCUS_LOST_GRACE);
                 }
                 Command::None
             }
@@ -585,7 +605,10 @@ impl Runner {
         // found again, keep the indicator where it is
         let visible = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
         let anchor = match self.find_anchor() {
-            Some(a) => a,
+            Some(a) => {
+                self.blur_at = None;
+                a
+            }
             None => match self.anchor.filter(|_| visible) {
                 Some(a) => a,
                 None => {
@@ -683,8 +706,19 @@ impl Runner {
             return None;
         }
         self.last_caret_poll = now;
-        // a field that lost focus keeps the indicator where it was
-        self.caret.as_mut()?.refresh().map(Anchor).filter(|a| Some(*a) != self.anchor)
+        // a field that lost focus keeps the indicator where it was until it hides
+        match self.caret.as_mut()?.refresh() {
+            Some(caret) => {
+                self.blur_at = None;
+                Some(Anchor(caret)).filter(|a| Some(*a) != self.anchor)
+            }
+            None => {
+                if self.visual.as_ref().is_some_and(|v| v.to > 0.0) {
+                    self.blur_at.get_or_insert(now + FOCUS_LOST_GRACE);
+                }
+                None
+            }
+        }
     }
 
     fn begin_hide(&mut self, now: Instant) {
@@ -703,6 +737,7 @@ impl Runner {
     fn hide_now(&mut self) {
         self.visual = None;
         self.anchor = None;
+        self.blur_at = None;
         if let Some(o) = self.overlay.as_mut() {
             o.hide();
         }
