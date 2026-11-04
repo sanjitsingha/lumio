@@ -159,8 +159,9 @@ pub fn start_background_services(app: &AppHandle) {
         })
         .map_err(|e| log::error!("could not start app indexing: {e}"))
         .ok();
-    // keep the autostart entry pointing at the current executable
-    if s.general.launch_at_startup {
+    // keep the autostart entry pointing at the current executable (not from dev builds, which
+    // would take over the installed app's entry)
+    if s.general.launch_at_startup && !cfg!(debug_assertions) {
         let name = app.package_info().name.clone();
         if let Err(e) = platform::autostart::set_enabled(&app.config().identifier, &name, true) {
             log::warn!("could not refresh the startup entry: {e}");
