@@ -30,7 +30,6 @@ pub struct IndicatorState {
 }
 
 impl IndicatorState {
-    #[cfg(test)]
     pub fn caps_lock(&self) -> Option<bool> {
         self.known
     }
@@ -86,6 +85,16 @@ impl IndicatorState {
     /// the text cursor, so it goes too (even in persistent mode).
     pub fn on_blur(&mut self) -> Command {
         self.hide()
+    }
+
+    /// The text cursor is back after a selection hid it: what was showing
+    /// shows again for the rest of its time, otherwise it is like focusing
+    /// the field.
+    pub fn on_cursor_back(&mut self, now: Instant, b: &Behavior) -> Command {
+        match self.visible {
+            Some(on) => Command::Show { on },
+            None => self.on_focus(now, b),
+        }
     }
 
     /// Call when the deadline passes.
@@ -260,6 +269,25 @@ mod tests {
         s.on_caps(false, t0, &b);
         s.on_blur();
         assert_eq!(s.on_focus(t0 + Duration::from_secs(9), &b), Command::None, "Caps Lock is off");
+    }
+
+    #[test]
+    fn the_cursor_coming_back_shows_the_rest_or_acts_like_focus() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        s.on_caps(false, t0, &timed(1500));
+        s.on_caps(true, t0, &timed(1500));
+        // the selection collapsed within the duration: no new timer
+        assert_eq!(s.on_cursor_back(t0 + Duration::from_millis(500), &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.deadline(), Some(t0 + Duration::from_millis(1500)));
+        // after it ran out: as if the field had just been focused
+        s.on_tick(t0 + Duration::from_millis(1500));
+        let t1 = t0 + Duration::from_secs(3);
+        assert_eq!(s.on_cursor_back(t1, &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.deadline(), Some(t1 + Duration::from_millis(1500)));
+        s.on_tick(t1 + Duration::from_millis(1500));
+        let off = Behavior { show_on_focus: false, ..timed(1500) };
+        assert_eq!(s.on_cursor_back(t1 + Duration::from_secs(2), &off), Command::None);
     }
 
     #[test]

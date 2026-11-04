@@ -24,6 +24,9 @@ use state::{Behavior, Command, IndicatorState};
 const FRAME: Duration = Duration::from_millis(16);
 /// How often the text cursor is re-read while the indicator follows it.
 const CARET_POLL: Duration = Duration::from_millis(50);
+/// How often the focused field is checked for selected text, which hides
+/// its text cursor and so the indicator.
+const SELECTION_POLL: Duration = Duration::from_millis(100);
 /// After a text field gets focus, how long to wait for its cursor position
 /// before looking for it through accessibility instead. Windows reports a
 /// field only once its caret exists, so there it looks right away.
@@ -406,6 +409,10 @@ struct Runner {
     /// A text field got focus since the indicator was last placed: when it
     /// moves there, it pops in at the new field rather than gliding over.
     refocused: bool,
+    /// The focused field has text selected: the indicator waits for its text
+    /// cursor to come back.
+    selection: bool,
+    selection_checked: Instant,
 }
 
 impl Runner {
@@ -440,6 +447,8 @@ impl Runner {
             focus_show_at: None,
             blur_at: None,
             refocused: false,
+            selection: false,
+            selection_checked: Instant::now(),
         }
     }
 
@@ -502,6 +511,10 @@ impl Runner {
                     _ => self.state.on_tick(now),
                 },
             };
+            let command = match command {
+                Command::None => self.check_selection(now),
+                command => command,
+            };
             match command {
                 Command::Show { on } => self.show(on, now),
                 Command::Hide => self.begin_hide(now),
@@ -524,6 +537,8 @@ impl Runner {
             Some(FRAME)
         } else if follow {
             Some(CARET_POLL)
+        } else if self.visual.is_some() || self.selection {
+            Some(SELECTION_POLL)
         } else {
             None
         };
@@ -576,6 +591,7 @@ impl Runner {
                 self.ime_moved = true;
                 self.blur_at = None;
                 self.refocused = true;
+                self.selection = false;
                 // with Caps Lock already on, show the indicator in the new field
                 // (the state decides whether it should)
                 self.focus_show_at = Some(now + FOCUS_CURSOR_WAIT);
@@ -587,6 +603,7 @@ impl Runner {
                 if self.ime_focus.as_ref().is_none_or(|c| *c == context) {
                     self.ime_focus = None;
                     self.focus_show_at = None;
+                    self.selection = false;
                     self.blur_at.get_or_insert(now + FOCUS_LOST_GRACE);
                 }
                 Command::None
@@ -669,6 +686,14 @@ impl Runner {
                 }
             },
         };
+        // selected text hides the text cursor: wait for it to come back
+        self.selection = self.caret.as_mut().is_some_and(|c| c.has_selection());
+        if self.selection {
+            log::debug!("text is selected; the indicator waits for the text cursor");
+            self.selection_checked = now;
+            self.begin_hide(now);
+            return;
+        }
         if on {
             crate::analytics::count("caps_lock_shown");
         }
@@ -774,6 +799,41 @@ impl Runner {
                 None
             }
         }
+    }
+
+    /// Selected text hides the field's text cursor, and the indicator with
+    /// it: checked while the indicator shows, and while it waits for the
+    /// selection to collapse into a text cursor again.
+    fn check_selection(&mut self, now: Instant) -> Command {
+        let showing = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
+        if !(showing || self.selection) || now.duration_since(self.selection_checked) < SELECTION_POLL {
+            return Command::None;
+        }
+        self.selection_checked = now;
+        let waiting = self.selection && self.state.caps_lock() == Some(true);
+        let Some(caret) = self.caret.as_mut().filter(|_| showing || waiting) else {
+            self.selection = false;
+            return Command::None;
+        };
+        if showing {
+            if caret.has_selection() {
+                log::debug!("text was selected; hiding the indicator until the text cursor is back");
+                self.selection = true;
+                return Command::Hide;
+            }
+            return Command::None;
+        }
+        // the field lost focus: its focus report takes over
+        if caret.refresh().is_none() {
+            self.selection = false;
+            return Command::None;
+        }
+        if caret.has_selection() {
+            return Command::None;
+        }
+        log::debug!("the selection collapsed into a text cursor");
+        self.selection = false;
+        self.state.on_cursor_back(now, &behavior(&self.settings))
     }
 
     fn begin_hide(&mut self, now: Instant) {

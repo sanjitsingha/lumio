@@ -6,15 +6,21 @@
 //! 2. Otherwise the MSAA caret object (`OBJID_CARET`) of the focused window,
 //!    which browsers and many UI frameworks expose for screen magnifiers even
 //!    without a system caret.
+//!
+//! Whether the focused field has text selected comes from UI Automation,
+//! whose text pattern covers edit controls, Office, WinUI and Chromium.
 
 use std::mem::ManuallyDrop;
 
 use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::Graphics::Gdi::ClientToScreen;
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
-use windows::Win32::UI::Accessibility::{AccessibleObjectFromWindow, IAccessible};
+use windows::Win32::UI::Accessibility::{
+    AccessibleObjectFromWindow, CUIAutomation8, IAccessible, IUIAutomation, IUIAutomation2, IUIAutomationTextPattern,
+    TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_TextPatternId,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, GUITHREADINFO, OBJID_CARET,
 };
@@ -25,16 +31,29 @@ pub fn support() -> Result<&'static str, String> {
     Ok("System caret (Win32, MSAA)")
 }
 
+/// How long UI Automation may wait for an app: a hung one must not stall
+/// the indicator's animation.
+const UIA_TIMEOUT_MS: u32 = 200;
+
 pub struct CaretTracker {
     /// Focus moves (`ime::focus_moves`) when the caret was located.
     located_at: u64,
+    /// Created when first needed (`Some(None)`: unavailable).
+    automation: Option<Option<IUIAutomation>>,
 }
 
 impl CaretTracker {
     pub fn new() -> Result<Self, String> {
         // MSAA needs COM on this thread; S_FALSE (already initialised) is fine
         let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-        Ok(CaretTracker { located_at: 0 })
+        Ok(CaretTracker { located_at: 0, automation: None })
+    }
+
+    /// Whether the focused field has text selected: it then shows no text
+    /// cursor. Fields UI Automation cannot read count as without one.
+    pub fn has_selection(&mut self) -> bool {
+        let Some(automation) = self.automation.get_or_insert_with(ui_automation).as_ref() else { return false };
+        unsafe { selection_in_focus(automation) }.unwrap_or(false)
     }
 
     pub fn locate(&mut self) -> Option<Rect> {
@@ -63,6 +82,32 @@ impl CaretTracker {
     pub fn map_input_method(&mut self, _rect: Rect, _relative: bool, _fresh: bool) -> Option<Rect> {
         None
     }
+}
+
+fn ui_automation() -> Option<IUIAutomation> {
+    let automation: IUIAutomation = unsafe { CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER) }
+        .map_err(|e| log::info!("UI Automation is unavailable, so selections are not detected: {e}"))
+        .ok()?;
+    if let Ok(timeouts) = automation.cast::<IUIAutomation2>() {
+        let _ = unsafe { timeouts.SetConnectionTimeout(UIA_TIMEOUT_MS) };
+        let _ = unsafe { timeouts.SetTransactionTimeout(UIA_TIMEOUT_MS) };
+    }
+    Some(automation)
+}
+
+/// Whether the focused element's text pattern has a selection that is more
+/// than a caret.
+unsafe fn selection_in_focus(automation: &IUIAutomation) -> windows::core::Result<bool> {
+    let focused = automation.GetFocusedElement()?;
+    let text: IUIAutomationTextPattern = focused.GetCurrentPatternAs(UIA_TextPatternId)?;
+    let ranges = text.GetSelection()?;
+    for i in 0..ranges.Length()? {
+        let range = ranges.GetElement(i)?;
+        if range.CompareEndpoints(TextPatternRangeEndpoint_Start, &range, TextPatternRangeEndpoint_End)? != 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn current_caret() -> Option<Rect> {

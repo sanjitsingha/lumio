@@ -277,6 +277,20 @@ impl CaretTracker {
         self.target = None;
     }
 
+    /// Whether the field `locate` found has text selected: it then shows no
+    /// text cursor.
+    pub fn has_selection(&mut self) -> bool {
+        let Some(target) = self.target.as_ref() else { return false };
+        let holder = self.caret_holder(&target.field);
+        let count =
+            self.call(&holder, TEXT, "GetNSelections", None, "(i)").and_then(|r| r.get::<(i32,)>()).map_or(0, |(n,)| n);
+        (0..count).any(|i| {
+            self.call(&holder, TEXT, "GetSelection", Some((i,).to_variant()), "(ii)")
+                .and_then(|r| r.get::<(i32, i32)>())
+                .is_some_and(|(start, end)| start != end)
+        })
+    }
+
     /// The text field `locate` found, on screen (where the caret must be).
     pub fn focused_field(&self) -> Option<Rect> {
         let target = self.target.as_ref()?;
