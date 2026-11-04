@@ -82,6 +82,11 @@ impl CaretTracker {
     pub fn map_input_method(&mut self, _rect: Rect, _relative: bool, _fresh: bool) -> Option<Rect> {
         None
     }
+
+    /// Input method positions are not watched on Windows.
+    pub fn take_window_switch(&mut self) -> bool {
+        false
+    }
 }
 
 fn ui_automation() -> Option<IUIAutomation> {

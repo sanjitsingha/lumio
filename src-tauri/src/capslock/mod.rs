@@ -261,15 +261,19 @@ impl Anchor {
 /// fresh answer wins.
 fn choose_caret(ime: Option<Rect>, accessible: Option<(Rect, Option<Rect>)>) -> Option<Rect> {
     match (ime, accessible) {
-        (Some(ime), Some((caret, field))) => {
-            let in_field = field.is_some_and(|f| {
-                let m = 8;
-                ime.x >= f.x - m && ime.x <= f.x + f.width + m && ime.y >= f.y - m && ime.y <= f.y + f.height + m
-            });
-            Some(if in_field { ime } else { caret })
-        }
+        (Some(ime), Some((caret, field))) => Some(if field.is_some_and(|f| in_field(f, ime)) { ime } else { caret }),
         (ime, accessible) => ime.or(accessible.map(|(caret, _)| caret)),
     }
+}
+
+/// Whether the text cursor `caret` lies in `field`, give or take a few
+/// pixels (input method rectangles can stick out a little).
+fn in_field(field: Rect, caret: Rect) -> bool {
+    let m = 8;
+    caret.x >= field.x - m
+        && caret.x <= field.x + field.width + m
+        && caret.y >= field.y - m
+        && caret.y <= field.y + field.height + m
 }
 
 fn ease_out_cubic(t: f32) -> f32 {
@@ -409,6 +413,12 @@ struct Runner {
     /// A text field got focus since the indicator was last placed: when it
     /// moves there, it pops in at the new field rather than gliding over.
     refocused: bool,
+    /// The field the indicator stands in, where accessibility knows it: a
+    /// cursor outside it is in another field.
+    field: Option<Rect>,
+    /// The indicator stands at the input method's cursor: it reports every
+    /// move, so accessibility is not polled while following.
+    follow_ime: bool,
     /// The focused field has text selected: the indicator waits for its text
     /// cursor to come back.
     selection: bool,
@@ -447,6 +457,8 @@ impl Runner {
             focus_show_at: None,
             blur_at: None,
             refocused: false,
+            field: None,
+            follow_ime: false,
             selection: false,
             selection_checked: Instant::now(),
         }
@@ -516,7 +528,7 @@ impl Runner {
                 command => command,
             };
             match command {
-                Command::Show { on } => self.show(on, now),
+                Command::Show { on } => self.show(on),
                 Command::Hide => self.begin_hide(now),
                 Command::None => {}
             }
@@ -645,7 +657,7 @@ impl Runner {
         }
     }
 
-    fn show(&mut self, on: bool, now: Instant) {
+    fn show(&mut self, on: bool) {
         match self.mode {
             Mode::Unavailable => {}
             Mode::Osd => match platform::overlay::show_osd(on) {
@@ -653,11 +665,11 @@ impl Runner {
                 Ok(()) => {}
                 Err(e) => log::warn!("could not show the Caps Lock OSD: {e}"),
             },
-            Mode::Cursor => self.show_cursor_overlay(on, now),
+            Mode::Cursor => self.show_cursor_overlay(on),
         }
     }
 
-    fn show_cursor_overlay(&mut self, on: bool, now: Instant) {
+    fn show_cursor_overlay(&mut self, on: bool) {
         if self.overlay.is_none() {
             match platform::overlay::Overlay::new() {
                 Ok(o) => self.overlay = Some(o),
@@ -671,7 +683,12 @@ impl Runner {
         // already visible (e.g. on -> off flash): if the text cursor cannot be
         // found again, keep the indicator where it is
         let visible = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
-        let anchor = match self.find_anchor() {
+        let found = self.find_anchor();
+        let switched = self.window_switched();
+        // finding the text cursor can take a few hundred milliseconds in
+        // Chrome: the indicator appears (and pops) once it is found
+        let now = Instant::now();
+        let anchor = match found {
             Some(a) => {
                 self.blur_at = None;
                 a
@@ -702,7 +719,7 @@ impl Runner {
         let body = (self.settings.size as f64 * monitor.scale).round() as i32;
         let body_pos = anchor.place(body, &monitor, self.settings.position);
         log::debug!("caps lock indicator at {body_pos:?} for {anchor:?}");
-        let new_field = refocused && self.anchor != Some(anchor);
+        let new_field = (refocused || switched) && self.anchor != Some(anchor);
         self.anchor = Some(anchor);
         self.last_caret_poll = now;
         let animate = self.settings.animation.duration_ms() > 0;
@@ -751,10 +768,18 @@ impl Runner {
         let ime = self.ime_caret(true);
         let accessible = self.caret_tracker().and_then(|c| c.locate().map(|caret| (caret, c.focused_field())));
         let caret = choose_caret(ime, accessible);
+        self.field = accessible.and_then(|(_, field)| field);
+        self.follow_ime = ime.is_some() && caret == ime;
         if caret.is_none() {
             log::debug!("no text cursor found; not showing the indicator");
         }
         caret.map(Anchor)
+    }
+
+    /// Whether input method positions came from another window since the
+    /// indicator was last placed.
+    fn window_switched(&mut self) -> bool {
+        self.caret.as_mut().is_some_and(|c| c.take_window_switch())
     }
 
     fn caret_tracker(&mut self) -> Option<&mut platform::caret::CaretTracker> {
@@ -776,10 +801,18 @@ impl Runner {
         // the input method reports every move as it happens
         if self.ime_moved {
             if let Some(caret) = self.ime_caret(false) {
+                // accessibility placed the indicator; its field cannot vouch
+                // for input method positions, which disagreed with it
+                if !self.follow_ime {
+                    self.follow_ime = true;
+                    self.field = None;
+                }
                 return Some(Anchor(caret)).filter(|a| Some(*a) != self.anchor);
             }
         }
-        if self.ime_focus.as_ref().is_some_and(|c| self.ime_cursors.contains_key(c)) {
+        // where accessibility placed the indicator (the input method's cursor
+        // was missing or outside the focused field), accessibility follows it
+        if self.follow_ime && self.ime_focus.as_ref().is_some_and(|c| self.ime_cursors.contains_key(c)) {
             return None;
         }
         if now.duration_since(self.last_caret_poll) < CARET_POLL {
@@ -854,6 +887,7 @@ impl Runner {
         self.anchor = None;
         self.blur_at = None;
         self.refocused = false;
+        self.field = None;
         if let Some(o) = self.overlay.as_mut() {
             o.hide();
         }
@@ -875,12 +909,26 @@ impl Runner {
         let animate = self.settings.animation.duration_ms() > 0;
 
         let moved_to = if follow && self.visual.is_some() { self.poll_anchor(now) } else { None };
+        // placing the cursor of another window can take a moment
+        let now = if moved_to.is_some() { Instant::now() } else { now };
         if let Some(a) = moved_to {
             self.anchor = Some(a);
         }
-        // the cursor moved because another text field got focus: pop in there
-        let new_field =
-            moved_to.is_some() && self.visual.as_ref().is_some_and(|v| v.to > 0.0) && std::mem::take(&mut self.refocused);
+        // the cursor moved to another text field: one that got focus, one in
+        // another window, or one outside the field it was in. It pops in
+        // there; gliding is for the cursor moving while you type.
+        let new_field = match moved_to {
+            Some(Anchor(caret)) if self.visual.as_ref().is_some_and(|v| v.to > 0.0) => {
+                let refocused = std::mem::take(&mut self.refocused);
+                let switched = self.window_switched();
+                let left = self.follow_ime && self.field.is_some_and(|f| !in_field(f, caret));
+                refocused || switched || left
+            }
+            _ => false,
+        };
+        if new_field {
+            self.field = None;
+        }
         let new_monitor = moved_to.and_then(|a| {
             let (x, y) = a.point();
             let current = self.visual.as_ref()?.monitor;

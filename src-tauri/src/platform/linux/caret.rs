@@ -6,7 +6,9 @@
 //! 1. The focused window is the AT-SPI window whose title matches the window
 //!    Gala reports as focused (on other desktops: any active window).
 //! 2. Its focused descendant must be an editable text field or a terminal;
-//!    the caret is the left edge of the character at the caret offset.
+//!    the caret is the left edge of the character at the caret offset. A web
+//!    page that types into a field it hides outside the window and draws the
+//!    text cursor itself (Google Docs) is asked for that drawn cursor.
 //! 3. On **X11**, and for XWayland apps, these are screen coordinates. Native
 //!    **Wayland** apps do not know where their window is and report
 //!    coordinates relative to their window surface. Gala exposes its window
@@ -43,6 +45,7 @@ const MAX_EMBEDDING: usize = 12;
 const COORD_SCREEN: u32 = 0;
 const COORD_WINDOW: u32 = 1;
 const MATCH_ALL: i32 = 1;
+const MATCH_ANY: i32 = 2;
 const SORT_CANONICAL: u32 = 1;
 
 // AtspiStateType bit numbers
@@ -71,6 +74,12 @@ const GALA_MAX_DEPTH: usize = 4;
 const MAX_SHADOW: i32 = 200;
 /// Fields up to this height (logical px) are single-line.
 const SINGLE_LINE_MAX: i32 = 48;
+/// Classes of the elements web editors draw their text cursor with when
+/// their real input sits off-screen: Google Docs.
+const DRAWN_CARETS: &[&str] = &["kix-cursor-caret"];
+/// Drawn text cursors looked at per class (other people's in a shared
+/// document are drawn the same way).
+const MAX_DRAWN_CARETS: i32 = 16;
 
 pub fn support() -> Result<&'static str, String> {
     let session = session::session_type();
@@ -128,6 +137,9 @@ fn has(state: u64, bit: u32) -> bool {
 
 struct Target {
     field: Obj,
+    /// The text cursor the page draws itself, read instead of the field's
+    /// when the field is hidden outside the window (Google Docs).
+    drawn: Option<Obj>,
     /// The field's caret coordinates are divided by this (Chromium's own
     /// controls are reported scaled; its web pages are not)…
     scale: f64,
@@ -147,6 +159,8 @@ pub struct CaretTracker {
     /// Where the focused window was last found, for input method positions:
     /// (when, Gala's focused window it belongs to, geometry).
     geometry: Option<(Instant, FocusedWindow, WindowGeometry)>,
+    /// Input method positions came from another window than before.
+    window_switched: bool,
 }
 
 /// Where the focused window is on screen, for positions an app reports
@@ -173,6 +187,7 @@ impl CaretTracker {
             target: None,
             last_path: None,
             geometry: None,
+            window_switched: false,
         })
     }
 
@@ -200,6 +215,9 @@ impl CaretTracker {
             return Some(WindowGeometry { actor: Rect { x: 0, y: 0, width: 0, height: 0 }, scale: 1.0, x11: true });
         }
         let focus = focus?;
+        if self.geometry.as_ref().is_some_and(|(_, of, _)| *of != focus) {
+            self.window_switched = true;
+        }
         if let Some((at, of, g)) = &self.geometry {
             if !fresh && *of == focus && at.elapsed() < GEOMETRY_REUSE {
                 return Some(*g);
@@ -264,7 +282,10 @@ impl CaretTracker {
     pub fn refresh(&mut self) -> Option<Rect> {
         let target = self.target.as_ref()?;
         let caret = has(self.state(&target.field), FOCUSED)
-            .then(|| self.caret(&target.field))
+            .then(|| match &target.drawn {
+                Some(drawn) => self.extents(drawn).filter(|r| r.height > 0),
+                None => self.caret(&target.field),
+            })
             .flatten()
             .map(|r| to_screen(r, target.scale, target.offset));
         if caret.is_none() {
@@ -291,9 +312,16 @@ impl CaretTracker {
         })
     }
 
+    /// Whether input method positions came from another window since this
+    /// was last asked: the text cursor is then in another field.
+    pub fn take_window_switch(&mut self) -> bool {
+        std::mem::take(&mut self.window_switched)
+    }
+
     /// The text field `locate` found, on screen (where the caret must be).
+    /// Unknown for a field hidden outside its window (Google Docs).
     pub fn focused_field(&self) -> Option<Rect> {
-        let target = self.target.as_ref()?;
+        let target = self.target.as_ref().filter(|t| t.drawn.is_none())?;
         let field = self.field_extents(&target.field)?;
         Some(to_screen(field, target.scale, target.offset))
     }
@@ -327,13 +355,23 @@ impl CaretTracker {
             // with the text scaling factor, but not its web pages
             let in_web_page = || path.iter().any(|o| self.role_name(o) == "document web");
             let scale = if window_scale != 1.0 && !in_web_page() { window_scale } else { 1.0 };
+            let drawn = match (extents.first().copied().flatten(), extents.last().copied().flatten()) {
+                (Some(bounds), Some(field)) if !overlaps(bounds, field) && in_web_page() => {
+                    let Some(drawn) = self.drawn_caret(&window, bounds) else {
+                        log::debug!("the focused field lies outside its window and the page draws no text cursor");
+                        return None;
+                    };
+                    Some(drawn)
+                }
+                _ => None,
+            };
             log::debug!(
                 "text cursor lookup: window {windows_found:?}, field {path_found:?} (depth {}), origin {origin_found:?}, \
                  layout {:?}",
                 path.len(),
                 started.elapsed()
             );
-            Some(Target { field, scale, offset: (x + dx, y + dy) })
+            Some(Target { field, drawn, scale, offset: (x + dx, y + dy) })
         })
     }
 
@@ -390,6 +428,38 @@ impl CaretTracker {
         let args = (rule, SORT_CANONICAL, 1i32, true).to_variant();
         let reply = self.call(window, COLLECTION, "GetMatches", Some(args), "(a(so))")?;
         refs(&reply.child_value(0)).into_iter().next()
+    }
+
+    /// The text cursor the page in `window` draws itself (`DRAWN_CARETS`),
+    /// inside `bounds`. Of several, the one without a name tag beside it:
+    /// other people's cursors in a shared document carry one.
+    fn drawn_caret(&self, window: &Obj, bounds: Rect) -> Option<Obj> {
+        let mut found = Vec::new();
+        for class in DRAWN_CARETS {
+            // Chromium matches attributes only in ANY mode
+            let attributes = HashMap::from([("class".to_string(), class.to_string())]);
+            let rule = (
+                vec![0i32, 0],
+                MATCH_ALL,
+                attributes,
+                MATCH_ANY,
+                vec![0i32; 4],
+                MATCH_ALL,
+                Vec::<String>::new(),
+                MATCH_ALL,
+                false,
+            );
+            let args = (rule, SORT_CANONICAL, MAX_DRAWN_CARETS, true).to_variant();
+            if let Some(reply) = self.call(window, COLLECTION, "GetMatches", Some(args), "(a(so))") {
+                found.extend(refs(&reply.child_value(0)));
+            }
+        }
+        let shown: Vec<Obj> =
+            found.into_iter().filter(|c| self.extents(c).is_some_and(|r| r.height > 0 && overlaps(bounds, r))).collect();
+        let alone = |c: &Obj| {
+            self.property(c, ACCESSIBLE, "Parent").and_then(|v| reference(&v)).is_some_and(|p| self.child_count(&p) == 1)
+        };
+        shown.iter().find(|c| alone(c)).or(shown.first()).cloned()
     }
 
     /// The path from `window` down to `field`, through the parents.
@@ -696,6 +766,11 @@ fn within(outer: Rect, inner: Rect, margin: i32) -> bool {
         && inner.y <= outer.y + outer.height + margin
 }
 
+/// Whether the two rectangles share any area.
+fn overlaps(a: Rect, b: Rect) -> bool {
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+}
+
 /// Toolkit coordinates to screen coordinates.
 fn to_screen(r: Rect, scale: f64, (dx, dy): (i32, i32)) -> Rect {
     let s = |v: i32| (v as f64 / scale).round() as i32;
@@ -868,6 +943,15 @@ mod tests {
         let window = r(100, 100, 800, 600);
         assert!(within(window, r(500, 300, 1, 18), 8));
         assert!(!within(window, r(1500, 300, 1, 18), 8));
+    }
+
+    #[test]
+    fn fields_hidden_outside_their_window_are_detected() {
+        let window = r(0, 0, 2319, 1268);
+        assert!(!overlaps(window, r(0, -10280, 647, 21)), "Google Docs' hidden input");
+        assert!(overlaps(window, r(683, 321, 3, 18)), "its drawn cursor");
+        assert!(overlaps(window, r(-20, 100, 40, 20)), "a field cut by the window edge");
+        assert!(!overlaps(window, r(2319, 0, 10, 10)), "touching is not overlapping");
     }
 
     #[test]
