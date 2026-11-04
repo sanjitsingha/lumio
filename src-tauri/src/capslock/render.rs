@@ -68,18 +68,17 @@ fn arrow_path(x: f32, y: f32, s: f32) -> Option<Path> {
     pb.finish()
 }
 
-/// Renders the indicator. `progress` (0..=1) drives the appear/disappear
-/// "pop": the body grows from 86% to full size.
-pub fn render(style: Style, progress: f32) -> Option<Frame> {
+/// Renders the indicator. `pop` is the body's scale around its center for
+/// the appear spring: 1.0 is full size, a little more while it overshoots
+/// (the shadow margin leaves room for that).
+pub fn render(style: Style, pop: f32) -> Option<Frame> {
     let scale = style.scale.max(1.0) as f32;
     let body = style.size as f32 * scale;
     let margin = margin_px(style.size, style.scale) as f32;
     let canvas = (body + 2.0 * margin).ceil() as u32;
     let mut pixmap = Pixmap::new(canvas, canvas)?;
 
-    let t = progress.clamp(0.0, 1.0);
-    let grow = 0.86 + 0.14 * t;
-    let s = body * grow;
+    let s = body * pop.clamp(0.5, 1.1);
     let x = margin + (body - s) / 2.0;
     let y = margin + (body - s) / 2.0;
     let radius = s * style.radius.clamp(0.0, 0.5);

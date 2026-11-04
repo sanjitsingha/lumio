@@ -7,7 +7,7 @@
 //! read while Caps Lock is off.
 
 use std::cell::Cell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
@@ -35,6 +35,14 @@ thread_local! {
     /// The timer of the pending look, and which look it is.
     static TIMER: Cell<usize> = const { Cell::new(0) };
     static LOOK: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Counts moves of keyboard focus to another element as they happen, before
+/// the new field has its caret (and long before it is reported).
+static FOCUS_MOVES: AtomicU64 = AtomicU64::new(0);
+
+pub(super) fn focus_moves() -> u64 {
+    FOCUS_MOVES.load(Ordering::SeqCst)
 }
 
 pub struct ImeWatch {
@@ -105,7 +113,12 @@ unsafe extern "system" fn on_win_event(
         // windows and menus come and go all the time; only the caret matters
         EVENT_OBJECT_SHOW | EVENT_OBJECT_HIDE if object != OBJID_CARET.0 => return,
         EVENT_OBJECT_SHOW | EVENT_OBJECT_HIDE => {}
-        _ => FOCUSED.set((hwnd.0 as isize, object, child)),
+        _ => {
+            let element = (hwnd.0 as isize, object, child);
+            if FOCUSED.replace(element) != element {
+                FOCUS_MOVES.fetch_add(1, Ordering::SeqCst);
+            }
+        }
     }
     LOOK.set(0);
     look_in(LOOKS[0]);

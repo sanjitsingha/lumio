@@ -279,6 +279,31 @@ fn glide_time(animation_ms: u64) -> f32 {
     animation_ms as f32 * 0.4 / 1000.0
 }
 
+/// How long the appear pop takes to settle: twice the fade, so the bounce
+/// plays out after the indicator is already fully visible.
+fn pop_time(animation_ms: u64) -> f32 {
+    animation_ms as f32 * 2.0 / 1000.0
+}
+
+/// Body scale the appear pop starts from.
+const POP_FROM: f32 = 0.8;
+
+/// Body scale `t` seconds after appearing: an underdamped spring from
+/// `POP_FROM` that overshoots to about 104%, dips once below 100% and
+/// settles exactly at full size after `settle` seconds.
+fn spring_pop(t: f32, settle: f32) -> f32 {
+    const DAMPING: f32 = 0.45;
+    if settle <= 0.0 || t >= settle {
+        return 1.0;
+    }
+    // the envelope decays to 1% of the start offset by `settle`
+    let omega = 100f32.ln() / (DAMPING * settle);
+    let damped = omega * (1.0 - DAMPING * DAMPING).sqrt();
+    let t = t.max(0.0);
+    let envelope = (-DAMPING * omega * t).exp();
+    1.0 - (1.0 - POP_FROM) * envelope * ((damped * t).cos() + DAMPING * omega / damped * (damped * t).sin())
+}
+
 /// One frame of a critically damped spring toward `target`: it starts gently,
 /// never overshoots, and keeps its momentum when the target moves on (each
 /// keystroke moves the text cursor), so following the cursor looks continuous.
@@ -313,6 +338,8 @@ struct Visual {
     to: f32,
     start: Instant,
     progress: f32,
+    /// Body scale while popping in; kept as it is while fading out.
+    pop: f32,
     frame: Option<Frame>,
     monitor: MonitorGeom,
     /// Where the body belongs (next to the anchor)…
@@ -326,6 +353,23 @@ struct Visual {
 impl Visual {
     fn gliding(&self) -> bool {
         self.pos != (self.body_pos.0 as f32, self.body_pos.1 as f32)
+    }
+
+    fn popping(&self) -> bool {
+        self.to > 0.0 && self.pop != 1.0
+    }
+
+    /// Leaves where it is drawn and appears afresh at `body_pos`: fades in
+    /// and pops there.
+    fn pop_in(&mut self, now: Instant, animate: bool) {
+        self.pos = (self.body_pos.0 as f32, self.body_pos.1 as f32);
+        self.velocity = (0.0, 0.0);
+        self.from = if animate { 0.0 } else { 1.0 };
+        self.to = 1.0;
+        self.start = now;
+        self.progress = self.from;
+        self.pop = if animate { POP_FROM } else { 1.0 };
+        self.frame = None;
     }
 }
 
@@ -359,6 +403,9 @@ struct Runner {
     /// The text cursor went away: hide the indicator at this deadline unless
     /// one turns up again.
     blur_at: Option<Instant>,
+    /// A text field got focus since the indicator was last placed: when it
+    /// moves there, it pops in at the new field rather than gliding over.
+    refocused: bool,
 }
 
 impl Runner {
@@ -392,6 +439,7 @@ impl Runner {
             ime_moved: false,
             focus_show_at: None,
             blur_at: None,
+            refocused: false,
         }
     }
 
@@ -470,7 +518,7 @@ impl Runner {
             .flatten()
             .min()
             .map(|d| d.saturating_duration_since(now));
-        let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.gliding());
+        let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.popping() || v.gliding());
         let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
         let frame = if animating {
             Some(FRAME)
@@ -527,6 +575,7 @@ impl Runner {
                 self.ime_focus = Some(context);
                 self.ime_moved = true;
                 self.blur_at = None;
+                self.refocused = true;
                 // with Caps Lock already on, show the indicator in the new field
                 // (the state decides whether it should)
                 self.focus_show_at = Some(now + FOCUS_CURSOR_WAIT);
@@ -601,6 +650,7 @@ impl Runner {
                 }
             }
         }
+        let refocused = std::mem::take(&mut self.refocused);
         // already visible (e.g. on -> off flash): if the text cursor cannot be
         // found again, keep the indicator where it is
         let visible = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
@@ -627,6 +677,7 @@ impl Runner {
         let body = (self.settings.size as f64 * monitor.scale).round() as i32;
         let body_pos = anchor.place(body, &monitor, self.settings.position);
         log::debug!("caps lock indicator at {body_pos:?} for {anchor:?}");
+        let new_field = refocused && self.anchor != Some(anchor);
         self.anchor = Some(anchor);
         self.last_caret_poll = now;
         let animate = self.settings.animation.duration_ms() > 0;
@@ -643,6 +694,9 @@ impl Runner {
                 v.frame = None;
                 v.monitor = monitor;
                 v.body_pos = body_pos;
+                if new_field {
+                    v.pop_in(now, animate);
+                }
             }
             _ => {
                 self.visual = Some(Visual {
@@ -652,6 +706,7 @@ impl Runner {
                     to: 1.0,
                     start: now,
                     progress: if animate { 0.0 } else { 1.0 },
+                    pop: if animate { POP_FROM } else { 1.0 },
                     frame: None,
                     monitor,
                     body_pos,
@@ -738,6 +793,7 @@ impl Runner {
         self.visual = None;
         self.anchor = None;
         self.blur_at = None;
+        self.refocused = false;
         if let Some(o) = self.overlay.as_mut() {
             o.hide();
         }
@@ -755,18 +811,23 @@ impl Runner {
         let corner_radius = self.settings.corner_radius as f32 / 100.0;
         let opacity = self.settings.opacity;
         let glide = glide_time(self.settings.animation.duration_ms());
+        let settle = pop_time(self.settings.animation.duration_ms());
+        let animate = self.settings.animation.duration_ms() > 0;
 
         let moved_to = if follow && self.visual.is_some() { self.poll_anchor(now) } else { None };
         if let Some(a) = moved_to {
             self.anchor = Some(a);
         }
+        // the cursor moved because another text field got focus: pop in there
+        let new_field =
+            moved_to.is_some() && self.visual.as_ref().is_some_and(|v| v.to > 0.0) && std::mem::take(&mut self.refocused);
         let new_monitor = moved_to.and_then(|a| {
             let (x, y) = a.point();
             let current = self.visual.as_ref()?.monitor;
             (!current.bounds.contains(x, y)).then(|| self.monitor_for((x, y)))
         });
 
-        let (progress, progress_changed, finished) = {
+        let (progress, changed, finished) = {
             let Some(v) = self.visual.as_mut() else { return };
             if let Some(m) = new_monitor {
                 v.monitor = m;
@@ -776,6 +837,9 @@ impl Runner {
                 let body = (size as f64 * v.monitor.scale).round() as i32;
                 v.body_pos = a.place(body, &v.monitor, position);
                 log::debug!("caps lock indicator follows to {:?} for {a:?}", v.body_pos);
+                if new_field {
+                    v.pop_in(now, animate);
+                }
             }
             // after a pause (polling slows down when nothing moves) a glide starts with one frame's step
             let dt = now.duration_since(v.stepped).as_secs_f32().min(2.0 * FRAME.as_secs_f32());
@@ -788,10 +852,17 @@ impl Runner {
                 v.pos.0 = smooth_damp(v.pos.0, target.0, &mut v.velocity.0, glide, dt);
                 v.pos.1 = smooth_damp(v.pos.1, target.1, &mut v.velocity.1, glide, dt);
             }
-            let t = (now.duration_since(v.start).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
+            let elapsed = now.duration_since(v.start).as_secs_f32();
+            let t = (elapsed / duration.as_secs_f32()).clamp(0.0, 1.0);
             let progress = if v.from == v.to { v.to } else { v.from + (v.to - v.from) * ease_out_cubic(t) };
-            let changed = (progress - v.progress).abs() > f32::EPSILON;
+            let mut changed = (progress - v.progress).abs() > f32::EPSILON;
             v.progress = progress;
+            // the spring only runs while appearing; fading out keeps the size it has
+            if v.popping() {
+                let pop = spring_pop(elapsed, settle);
+                changed |= pop != v.pop;
+                v.pop = pop;
+            }
             (progress, changed, v.to == 0.0 && t >= 1.0)
         };
         if finished {
@@ -800,12 +871,10 @@ impl Runner {
         }
         let Self { visual, overlay, .. } = self;
         let Some(v) = visual.as_mut() else { return };
-        let rerender = v.frame.is_none() || (progress_changed && v.to > 0.0);
+        let rerender = v.frame.is_none() || (changed && v.to > 0.0);
         if rerender {
             let style = Style { size, scale: v.monitor.scale, dark: v.dark, on: v.on, radius: corner_radius };
-            // the "pop" only applies while growing in; fading out keeps full size
-            let pop = if v.to > 0.0 { progress } else { 1.0 };
-            v.frame = render::render(style, pop);
+            v.frame = render::render(style, v.pop);
         }
         let Some(frame) = v.frame.as_ref() else { return };
         let margin = frame.margin as i32;
@@ -927,5 +996,23 @@ mod tests {
     fn animations_off_means_no_glide() {
         assert_eq!(glide_time(AnimationSpeed::Off.duration_ms()), 0.0);
         assert!(glide_time(AnimationSpeed::Slow.duration_ms()) > glide_time(AnimationSpeed::Fast.duration_ms()));
+    }
+
+    #[test]
+    fn pop_springs_past_full_size_once_and_settles() {
+        let settle = pop_time(AnimationSpeed::Normal.duration_ms());
+        let path: Vec<f32> = (0..=30).map(|i| spring_pop(i as f32 / 60.0, settle)).collect();
+        assert_eq!(path[0], POP_FROM);
+        let peak = path.iter().cloned().fold(0.0, f32::max);
+        assert!((1.02..=1.06).contains(&peak), "a slight overshoot, peaked at {peak}");
+        let peak_frame = path.iter().position(|p| *p == peak).unwrap();
+        assert!((4..=10).contains(&peak_frame), "peaks soon after the fade, at frame {peak_frame}");
+        assert!(path[peak_frame..].iter().all(|p| *p > 0.98), "dips back only a little: {path:?}");
+        assert_eq!(*path.last().unwrap(), 1.0, "settles exactly");
+    }
+
+    #[test]
+    fn animations_off_means_no_pop() {
+        assert_eq!(spring_pop(0.0, pop_time(AnimationSpeed::Off.duration_ms())), 1.0);
     }
 }

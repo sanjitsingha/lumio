@@ -25,26 +25,31 @@ pub fn support() -> Result<&'static str, String> {
     Ok("System caret (Win32, MSAA)")
 }
 
-pub struct CaretTracker;
+pub struct CaretTracker {
+    /// Focus moves (`ime::focus_moves`) when the caret was located.
+    located_at: u64,
+}
 
 impl CaretTracker {
     pub fn new() -> Result<Self, String> {
         // MSAA needs COM on this thread; S_FALSE (already initialised) is fine
         let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-        Ok(CaretTracker)
+        Ok(CaretTracker { located_at: 0 })
     }
 
     pub fn locate(&mut self) -> Option<Rect> {
-        let (info, foreground) = gui_thread_info()?;
-        system_caret(&info).or_else(|| {
-            let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
-            msaa_caret(focus)
-        })
+        self.located_at = super::ime::focus_moves();
+        current_caret()
     }
 
-    /// Both sources are cheap, so following simply locates again.
+    /// Both sources are cheap, so following simply reads the caret again.
+    /// `None` once focus has moved on: the next field's caret is another
+    /// field's, found by `locate` when that field is reported.
     pub fn refresh(&mut self) -> Option<Rect> {
-        self.locate()
+        if super::ime::focus_moves() != self.located_at {
+            return None;
+        }
+        current_caret()
     }
 
     pub fn release(&mut self) {}
@@ -58,6 +63,14 @@ impl CaretTracker {
     pub fn map_input_method(&mut self, _rect: Rect, _relative: bool, _fresh: bool) -> Option<Rect> {
         None
     }
+}
+
+fn current_caret() -> Option<Rect> {
+    let (info, foreground) = gui_thread_info()?;
+    system_caret(&info).or_else(|| {
+        let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
+        msaa_caret(focus)
+    })
 }
 
 fn gui_thread_info() -> Option<(GUITHREADINFO, HWND)> {

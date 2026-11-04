@@ -25,9 +25,10 @@ function Indicator({ settings, dark, style }) {
   return (
     <motion.div
       key={`${settings.position}-${size}`}
-      initial={{ opacity: 0, scale: 0.86 }}
+      initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: settings.opacity, scale: 1 }}
-      transition={{ duration: 0.2 }}
+      // the native spring at Normal speed (capslock/mod.rs `spring_pop`)
+      transition={{ opacity: { duration: 0.17 }, scale: { type: "spring", stiffness: 900, damping: 27 } }}
       className="absolute flex items-center justify-center"
       style={{
         ...style,
