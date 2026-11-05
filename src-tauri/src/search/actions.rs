@@ -16,9 +16,12 @@ pub struct QuickAction {
     pub title: &'static str,
     pub subtitle: &'static str,
     pub keywords: &'static [&'static str],
-    /// Lucide icon name.
+    /// Lucide icon name, or [`LUMMO_ICON`].
     pub icon: &'static str,
 }
+
+/// Lummo's own logo, the one its app entry shows.
+const LUMMO_ICON: &str = "lummo";
 
 pub const LUMMO_SETTINGS: &str = "lummo-settings";
 
@@ -63,7 +66,7 @@ pub const ACTIONS: &[QuickAction] = &[
         title: "Lummo Settings",
         subtitle: "Shortcuts, Caps Lock indicator and appearance",
         keywords: &["lummo", "preferences", "shortcuts", "caps lock", "spotlight"],
-        icon: "sliders-horizontal",
+        icon: LUMMO_ICON,
     },
 ];
 
@@ -99,7 +102,10 @@ impl ActionsProvider {
             kind: ResultKind::Action,
             title: action.title.into(),
             subtitle: action.subtitle.into(),
-            icon: ResultIcon::Symbol { name: action.icon.into() },
+            icon: match action.icon {
+                LUMMO_ICON => ResultIcon::Lummo,
+                name => ResultIcon::Symbol { name: name.into() },
+            },
             score,
             reveal: false,
             note: None,
@@ -173,6 +179,7 @@ mod tests {
         let mut out = Vec::new();
         provider.search(&ctx, &mut out);
         assert_eq!(out[0].id, "action:lummo-settings");
+        assert_eq!(out[0].icon, ResultIcon::Lummo, "with Lummo's logo, like the app");
     }
 
     #[test]

@@ -43,6 +43,8 @@ pub enum ResultIcon {
     App { key: String },
     /// A Lucide icon name rendered by the frontend.
     Symbol { name: String },
+    /// Lummo's own logo, bundled with the frontend.
+    Lummo,
     /// The system's icon for the file's type, served at `/file/<key>`; the
     /// glyph for `category` (document, image, ...) stands in when there is none.
     File { category: &'static str, extension: String, key: String },

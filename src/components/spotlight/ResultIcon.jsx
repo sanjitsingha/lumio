@@ -16,7 +16,6 @@ import {
   Globe,
   Presentation,
   Settings,
-  SlidersHorizontal,
   SquareTerminal,
 } from "lucide-react";
 
@@ -26,7 +25,6 @@ const SYMBOLS = {
   "folder-open": { Icon: FolderOpen, tint: "#1E90FF" },
   globe: { Icon: Globe, tint: "#30B0C7" },
   "square-terminal": { Icon: SquareTerminal, tint: "#3A3A3C" },
-  "sliders-horizontal": { Icon: SlidersHorizontal, tint: "#5856D6" },
   "app-window": { Icon: AppWindow, tint: "#8E8E93" },
 };
 
@@ -79,6 +77,19 @@ export function ResultIcon({ icon, size = 30, selected = false }) {
         height={size}
         draggable={false}
         onError={() => setFailed(true)}
+        className="object-contain"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  if (icon.type === "lummo") {
+    return (
+      <img
+        src="/app-icon.png"
+        alt=""
+        width={size}
+        height={size}
+        draggable={false}
         className="object-contain"
         style={{ width: size, height: size }}
       />
