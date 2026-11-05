@@ -16,7 +16,7 @@ What the unit tests cover:
 - **Shortcut validation:** parsing and canonical form, GTK accelerator round trips, reserved and invalid combinations, the manager's register-before-release semantics, conflict reporting, recording suspend and resume, auto-repeat suppression.
 - **Settings:** serialization, lenient loading of a damaged section, range clamping, patching, corrupt-file recovery, first run.
 - **Configuration migration:** chained steps, a missing version, a newer version, gaps in the chain, invalid versions.
-- **Caps Lock state handling:** the initial reading, on/off flash, persistent mode, duplicates, disabling, preview.
+- **Caps Lock state handling:** the initial reading, turning off only hides, persistent mode, duplicates, disabling, preview.
 - **Placement geometry:** offsets, edge flipping, HiDPI, multi-monitor origins, never covering the pointer or the text cursor's line.
 - **Text cursor on Wayland:** matching the focused window to Gala's window actors (exact surface size, Chromium's scaled window size, same-size windows, full-screen panels that must not match), window titles, empty fields.
 - **Settings from 0.1.x:** anchored to the text cursor after an update.
@@ -50,7 +50,7 @@ These were driven on the real desktop. Key presses and pointer moves were inject
 | Alt+Space conflict reported with its owner | ✅ "already used by the system shortcut “Activate window menu”" |
 | Caps Lock ON shows the indicator at the pointer | ✅ pointer (1116, 826) → indicator body (1132, 846) (0.1.3: confirmed only by the window being mapped, see below) |
 | Indicator follows the pointer | ✅ indicator window moved with injected pointer motion |
-| Caps Lock OFF flashes the off state, then hides | ✅ both windows unmapped after the duration |
+| Caps Lock OFF flashes the off state, then hides (older versions; now OFF only hides it) | ✅ both windows unmapped after the duration |
 | Indicator does not steal focus | ✅ override-redirect window, never focused; the typing app keeps focus |
 | Indicator does not block clicks | ✅ empty input shape; the tracker leaves a click-through square at the pointer |
 | Settings persist across restarts | ✅ |
@@ -98,7 +98,7 @@ Run this on each platform and record the results.
 | 7 | Caps Lock ON shows the indicator below the text cursor (in a text field) | ✅ | ☐ | ☐ | ☐ |
 | 7a | …and nothing outside text fields | ✅ | ☐ | ☐ | ☐ |
 | 7b | Toggling 10 times in a row shows it every time | ✅ | ☐ | ☐ | ☐ |
-| 8 | Caps Lock OFF hides it (brief off state) | ✅ | ☐ | ☐ | ☐ |
+| 8 | Caps Lock OFF hides it (no off state, as on a Mac) | ✅ | ☐ | ☐ | ☐ |
 | 9 | Indicator follows the text cursor while typing, and the pointer when anchored to it | ✅ | ☐ | ☐ | ☐ |
 | 10 | Indicator never blocks clicks or takes focus | ✅ | ☐ | ☐ | ☐ |
 | 11 | Indicator correct on a second monitor / at 125–200% scale | ☐ (single 1080p monitor available) | ☐ | ☐ | ☐ |

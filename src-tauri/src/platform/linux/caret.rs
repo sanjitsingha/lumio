@@ -161,6 +161,8 @@ pub struct CaretTracker {
     geometry: Option<(Instant, FocusedWindow, WindowGeometry)>,
     /// Input method positions came from another window than before.
     window_switched: bool,
+    /// Gala's focused window when the text cursor was last looked for.
+    located_in: Option<FocusedWindow>,
 }
 
 /// Where the focused window is on screen, for positions an app reports
@@ -188,6 +190,7 @@ impl CaretTracker {
             last_path: None,
             geometry: None,
             window_switched: false,
+            located_in: None,
         })
     }
 
@@ -318,6 +321,12 @@ impl CaretTracker {
         std::mem::take(&mut self.window_switched)
     }
 
+    /// Whether Gala focused another window since the text cursor was looked
+    /// for: its field is then behind it. Unknown without Gala.
+    pub fn window_changed(&self) -> bool {
+        self.located_in.as_ref().is_some_and(|located| self.focused_window().as_ref() != Some(located))
+    }
+
     /// The text field `locate` found, on screen (where the caret must be).
     /// Unknown for a field hidden outside its window (Google Docs).
     pub fn focused_field(&self) -> Option<Rect> {
@@ -329,6 +338,7 @@ impl CaretTracker {
     fn find_target(&mut self) -> Option<Target> {
         let started = Instant::now();
         let focus = self.focused_window();
+        self.located_in = focus.clone();
         let windows = self.focused_windows(focus.as_ref());
         let windows_found = started.elapsed();
         windows.into_iter().find_map(|window| {

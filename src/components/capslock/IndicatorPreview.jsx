@@ -1,20 +1,18 @@
 import { motion } from "framer-motion";
 
 /** The ⇪ glyph, same geometry as the native renderer (`capslock/render.rs`). */
-export function CapsLockGlyph({ on, dark, size }) {
+export function CapsLockGlyph({ dark, size }) {
   const glyph = dark ? "#F5F5F7" : "#1D1D1F";
-  const led = on ? (dark ? "#30D158" : "#28BE50") : dark ? "rgba(152,152,157,0.55)" : "rgba(134,134,139,0.55)";
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
       <path
         d="M50 17 L79 47 L62.5 47 L62.5 62 L37.5 62 L37.5 47 L21 47 Z"
-        fill={on ? glyph : "none"}
+        fill={glyph}
         stroke={glyph}
-        strokeOpacity={on ? 1 : 0.62}
-        strokeWidth={on ? 3.5 : 5.5}
+        strokeWidth={3.5}
         strokeLinejoin="round"
       />
-      <rect x="35" y="70.5" width="30" height="7.5" rx="3" fill={led} />
+      <rect x="35" y="70.5" width="30" height="7.5" rx="3" fill={dark ? "#30D158" : "#28BE50"} />
     </svg>
   );
 }
@@ -40,7 +38,7 @@ function Indicator({ settings, dark, style }) {
         boxShadow: dark ? "0 6px 18px rgba(0,0,0,0.45)" : "0 6px 18px rgba(0,0,0,0.16)",
       }}
     >
-      <CapsLockGlyph on dark={dark} size={size} />
+      <CapsLockGlyph dark={dark} size={size} />
     </motion.div>
   );
 }

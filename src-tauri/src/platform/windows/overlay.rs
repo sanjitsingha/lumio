@@ -33,7 +33,7 @@ pub fn osd_available() -> bool {
     false
 }
 
-pub fn show_osd(_on: bool) -> Result<(), String> {
+pub fn show_osd() -> Result<(), String> {
     Err("Windows uses the cursor overlay".into())
 }
 

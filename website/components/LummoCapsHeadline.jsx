@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], display: "swap" });
 /*
  * A headline that types itself, with Lummo's Caps Lock indicator under the
  * text cursor: it pops in when Caps Lock goes on, glides along as the capitals
- * are typed, and shows "off" for a moment when Caps Lock goes off. Artwork,
+ * are typed, and fades away when Caps Lock goes off. Artwork,
  * placement and timings are the app's (src-tauri/src/capslock in the Lummo repo).
  */
 
@@ -25,9 +25,8 @@ const plain = (line) => line.map((part) => (typeof part === "string" ? part : pa
 
 /** The indicator's size, relative to the headline's font size. */
 const INDICATOR_EM = 0.8;
-/** Lummo's "Normal" animation speed, and how long "off" stays up. */
+/** Lummo's "Normal" animation speed. */
 const ANIMATION_MS = 170;
-const OFF_FLASH_MS = 900;
 /** How quickly the indicator catches up with the cursor (Lummo: 0.4 × the animation time). */
 const GLIDE_S = 0.07;
 
@@ -40,7 +39,7 @@ export default function LummoCapsHeadline({ as: Tag = "h1", className = "", indi
   const caret = useRef(null);
   const [active, setActive] = useState(false);
   const [text, setText] = useState("");
-  // "hidden" | "on" | "off"
+  // "hidden" | "on"
   const [caps, setCaps] = useState("hidden");
   // counts appearances, so each one pops in fresh at the cursor
   const [appearance, setAppearance] = useState(0);
@@ -105,9 +104,8 @@ export default function LummoCapsHeadline({ as: Tag = "h1", className = "", indi
           }
           if (withCaps) {
             await wait(160);
-            setCaps("off");
-            // like Lummo: "off" shows briefly, then the indicator fades away
-            later(() => setCaps((c) => (c === "off" ? "hidden" : c)), OFF_FLASH_MS);
+            // like Lummo (and a Mac): Caps Lock off just fades the indicator away
+            setCaps("hidden");
           }
         }
         await wait(2600);
@@ -165,7 +163,7 @@ export default function LummoCapsHeadline({ as: Tag = "h1", className = "", indi
                 animation: `lummo-pop ${ANIMATION_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
               }}
             >
-              <CapsLockGlyph on={caps === "on"} dark={dark} size={size} />
+              <CapsLockGlyph dark={dark} size={size} />
             </div>
           )}
         </div>
@@ -179,26 +177,19 @@ export default function LummoCapsHeadline({ as: Tag = "h1", className = "", indi
   );
 }
 
-/** The ⇪ glyph and its "LED", as Lummo draws them; on/off cross-fades. */
-function CapsLockGlyph({ on, dark, size }) {
+/** The ⇪ glyph and its lit "LED", as Lummo draws them. */
+function CapsLockGlyph({ dark, size }) {
   const glyph = dark ? "#F5F5F7" : "#1D1D1F";
-  const led = on ? (dark ? "#30D158" : "#28BE50") : dark ? "rgba(152,152,157,0.55)" : "rgba(134,134,139,0.55)";
-  const fade = "fill-opacity 160ms ease, stroke-opacity 160ms ease, stroke-width 160ms ease, fill 160ms ease";
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
       <path
         d="M50 17 L79 47 L62.5 47 L62.5 62 L37.5 62 L37.5 47 L21 47 Z"
+        fill={glyph}
         stroke={glyph}
+        strokeWidth={3.5}
         strokeLinejoin="round"
-        style={{
-          fill: glyph,
-          fillOpacity: on ? 1 : 0,
-          strokeOpacity: on ? 1 : 0.62,
-          strokeWidth: on ? 3.5 : 5.5,
-          transition: fade,
-        }}
       />
-      <rect x="35" y="70.5" width="30" height="7.5" rx="3" style={{ fill: led, transition: fade }} />
+      <rect x="35" y="70.5" width="30" height="7.5" rx="3" fill={dark ? "#30D158" : "#28BE50"} />
     </svg>
   );
 }

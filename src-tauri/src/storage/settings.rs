@@ -177,8 +177,6 @@ pub struct CapsLockSettings {
     /// How long the indicator stays visible. `0` = while Caps Lock is on.
     pub duration_ms: u32,
     pub animation: AnimationSpeed,
-    /// Briefly show the "off" state when Caps Lock is turned off.
-    pub show_when_disabled: bool,
     /// Show the indicator when a text field gets focus while Caps Lock is on.
     pub show_on_focus: bool,
     pub follow_cursor: bool,
@@ -199,7 +197,6 @@ impl Default for CapsLockSettings {
             corner_radius: 27,
             duration_ms: 1500,
             animation: AnimationSpeed::Normal,
-            show_when_disabled: true,
             show_on_focus: true,
             follow_cursor: true,
         }

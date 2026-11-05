@@ -60,7 +60,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | Files | 🟡 | Same index; recursive `ReadDirectoryChangesW`; hidden/system attributes respected; `ShellExecuteW` to open, `explorer /select,` to reveal. File-type icons from `IShellItemImageFactory`, as in Explorer. |
 | Quick actions | 🟡 | `ms-settings:`, `calculator:`, Explorer, default browser (`AssocQueryStringW`), Windows Terminal or PowerShell. |
 | Caps Lock detection | 🟡 | `WH_KEYBOARD_LL` hook wakes a thread that reads `GetKeyState(VK_CAPITAL)`. |
-| Indicator at the text cursor | 🟡 | The foreground thread's system caret (`GetGUIThreadInfo`), else the MSAA caret object (`OBJID_CARET`) of the focused window. Apps that expose neither show no indicator. |
+| Indicator at the text cursor | 🟡 | The foreground thread's system caret (`GetGUIThreadInfo`), else the MSAA caret object (`OBJID_CARET`) of the focused window. The caret must belong to the foreground window and lie inside it, so a field of a window behind it never gets the indicator, and switching windows hides it at once. Apps that expose neither show no indicator. |
 | Indicator at the pointer | 🟡 | `GetCursorPos`; per-pixel-alpha layered window (`WS_EX_LAYERED|TRANSPARENT|NOACTIVATE|TOOLWINDOW|TOPMOST`) via `UpdateLayeredWindow`. |
 | Launch at login | 🟡 | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. |
 | Tray | 🟡 | Standard notification-area icon and menu. |

@@ -19,7 +19,6 @@ pub struct Style {
     pub size: u32,
     pub scale: f64,
     pub dark: bool,
-    pub on: bool,
     /// Corner radius as a fraction of the edge length (0.5 = a circle).
     pub radius: f32,
 }
@@ -94,10 +93,10 @@ pub fn render(style: Style, pop: f32) -> Option<Frame> {
         }
     }
 
-    let (fill, border, glyph, muted) = if style.dark {
-        ((40, 40, 44, 0.96), (255, 255, 255, 0.14), (245, 245, 247), (152, 152, 157))
+    let (fill, border, glyph) = if style.dark {
+        ((40, 40, 44, 0.96), (255, 255, 255, 0.14), (245, 245, 247))
     } else {
-        ((252, 252, 253, 0.97), (0, 0, 0, 0.09), (29, 29, 31), (134, 134, 139))
+        ((252, 252, 253, 0.97), (0, 0, 0, 0.09), (29, 29, 31))
     };
     let body_path = rounded_rect(x, y, s, s, radius)?;
     pixmap.fill_path(&body_path, &paint(fill.0, fill.1, fill.2, fill.3), FillRule::Winding, Transform::identity(), None);
@@ -106,19 +105,13 @@ pub fn render(style: Style, pop: f32) -> Option<Frame> {
 
     let arrow = arrow_path(x, y, s)?;
     let bar = rounded_rect(x + 0.35 * s, y + 0.705 * s, 0.30 * s, 0.075 * s, 0.03 * s)?;
-    if style.on {
-        let glyph_paint = paint(glyph.0, glyph.1, glyph.2, 1.0);
-        pixmap.fill_path(&arrow, &glyph_paint, FillRule::Winding, Transform::identity(), None);
-        let round = Stroke { width: 0.035 * s, line_join: LineJoin::Round, line_cap: LineCap::Round, ..Stroke::default() };
-        pixmap.stroke_path(&arrow, &glyph_paint, &round, Transform::identity(), None);
-        // the "LED": green like a lit Caps Lock key
-        let led = if style.dark { (48, 209, 88) } else { (40, 190, 80) };
-        pixmap.fill_path(&bar, &paint(led.0, led.1, led.2, 1.0), FillRule::Winding, Transform::identity(), None);
-    } else {
-        let outline = Stroke { width: 0.055 * s, line_join: LineJoin::Round, line_cap: LineCap::Round, ..Stroke::default() };
-        pixmap.stroke_path(&arrow, &paint(glyph.0, glyph.1, glyph.2, 0.62), &outline, Transform::identity(), None);
-        pixmap.fill_path(&bar, &paint(muted.0, muted.1, muted.2, 0.55), FillRule::Winding, Transform::identity(), None);
-    }
+    let glyph_paint = paint(glyph.0, glyph.1, glyph.2, 1.0);
+    pixmap.fill_path(&arrow, &glyph_paint, FillRule::Winding, Transform::identity(), None);
+    let round = Stroke { width: 0.035 * s, line_join: LineJoin::Round, line_cap: LineCap::Round, ..Stroke::default() };
+    pixmap.stroke_path(&arrow, &glyph_paint, &round, Transform::identity(), None);
+    // the "LED": green like a lit Caps Lock key
+    let led = if style.dark { (48, 209, 88) } else { (40, 190, 80) };
+    pixmap.fill_path(&bar, &paint(led.0, led.1, led.2, 1.0), FillRule::Winding, Transform::identity(), None);
 
     Some(Frame { width: canvas, height: canvas, rgba: pixmap.take(), margin: margin as u32 })
 }
@@ -133,8 +126,8 @@ mod tests {
 
     #[test]
     fn frame_dimensions_follow_size_and_scale() {
-        let f1 = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
-        let f2 = render(Style { size: 40, scale: 2.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
+        let f1 = render(Style { size: 40, scale: 1.0, dark: false, radius: 0.27 }, 1.0).unwrap();
+        let f2 = render(Style { size: 40, scale: 2.0, dark: false, radius: 0.27 }, 1.0).unwrap();
         assert_eq!(f1.width, 40 + 2 * margin_px(40, 1.0));
         assert_eq!(f2.width, 80 + 2 * margin_px(40, 2.0));
         assert_eq!(f1.rgba.len(), (f1.width * f1.height * 4) as usize);
@@ -142,22 +135,15 @@ mod tests {
 
     #[test]
     fn corners_are_transparent_and_body_is_opaque() {
-        let f = render(Style { size: 48, scale: 1.0, dark: true, on: true, radius: 0.27 }, 1.0).unwrap();
+        let f = render(Style { size: 48, scale: 1.0, dark: true, radius: 0.27 }, 1.0).unwrap();
         assert_eq!(alpha_at(&f, 0, 0), 0, "canvas corner");
         let c = f.width / 2;
         assert!(alpha_at(&f, c, f.margin + 3) > 200, "body near top edge");
     }
 
     #[test]
-    fn on_and_off_states_differ() {
-        let on = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 1.0).unwrap();
-        let off = render(Style { size: 40, scale: 1.0, dark: false, on: false, radius: 0.27 }, 1.0).unwrap();
-        assert_ne!(on.rgba, off.rgba);
-    }
-
-    #[test]
     fn data_is_premultiplied() {
-        let f = render(Style { size: 40, scale: 1.0, dark: false, on: true, radius: 0.27 }, 0.5).unwrap();
+        let f = render(Style { size: 40, scale: 1.0, dark: false, radius: 0.27 }, 0.5).unwrap();
         assert!(f.rgba.chunks(4).all(|p| p[0] <= p[3] && p[1] <= p[3] && p[2] <= p[3]));
     }
 
@@ -167,10 +153,10 @@ mod tests {
     #[ignore]
     fn render_previews() {
         let Some(dir) = std::env::var_os("LUMMO_RENDER_PREVIEW") else { return };
-        for (dark, on) in [(false, true), (false, false), (true, true), (true, false)] {
-            let f = render(Style { size: 64, scale: 2.0, dark, on, radius: 0.27 }, 1.0).unwrap();
+        for dark in [false, true] {
+            let f = render(Style { size: 64, scale: 2.0, dark, radius: 0.27 }, 1.0).unwrap();
             let pixmap = Pixmap::from_vec(f.rgba, tiny_skia::IntSize::from_wh(f.width, f.height).unwrap()).unwrap();
-            let name = format!("capslock-{}-{}.png", if dark { "dark" } else { "light" }, if on { "on" } else { "off" });
+            let name = format!("capslock-{}.png", if dark { "dark" } else { "light" });
             pixmap.save_png(std::path::Path::new(&dir).join(name)).unwrap();
         }
     }

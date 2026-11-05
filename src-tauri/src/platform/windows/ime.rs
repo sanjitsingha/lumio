@@ -167,7 +167,9 @@ fn look(caret: &mut CaretTracker, focused: &mut Option<String>, last: bool, on_e
         return true;
     }
     if caret.locate().is_none() {
-        if last {
+        // a slow app gets a second look before its field counts as left, but
+        // a field of a window that went behind another is left right away
+        if last || caret.window_changed() {
             left(focused.take());
         }
         return last;

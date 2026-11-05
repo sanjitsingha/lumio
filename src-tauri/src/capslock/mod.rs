@@ -32,7 +32,8 @@ const SELECTION_POLL: Duration = Duration::from_millis(100);
 /// field only once its caret exists, so there it looks right away.
 const FOCUS_CURSOR_WAIT: Duration = Duration::from_millis(if cfg!(windows) { 0 } else { 250 });
 /// How long the text cursor may be gone (its field lost focus) before the
-/// indicator hides; moving straight to another field keeps it.
+/// indicator hides; moving straight to another field of the window keeps
+/// it. Another window coming to the front hides it at once.
 const FOCUS_LOST_GRACE: Duration = Duration::from_millis(300);
 /// How soon to try again after the input method could not be watched.
 const IME_RETRY: Duration = Duration::from_secs(10);
@@ -233,7 +234,6 @@ fn behavior(s: &CapsLockSettings) -> Behavior {
     Behavior {
         enabled: s.enabled,
         duration: (s.duration_ms > 0).then(|| Duration::from_millis(s.duration_ms as u64)),
-        show_when_disabled: s.show_when_disabled,
         show_on_focus: s.show_on_focus,
     }
 }
@@ -339,7 +339,6 @@ struct MonitorGeom {
 }
 
 struct Visual {
-    on: bool,
     dark: bool,
     from: f32,
     to: f32,
@@ -528,7 +527,7 @@ impl Runner {
                 command => command,
             };
             match command {
-                Command::Show { on } => self.show(on),
+                Command::Show => self.show(),
                 Command::Hide => self.begin_hide(now),
                 Command::None => {}
             }
@@ -616,7 +615,7 @@ impl Runner {
                     self.ime_focus = None;
                     self.focus_show_at = None;
                     self.selection = false;
-                    self.blur_at.get_or_insert(now + FOCUS_LOST_GRACE);
+                    self.cursor_gone(now);
                 }
                 Command::None
             }
@@ -657,19 +656,18 @@ impl Runner {
         }
     }
 
-    fn show(&mut self, on: bool) {
+    fn show(&mut self) {
         match self.mode {
             Mode::Unavailable => {}
-            Mode::Osd => match platform::overlay::show_osd(on) {
-                Ok(()) if on => crate::analytics::count("caps_lock_osd_shown"),
-                Ok(()) => {}
+            Mode::Osd => match platform::overlay::show_osd() {
+                Ok(()) => crate::analytics::count("caps_lock_osd_shown"),
                 Err(e) => log::warn!("could not show the Caps Lock OSD: {e}"),
             },
-            Mode::Cursor => self.show_cursor_overlay(on),
+            Mode::Cursor => self.show_cursor_overlay(),
         }
     }
 
-    fn show_cursor_overlay(&mut self, on: bool) {
+    fn show_cursor_overlay(&mut self) {
         if self.overlay.is_none() {
             match platform::overlay::Overlay::new() {
                 Ok(o) => self.overlay = Some(o),
@@ -680,8 +678,8 @@ impl Runner {
             }
         }
         let refocused = std::mem::take(&mut self.refocused);
-        // already visible (e.g. on -> off flash): if the text cursor cannot be
-        // found again, keep the indicator where it is
+        // already visible (its selection collapsed again): if the text cursor
+        // cannot be found again, keep the indicator where it is
         let visible = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
         let found = self.find_anchor();
         let switched = self.window_switched();
@@ -696,9 +694,7 @@ impl Runner {
             None => match self.anchor.filter(|_| visible) {
                 Some(a) => a,
                 None => {
-                    if on {
-                        crate::analytics::count("caps_lock_no_cursor");
-                    }
+                    crate::analytics::count("caps_lock_no_cursor");
                     return;
                 }
             },
@@ -711,9 +707,7 @@ impl Runner {
             self.begin_hide(now);
             return;
         }
-        if on {
-            crate::analytics::count("caps_lock_shown");
-        }
+        crate::analytics::count("caps_lock_shown");
         let dark = self.dark();
         let monitor = self.monitor_for(anchor.point());
         let body = (self.settings.size as f64 * monitor.scale).round() as i32;
@@ -731,7 +725,6 @@ impl Runner {
                     v.pos = (body_pos.0 as f32, body_pos.1 as f32);
                     v.velocity = (0.0, 0.0);
                 }
-                v.on = on;
                 v.dark = dark;
                 v.frame = None;
                 v.monitor = monitor;
@@ -742,7 +735,6 @@ impl Runner {
             }
             _ => {
                 self.visual = Some(Visual {
-                    on,
                     dark,
                     from: if animate { 0.0 } else { 1.0 },
                     to: 1.0,
@@ -820,18 +812,32 @@ impl Runner {
         }
         self.last_caret_poll = now;
         // a field that lost focus keeps the indicator where it was until it hides
-        match self.caret.as_mut()?.refresh() {
+        let refreshed = self.caret.as_mut()?.refresh();
+        match refreshed {
             Some(caret) => {
                 self.blur_at = None;
                 Some(Anchor(caret)).filter(|a| Some(*a) != self.anchor)
             }
             None => {
                 if self.visual.as_ref().is_some_and(|v| v.to > 0.0) {
-                    self.blur_at.get_or_insert(now + FOCUS_LOST_GRACE);
+                    self.cursor_gone(now);
                 }
                 None
             }
         }
+    }
+
+    /// The text cursor went away: the indicator hides after a moment, in
+    /// case focus moves straight to another field, but at once when another
+    /// window came to the front. It belongs to the window you type in, never
+    /// to one behind it.
+    fn cursor_gone(&mut self, now: Instant) {
+        let switched = self.caret.as_ref().is_some_and(|c| c.window_changed());
+        if switched {
+            log::debug!("another window came to the front; hiding the indicator");
+        }
+        let at = if switched { now } else { now + FOCUS_LOST_GRACE };
+        self.blur_at = Some(self.blur_at.map_or(at, |b| b.min(at)));
     }
 
     /// Selected text hides the field's text cursor, and the indicator with
@@ -981,7 +987,7 @@ impl Runner {
         let Some(v) = visual.as_mut() else { return };
         let rerender = v.frame.is_none() || (changed && v.to > 0.0);
         if rerender {
-            let style = Style { size, scale: v.monitor.scale, dark: v.dark, on: v.on, radius: corner_radius };
+            let style = Style { size, scale: v.monitor.scale, dark: v.dark, radius: corner_radius };
             v.frame = render::render(style, v.pop);
         }
         let Some(frame) = v.frame.as_ref() else { return };

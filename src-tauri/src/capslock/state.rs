@@ -2,22 +2,20 @@
 
 use std::time::{Duration, Instant};
 
-/// Upper bound for how long the "off" state flashes.
-const OFF_FLASH: Duration = Duration::from_millis(500);
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Behavior {
     pub enabled: bool,
     /// `None` = keep showing while Caps Lock is on.
     pub duration: Option<Duration>,
-    pub show_when_disabled: bool,
     /// Show the indicator when a text field gets focus with Caps Lock on.
     pub show_on_focus: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
-    Show { on: bool },
+    /// The indicator only ever shows Caps Lock on: as on a Mac, turning it
+    /// off just hides it.
+    Show,
     Hide,
     None,
 }
@@ -25,7 +23,7 @@ pub enum Command {
 #[derive(Debug, Default)]
 pub struct IndicatorState {
     known: Option<bool>,
-    visible: Option<bool>,
+    visible: bool,
     hide_at: Option<Instant>,
 }
 
@@ -36,7 +34,7 @@ impl IndicatorState {
 
     #[cfg(test)]
     pub fn is_visible(&self) -> bool {
-        self.visible.is_some()
+        self.visible
     }
 
     pub fn deadline(&self) -> Option<Instant> {
@@ -49,21 +47,15 @@ impl IndicatorState {
         let Some(previous) = previous else {
             // initial reading: only persistent mode shows an already-active Caps Lock
             if on && b.enabled && b.duration.is_none() {
-                return self.show(true, None);
+                return self.show(None);
             }
             return Command::None;
         };
         if previous == on {
             return Command::None;
         }
-        if !b.enabled {
-            return self.hide();
-        }
-        if on {
-            self.show(true, b.duration.map(|d| now + d))
-        } else if b.show_when_disabled {
-            let flash = b.duration.map_or(OFF_FLASH, |d| d.min(OFF_FLASH));
-            self.show(false, Some(now + flash))
+        if on && b.enabled {
+            self.show(b.duration.map(|d| now + d))
         } else {
             self.hide()
         }
@@ -75,7 +67,7 @@ impl IndicatorState {
     /// only went away with the previous field.
     pub fn on_focus(&mut self, now: Instant, b: &Behavior) -> Command {
         if b.enabled && (b.show_on_focus || b.duration.is_none()) && self.known == Some(true) {
-            self.show(true, b.duration.map(|d| now + d))
+            self.show(b.duration.map(|d| now + d))
         } else {
             Command::None
         }
@@ -91,9 +83,10 @@ impl IndicatorState {
     /// shows again for the rest of its time, otherwise it is like focusing
     /// the field.
     pub fn on_cursor_back(&mut self, now: Instant, b: &Behavior) -> Command {
-        match self.visible {
-            Some(on) => Command::Show { on },
-            None => self.on_focus(now, b),
+        if self.visible {
+            Command::Show
+        } else {
+            self.on_focus(now, b)
         }
     }
 
@@ -111,8 +104,8 @@ impl IndicatorState {
             return self.hide();
         }
         match (self.known, b.duration) {
-            (Some(true), None) => self.show(true, None),
-            (_, Some(d)) if self.visible.is_some() && self.hide_at.is_none() => {
+            (Some(true), None) => self.show(None),
+            (_, Some(d)) if self.visible && self.hide_at.is_none() => {
                 self.hide_at = Some(now + d);
                 Command::None
             }
@@ -120,15 +113,15 @@ impl IndicatorState {
         }
     }
 
-    fn show(&mut self, on: bool, hide_at: Option<Instant>) -> Command {
-        self.visible = Some(on);
+    fn show(&mut self, hide_at: Option<Instant>) -> Command {
+        self.visible = true;
         self.hide_at = hide_at;
-        Command::Show { on }
+        Command::Show
     }
 
     fn hide(&mut self) -> Command {
         self.hide_at = None;
-        if self.visible.take().is_some() {
+        if std::mem::take(&mut self.visible) {
             Command::Hide
         } else {
             Command::None
@@ -141,7 +134,7 @@ mod tests {
     use super::*;
 
     fn timed(ms: u64) -> Behavior {
-        Behavior { enabled: true, duration: Some(Duration::from_millis(ms)), show_when_disabled: true, show_on_focus: true }
+        Behavior { enabled: true, duration: Some(Duration::from_millis(ms)), show_on_focus: true }
     }
 
     #[test]
@@ -156,7 +149,7 @@ mod tests {
         let t0 = Instant::now();
         let mut s = IndicatorState::default();
         s.on_caps(false, t0, &timed(1500));
-        assert_eq!(s.on_caps(true, t0, &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.on_caps(true, t0, &timed(1500)), Command::Show);
         assert_eq!(s.on_tick(t0 + Duration::from_millis(1000)), Command::None);
         assert_eq!(s.on_tick(t0 + Duration::from_millis(1500)), Command::Hide);
         assert!(!s.is_visible());
@@ -169,7 +162,7 @@ mod tests {
         s.on_caps(true, t0, &timed(1500));
         assert_eq!(s.on_tick(t0 + Duration::from_secs(5)), Command::None);
         let t1 = t0 + Duration::from_secs(10);
-        assert_eq!(s.on_focus(t1, &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.on_focus(t1, &timed(1500)), Command::Show);
         assert_eq!(s.on_tick(t1 + Duration::from_millis(1500)), Command::Hide);
     }
 
@@ -191,33 +184,23 @@ mod tests {
         let t0 = Instant::now();
         let mut s = IndicatorState::default();
         s.on_caps(false, t0, &timed(200));
-        assert_eq!(s.on_caps(true, t0, &timed(200)), Command::Show { on: true });
+        assert_eq!(s.on_caps(true, t0, &timed(200)), Command::Show);
         assert_eq!(s.on_tick(t0 + Duration::from_millis(199)), Command::None);
         assert_eq!(s.on_tick(t0 + Duration::from_millis(200)), Command::Hide);
-        // the off flash never outlasts the chosen duration
-        s.on_caps(true, t0, &timed(300));
-        assert_eq!(s.on_caps(false, t0, &timed(300)), Command::Show { on: false });
-        assert_eq!(s.deadline(), Some(t0 + Duration::from_millis(300)));
     }
 
     #[test]
-    fn turning_off_flashes_off_state_briefly() {
+    fn turning_off_only_hides_as_on_a_mac() {
         let t0 = Instant::now();
         let mut s = IndicatorState::default();
         s.on_caps(false, t0, &timed(3000));
         s.on_caps(true, t0, &timed(3000));
-        assert_eq!(s.on_caps(false, t0, &timed(3000)), Command::Show { on: false });
-        assert_eq!(s.deadline(), Some(t0 + OFF_FLASH));
-    }
-
-    #[test]
-    fn turning_off_hides_immediately_when_flash_disabled() {
-        let t0 = Instant::now();
-        let b = Behavior { show_when_disabled: false, ..timed(1500) };
-        let mut s = IndicatorState::default();
-        s.on_caps(false, t0, &b);
-        s.on_caps(true, t0, &b);
-        assert_eq!(s.on_caps(false, t0, &b), Command::Hide);
+        assert_eq!(s.on_caps(false, t0, &timed(3000)), Command::Hide);
+        assert_eq!(s.deadline(), None);
+        // turned off after it was gone: nothing shows
+        s.on_caps(true, t0, &timed(3000));
+        s.on_tick(t0 + Duration::from_secs(3));
+        assert_eq!(s.on_caps(false, t0 + Duration::from_secs(4), &timed(3000)), Command::None);
     }
 
     #[test]
@@ -234,11 +217,10 @@ mod tests {
         let t0 = Instant::now();
         let b = Behavior { duration: None, ..timed(0) };
         let mut s = IndicatorState::default();
-        assert_eq!(s.on_caps(true, t0, &b), Command::Show { on: true }, "already on at startup");
+        assert_eq!(s.on_caps(true, t0, &b), Command::Show, "already on at startup");
         assert_eq!(s.deadline(), None);
         assert_eq!(s.on_tick(t0 + Duration::from_secs(3600)), Command::None);
-        assert_eq!(s.on_caps(false, t0, &b), Command::Show { on: false });
-        assert_eq!(s.on_tick(t0 + OFF_FLASH), Command::Hide);
+        assert_eq!(s.on_caps(false, t0, &b), Command::Hide);
     }
 
     #[test]
@@ -260,11 +242,11 @@ mod tests {
         let b = Behavior { duration: None, show_on_focus: false, ..timed(0) };
         let mut s = IndicatorState::default();
         s.on_caps(false, t0, &b);
-        assert_eq!(s.on_caps(true, t0, &b), Command::Show { on: true });
+        assert_eq!(s.on_caps(true, t0, &b), Command::Show);
         assert_eq!(s.on_blur(), Command::Hide);
         assert!(!s.is_visible());
         assert_eq!(s.on_blur(), Command::None, "already hidden");
-        assert_eq!(s.on_focus(t0 + Duration::from_secs(5), &b), Command::Show { on: true });
+        assert_eq!(s.on_focus(t0 + Duration::from_secs(5), &b), Command::Show);
         assert_eq!(s.deadline(), None, "stays while Caps Lock is on");
         s.on_caps(false, t0, &b);
         s.on_blur();
@@ -278,12 +260,12 @@ mod tests {
         s.on_caps(false, t0, &timed(1500));
         s.on_caps(true, t0, &timed(1500));
         // the selection collapsed within the duration: no new timer
-        assert_eq!(s.on_cursor_back(t0 + Duration::from_millis(500), &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.on_cursor_back(t0 + Duration::from_millis(500), &timed(1500)), Command::Show);
         assert_eq!(s.deadline(), Some(t0 + Duration::from_millis(1500)));
         // after it ran out: as if the field had just been focused
         s.on_tick(t0 + Duration::from_millis(1500));
         let t1 = t0 + Duration::from_secs(3);
-        assert_eq!(s.on_cursor_back(t1, &timed(1500)), Command::Show { on: true });
+        assert_eq!(s.on_cursor_back(t1, &timed(1500)), Command::Show);
         assert_eq!(s.deadline(), Some(t1 + Duration::from_millis(1500)));
         s.on_tick(t1 + Duration::from_millis(1500));
         let off = Behavior { show_on_focus: false, ..timed(1500) };
@@ -298,7 +280,7 @@ mod tests {
         s.on_caps(true, t0, &timed(1500));
         s.on_tick(t0 + Duration::from_secs(2));
         let persistent = Behavior { duration: None, ..timed(0) };
-        assert_eq!(s.on_settings(t0, &persistent), Command::Show { on: true });
+        assert_eq!(s.on_settings(t0, &persistent), Command::Show);
     }
 
 }

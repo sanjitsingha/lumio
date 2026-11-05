@@ -7,13 +7,17 @@
 //!    which browsers and many UI frameworks expose for screen magnifiers even
 //!    without a system caret.
 //!
+//! Either way the caret must belong to the foreground window and lie inside
+//! it: a text field of a window behind it (Notepad next to the browser you
+//! type in) never gets the indicator.
+//!
 //! Whether the focused field has text selected comes from UI Automation,
 //! whose text pattern covers edit controls, Office, WinUI and Chromium.
 
 use std::mem::ManuallyDrop;
 
 use windows::core::Interface;
-use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
@@ -22,7 +26,8 @@ use windows::Win32::UI::Accessibility::{
     TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_TextPatternId,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, GUITHREADINFO, OBJID_CARET,
+    GetAncestor, GetForegroundWindow, GetGUIThreadInfo, GetWindowRect, GetWindowThreadProcessId, GA_ROOT, GA_ROOTOWNER,
+    GUITHREADINFO, OBJID_CARET,
 };
 
 use crate::capslock::geometry::Rect;
@@ -38,6 +43,8 @@ const UIA_TIMEOUT_MS: u32 = 200;
 pub struct CaretTracker {
     /// Focus moves (`ime::focus_moves`) when the caret was located.
     located_at: u64,
+    /// The foreground window the caret was last located in.
+    located_in: HWND,
     /// Created when first needed (`Some(None)`: unavailable).
     automation: Option<Option<IUIAutomation>>,
 }
@@ -46,7 +53,7 @@ impl CaretTracker {
     pub fn new() -> Result<Self, String> {
         // MSAA needs COM on this thread; S_FALSE (already initialised) is fine
         let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-        Ok(CaretTracker { located_at: 0, automation: None })
+        Ok(CaretTracker { located_at: 0, located_in: HWND::default(), automation: None })
     }
 
     /// Whether the focused field has text selected: it then shows no text
@@ -58,7 +65,9 @@ impl CaretTracker {
 
     pub fn locate(&mut self) -> Option<Rect> {
         self.located_at = super::ime::focus_moves();
-        current_caret()
+        let (caret, window) = current_caret()?;
+        self.located_in = window;
+        Some(caret)
     }
 
     /// Both sources are cheap, so following simply reads the caret again.
@@ -68,7 +77,13 @@ impl CaretTracker {
         if super::ime::focus_moves() != self.located_at {
             return None;
         }
-        current_caret()
+        current_caret().filter(|(_, window)| *window == self.located_in).map(|(caret, _)| caret)
+    }
+
+    /// Whether another window came to the front since the caret was located:
+    /// its field is then behind it.
+    pub fn window_changed(&self) -> bool {
+        !self.located_in.is_invalid() && unsafe { GetForegroundWindow() } != self.located_in
     }
 
     pub fn release(&mut self) {}
@@ -115,12 +130,39 @@ unsafe fn selection_in_focus(automation: &IUIAutomation) -> windows::core::Resul
     Ok(false)
 }
 
-fn current_caret() -> Option<Rect> {
+/// The caret of the foreground window, and that window.
+fn current_caret() -> Option<(Rect, HWND)> {
     let (info, foreground) = gui_thread_info()?;
-    system_caret(&info).or_else(|| {
-        let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
-        msaa_caret(focus)
-    })
+    let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
+    let caret = system_caret(&info)
+        .filter(|caret| shown_by(info.hwndCaret, *caret, foreground))
+        .or_else(|| msaa_caret(focus).filter(|caret| shown_by(focus, *caret, foreground)))?;
+    Some((caret, foreground))
+}
+
+/// Whether `caret`, in `window`, is a text cursor of the foreground window:
+/// `window` is part of it (a child, or a popup it owns) and the caret lies
+/// inside the top-level window holding it. Anything else is a field of a
+/// window behind it, or a stale position.
+fn shown_by(window: HWND, caret: Rect, foreground: HWND) -> bool {
+    let root = unsafe { GetAncestor(window, GA_ROOT) };
+    if root.is_invalid() || unsafe { GetAncestor(root, GA_ROOTOWNER) != GetAncestor(foreground, GA_ROOTOWNER) } {
+        log::debug!("the text cursor belongs to a window behind the foreground one");
+        return false;
+    }
+    let mut frame = RECT::default();
+    let inside = unsafe { GetWindowRect(root, &mut frame) }.is_ok() && within(frame, caret);
+    if !inside {
+        log::debug!("the text cursor {caret:?} lies outside its window {frame:?}");
+    }
+    inside
+}
+
+/// The caret's top-left inside `frame`, give or take a few pixels (a caret
+/// right at the edge).
+fn within(frame: RECT, caret: Rect) -> bool {
+    let m = 8;
+    caret.x >= frame.left - m && caret.x <= frame.right + m && caret.y >= frame.top - m && caret.y <= frame.bottom + m
 }
 
 fn gui_thread_info() -> Option<(GUITHREADINFO, HWND)> {
@@ -182,5 +224,21 @@ fn child_self() -> VARIANT {
                 ..Default::default()
             }),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn carets_outside_the_window_are_not_its_own() {
+        let frame = RECT { left: 960, top: 0, right: 1920, bottom: 1040 };
+        let caret = |x, y| Rect { x, y, width: 1, height: 18 };
+        assert!(within(frame, caret(1200, 300)));
+        assert!(within(frame, caret(955, 1040)), "at the very edge");
+        // the left half of a split screen, where the window behind it is
+        assert!(!within(frame, caret(400, 300)));
+        assert!(!within(frame, caret(1200, 1100)));
     }
 }

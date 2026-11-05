@@ -123,12 +123,6 @@ export default function CapsLockPane({ appearance }) {
           />
         </Row>
         <ToggleRow
-          label="Briefly show when turned off"
-          description="Flash the “off” state before the indicator disappears."
-          checked={c.showWhenDisabled}
-          onChange={(v) => set({ showWhenDisabled: v })}
-        />
-        <ToggleRow
           label="Show when you click into a text field"
           description="With Caps Lock already on, the indicator appears as soon as a field gets focus."
           checked={c.showOnFocus}

@@ -38,10 +38,10 @@ pub fn osd_available() -> bool {
     gala::session_bus().is_ok_and(|c| gala::gala_available(&c))
 }
 
-pub fn show_osd(on: bool) -> Result<(), String> {
+/// Shown when Caps Lock goes on; going off shows nothing, as on a Mac.
+pub fn show_osd() -> Result<(), String> {
     let conn = gala::session_bus()?;
-    let icon = if on { "caps-lock-symbolic" } else { "input-keyboard-symbolic" };
-    gala::show_osd(&conn, icon, if on { "Caps Lock On" } else { "Caps Lock Off" })
+    gala::show_osd(&conn, "caps-lock-symbolic", "Caps Lock On")
 }
 
 pub struct Overlay {
