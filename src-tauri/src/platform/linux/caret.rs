@@ -321,6 +321,12 @@ impl CaretTracker {
         std::mem::take(&mut self.window_switched)
     }
 
+    /// Whether the field `locate` found takes only numbers: a spin button
+    /// (GTK and Qt spin boxes, `<input type="number">` in browsers).
+    pub fn numeric_field(&mut self) -> bool {
+        self.target.as_ref().is_some_and(|t| self.role_name(&t.field) == "spin button")
+    }
+
     /// Whether Gala focused another window since the text cursor was looked
     /// for: its field is then behind it. Unknown without Gala.
     pub fn window_changed(&self) -> bool {

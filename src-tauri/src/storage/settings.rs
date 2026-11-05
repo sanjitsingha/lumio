@@ -176,6 +176,8 @@ pub struct CapsLockSettings {
     pub corner_radius: u32,
     /// How long the indicator stays visible. `0` = while Caps Lock is on.
     pub duration_ms: u32,
+    /// Stay until you type, as on a Mac (`duration_ms` is then unused).
+    pub until_typing: bool,
     pub animation: AnimationSpeed,
     /// Show the indicator when a text field gets focus while Caps Lock is on.
     pub show_on_focus: bool,
@@ -196,6 +198,7 @@ impl Default for CapsLockSettings {
             opacity: 0.96,
             corner_radius: 27,
             duration_ms: 1500,
+            until_typing: false,
             animation: AnimationSpeed::Normal,
             show_on_focus: true,
             follow_cursor: true,

@@ -7,7 +7,10 @@ import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
 
+/** `typing` stands for the `untilTyping` setting; the others are `durationMs`. */
+const UNTIL_TYPING = "typing";
 const DURATIONS = [
+  { value: UNTIL_TYPING, label: "Until you type" },
   { value: "0", label: "While Caps Lock is on" },
   { value: "200", label: "0.2 seconds" },
   { value: "300", label: "0.3 seconds" },
@@ -48,6 +51,8 @@ export default function CapsLockPane({ appearance }) {
   const durationOptions = DURATIONS.some((d) => d.value === String(c.durationMs))
     ? DURATIONS
     : [...DURATIONS, { value: String(c.durationMs), label: `${c.durationMs / 1000} seconds` }];
+  const duration = c.untilTyping ? UNTIL_TYPING : String(c.durationMs);
+  const setDuration = (v) => set(v === UNTIL_TYPING ? { untilTyping: true } : { untilTyping: false, durationMs: Number(v) });
   const message = problem(support);
   const atCursor = !support || support.mode === "cursor";
 
@@ -108,7 +113,7 @@ export default function CapsLockPane({ appearance }) {
 
       <Group title="Timing">
         <Row label="Display duration" description="How long the indicator stays visible after Caps Lock is turned on.">
-          <Select value={String(c.durationMs)} options={durationOptions} onChange={(v) => set({ durationMs: Number(v) })} />
+          <Select value={duration} options={durationOptions} onChange={setDuration} />
         </Row>
         <Row label="Animation">
           <Segmented

@@ -10,7 +10,8 @@
 //!   through Gala, which calls `SetCursorLocation` in screen coordinates;
 //! * X11 apps reach it through ibus-x11 (`SetCursorLocation`, screen).
 //!
-//! Lummo watches exactly these calls and the focus changes on IBus's bus.
+//! Lummo watches exactly these calls, the focus changes and what each field
+//! is for (`SetContentType`: number fields get no indicator) on IBus's bus.
 //! Key events are never subscribed to. The watched calls are copies
 //! (eavesdropped); they are swallowed so that nothing ever answers them.
 
@@ -23,7 +24,10 @@ use crate::capslock::geometry::Rect;
 use crate::capslock::InputMethodEvent;
 
 const INPUT_CONTEXT: &str = "org.freedesktop.IBus.InputContext";
-const WATCHED: [&str; 4] = ["SetCursorLocation", "SetCursorLocationRelative", "FocusIn", "FocusOut"];
+const WATCHED: [&str; 5] = ["SetCursorLocation", "SetCursorLocationRelative", "FocusIn", "FocusOut", "SetContentType"];
+/// `IBusInputPurpose` values of fields that take only numbers (digits,
+/// numbers, phone numbers, PINs), where Caps Lock does nothing.
+const NUMERIC_PURPOSES: [u32; 4] = [2, 3, 4, 9];
 
 pub struct ImeWatch {
     conn: gio::DBusConnection,
@@ -88,6 +92,10 @@ fn parse(message: &gio::DBusMessage) -> Option<InputMethodEvent> {
             let (x, y, width, height) = message.body()?.get::<(i32, i32, i32, i32)>()?;
             let relative = member == "SetCursorLocationRelative";
             Some(InputMethodEvent::Cursor { context, rect: Rect { x, y, width, height }, relative })
+        }
+        "SetContentType" => {
+            let (purpose, _hints) = message.body()?.get::<(u32, u32)>()?;
+            Some(InputMethodEvent::Purpose { context, numeric: NUMERIC_PURPOSES.contains(&purpose) })
         }
         _ => None,
     }

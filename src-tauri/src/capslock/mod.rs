@@ -6,7 +6,7 @@ pub mod geometry;
 pub mod render;
 pub mod state;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -19,7 +19,7 @@ use crate::platform;
 use crate::storage::settings::{AppearanceMode, CapsLockSettings, IndicatorPosition};
 use geometry::Rect;
 use render::{Frame, Style};
-use state::{Behavior, Command, IndicatorState};
+use state::{Behavior, Command, IndicatorState, Lifetime};
 
 const FRAME: Duration = Duration::from_millis(16);
 /// How often the text cursor is re-read while the indicator follows it.
@@ -35,6 +35,11 @@ const FOCUS_CURSOR_WAIT: Duration = Duration::from_millis(if cfg!(windows) { 0 }
 /// indicator hides; moving straight to another field of the window keeps
 /// it. Another window coming to the front hides it at once.
 const FOCUS_LOST_GRACE: Duration = Duration::from_millis(300);
+/// Shown until you type, the indicator goes once the text cursor moves on
+/// in its field: typing moves it (so do the arrow keys and clicks). Moves
+/// this soon after it appeared are the field reporting where its cursor
+/// is, not typing.
+const TYPING_SETTLE: Duration = Duration::from_millis(150);
 /// How soon to try again after the input method could not be watched.
 const IME_RETRY: Duration = Duration::from_secs(10);
 /// Input contexts remembered (one per text field or app).
@@ -84,6 +89,8 @@ pub enum InputMethodEvent {
     Focus { context: String, focused: bool },
     /// Its text cursor, relative to its window or (`relative == false`) on screen.
     Cursor { context: String, rect: Rect, relative: bool },
+    /// What it is for: `numeric` for digits, numbers, phone numbers and PINs.
+    Purpose { context: String, numeric: bool },
 }
 
 enum Msg {
@@ -231,11 +238,14 @@ impl CapsLockController {
 }
 
 fn behavior(s: &CapsLockSettings) -> Behavior {
-    Behavior {
-        enabled: s.enabled,
-        duration: (s.duration_ms > 0).then(|| Duration::from_millis(s.duration_ms as u64)),
-        show_on_focus: s.show_on_focus,
-    }
+    let lifetime = if s.until_typing {
+        Lifetime::UntilTyping
+    } else if s.duration_ms > 0 {
+        Lifetime::For(Duration::from_millis(s.duration_ms as u64))
+    } else {
+        Lifetime::WhileOn
+    };
+    Behavior { enabled: s.enabled, lifetime, show_on_focus: s.show_on_focus }
 }
 
 /// The text cursor the indicator is placed next to.
@@ -401,6 +411,8 @@ struct Runner {
     /// context reported.
     ime_focus: Option<String>,
     ime_cursors: HashMap<String, (Rect, bool)>,
+    /// Input contexts that take only numbers.
+    ime_numeric: HashSet<String>,
     /// The focused context reported a new cursor since it was last placed.
     ime_moved: bool,
     /// A text field got focus with Caps Lock on: show the indicator once its
@@ -422,6 +434,8 @@ struct Runner {
     /// cursor to come back.
     selection: bool,
     selection_checked: Instant,
+    /// When the indicator last appeared at a field (see `TYPING_SETTLE`).
+    shown_at: Instant,
 }
 
 impl Runner {
@@ -452,6 +466,7 @@ impl Runner {
             ime_error: None,
             ime_focus: None,
             ime_cursors: HashMap::new(),
+            ime_numeric: HashSet::new(),
             ime_moved: false,
             focus_show_at: None,
             blur_at: None,
@@ -460,6 +475,7 @@ impl Runner {
             follow_ime: false,
             selection: false,
             selection_checked: Instant::now(),
+            shown_at: Instant::now(),
         }
     }
 
@@ -543,7 +559,9 @@ impl Runner {
             .min()
             .map(|d| d.saturating_duration_since(now));
         let animating = self.visual.as_ref().is_some_and(|v| v.progress != v.to || v.popping() || v.gliding());
-        let follow = self.visual.is_some() && self.settings.follow_cursor && self.mode == Mode::Cursor;
+        let follow = self.visual.is_some()
+            && (self.settings.follow_cursor || self.settings.until_typing)
+            && self.mode == Mode::Cursor;
         let frame = if animating {
             Some(FRAME)
         } else if follow {
@@ -567,6 +585,7 @@ impl Runner {
             if self.ime.take().is_some() {
                 self.ime_focus = None;
                 self.ime_cursors.clear();
+                self.ime_numeric.clear();
             }
             return;
         }
@@ -634,7 +653,31 @@ impl Runner {
                 }
                 Command::None
             }
+            InputMethodEvent::Purpose { context, numeric } => {
+                if !numeric {
+                    self.ime_numeric.remove(&context);
+                    return Command::None;
+                }
+                if self.ime_numeric.len() >= MAX_IME_CONTEXTS {
+                    self.ime_numeric.retain(|c| self.ime_focus.as_ref() == Some(c));
+                }
+                let focused = self.ime_focus.as_ref() == Some(&context);
+                self.ime_numeric.insert(context);
+                // the field said so only after the indicator appeared in it
+                if focused && self.visual.as_ref().is_some_and(|v| v.to > 0.0) {
+                    log::debug!("the field takes only numbers; hiding the indicator");
+                    return Command::Hide;
+                }
+                Command::None
+            }
         }
+    }
+
+    /// Whether the focused field takes only numbers: Caps Lock does nothing
+    /// there, so it gets no indicator.
+    fn numeric_field(&mut self) -> bool {
+        self.ime_focus.as_ref().is_some_and(|c| self.ime_numeric.contains(c))
+            || self.caret.as_mut().is_some_and(|c| c.numeric_field())
     }
 
     /// The focused field's cursor as last reported to the input method, on
@@ -699,6 +742,11 @@ impl Runner {
                 }
             },
         };
+        if self.numeric_field() {
+            log::debug!("the field takes only numbers; no indicator");
+            self.begin_hide(now);
+            return;
+        }
         // selected text hides the text cursor: wait for it to come back
         self.selection = self.caret.as_mut().is_some_and(|c| c.has_selection());
         if self.selection {
@@ -716,6 +764,7 @@ impl Runner {
         let new_field = (refocused || switched) && self.anchor != Some(anchor);
         self.anchor = Some(anchor);
         self.last_caret_poll = now;
+        self.shown_at = now;
         let animate = self.settings.animation.duration_ms() > 0;
         match self.visual.as_mut() {
             // already visible: swap the artwork, keep opacity, glide to the new place
@@ -856,6 +905,11 @@ impl Runner {
         };
         if showing {
             if caret.has_selection() {
+                // selecting is doing something with the text, as typing is
+                if self.settings.until_typing {
+                    log::debug!("text was selected; the indicator has done its job");
+                    return self.state.on_typed(&behavior(&self.settings));
+                }
                 log::debug!("text was selected; hiding the indicator until the text cursor is back");
                 self.selection = true;
                 return Command::Hide;
@@ -914,17 +968,16 @@ impl Runner {
         let settle = pop_time(self.settings.animation.duration_ms());
         let animate = self.settings.animation.duration_ms() > 0;
 
-        let moved_to = if follow && self.visual.is_some() { self.poll_anchor(now) } else { None };
+        let until_typing = self.settings.until_typing;
+        let polled = if (follow || until_typing) && self.visual.is_some() { self.poll_anchor(now) } else { None };
         // placing the cursor of another window can take a moment
-        let now = if moved_to.is_some() { Instant::now() } else { now };
-        if let Some(a) = moved_to {
-            self.anchor = Some(a);
-        }
+        let now = if polled.is_some() { Instant::now() } else { now };
+        let showing = self.visual.as_ref().is_some_and(|v| v.to > 0.0);
         // the cursor moved to another text field: one that got focus, one in
         // another window, or one outside the field it was in. It pops in
         // there; gliding is for the cursor moving while you type.
-        let new_field = match moved_to {
-            Some(Anchor(caret)) if self.visual.as_ref().is_some_and(|v| v.to > 0.0) => {
+        let new_field = match polled {
+            Some(Anchor(caret)) if follow && showing => {
                 let refocused = std::mem::take(&mut self.refocused);
                 let switched = self.window_switched();
                 let left = self.follow_ime && self.field.is_some_and(|f| !in_field(f, caret));
@@ -934,7 +987,30 @@ impl Runner {
         };
         if new_field {
             self.field = None;
+            self.shown_at = now;
         }
+        let numeric = new_field && self.numeric_field();
+        if numeric {
+            log::debug!("the text cursor moved into a field that takes only numbers");
+            self.begin_hide(now);
+        }
+        // the cursor moved on in its field once it had settled there: you typed
+        let typed = until_typing
+            && showing
+            && !new_field
+            && polled.is_some_and(|a| self.anchor.map(Anchor::point) != Some(a.point()))
+            && now.duration_since(self.shown_at) >= TYPING_SETTLE;
+        if typed {
+            log::debug!("the text cursor moved on: you typed, so the indicator goes");
+            if self.state.on_typed(&behavior(&self.settings)) == Command::Hide {
+                self.begin_hide(now);
+            }
+        }
+        // not following, the indicator stays put: a move only settles where the cursor is
+        if let Some(a) = polled.filter(|_| !typed) {
+            self.anchor = Some(a);
+        }
+        let moved_to = polled.filter(|_| follow && !typed && !numeric);
         let new_monitor = moved_to.and_then(|a| {
             let (x, y) = a.point();
             let current = self.visual.as_ref()?.monitor;

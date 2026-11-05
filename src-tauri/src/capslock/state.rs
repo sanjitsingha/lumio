@@ -5,10 +5,29 @@ use std::time::{Duration, Instant};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Behavior {
     pub enabled: bool,
-    /// `None` = keep showing while Caps Lock is on.
-    pub duration: Option<Duration>,
+    pub lifetime: Lifetime,
     /// Show the indicator when a text field gets focus with Caps Lock on.
     pub show_on_focus: bool,
+}
+
+/// How long the indicator stays once it shows (Caps Lock going off always
+/// hides it).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Lifetime {
+    For(Duration),
+    /// Until you type, as on a Mac.
+    UntilTyping,
+    /// While Caps Lock is on ("persistent mode").
+    WhileOn,
+}
+
+impl Lifetime {
+    fn deadline(self, now: Instant) -> Option<Instant> {
+        match self {
+            Lifetime::For(d) => Some(now + d),
+            Lifetime::UntilTyping | Lifetime::WhileOn => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,7 +65,7 @@ impl IndicatorState {
         let previous = self.known.replace(on);
         let Some(previous) = previous else {
             // initial reading: only persistent mode shows an already-active Caps Lock
-            if on && b.enabled && b.duration.is_none() {
+            if on && b.enabled && b.lifetime == Lifetime::WhileOn {
                 return self.show(None);
             }
             return Command::None;
@@ -55,7 +74,7 @@ impl IndicatorState {
             return Command::None;
         }
         if on && b.enabled {
-            self.show(b.duration.map(|d| now + d))
+            self.show(b.lifetime.deadline(now))
         } else {
             self.hide()
         }
@@ -66,8 +85,18 @@ impl IndicatorState {
     /// starts in capitals unnoticed. Persistent mode always comes back, as it
     /// only went away with the previous field.
     pub fn on_focus(&mut self, now: Instant, b: &Behavior) -> Command {
-        if b.enabled && (b.show_on_focus || b.duration.is_none()) && self.known == Some(true) {
-            self.show(b.duration.map(|d| now + d))
+        if b.enabled && (b.show_on_focus || b.lifetime == Lifetime::WhileOn) && self.known == Some(true) {
+            self.show(b.lifetime.deadline(now))
+        } else {
+            Command::None
+        }
+    }
+
+    /// You typed (the text cursor moved on in its field, or text got
+    /// selected): an indicator that lasts until typing has done its job.
+    pub fn on_typed(&mut self, b: &Behavior) -> Command {
+        if b.lifetime == Lifetime::UntilTyping {
+            self.hide()
         } else {
             Command::None
         }
@@ -103,10 +132,15 @@ impl IndicatorState {
         if !b.enabled {
             return self.hide();
         }
-        match (self.known, b.duration) {
-            (Some(true), None) => self.show(None),
-            (_, Some(d)) if self.visible && self.hide_at.is_none() => {
+        match (self.known, b.lifetime) {
+            (Some(true), Lifetime::WhileOn) => self.show(None),
+            (_, Lifetime::For(d)) if self.visible && self.hide_at.is_none() => {
                 self.hide_at = Some(now + d);
+                Command::None
+            }
+            // a running timer no longer applies: typing ends it now
+            (_, Lifetime::UntilTyping) => {
+                self.hide_at = None;
                 Command::None
             }
             _ => Command::None,
@@ -134,7 +168,11 @@ mod tests {
     use super::*;
 
     fn timed(ms: u64) -> Behavior {
-        Behavior { enabled: true, duration: Some(Duration::from_millis(ms)), show_on_focus: true }
+        Behavior { enabled: true, lifetime: Lifetime::For(Duration::from_millis(ms)), show_on_focus: true }
+    }
+
+    fn until_typing() -> Behavior {
+        Behavior { lifetime: Lifetime::UntilTyping, ..timed(0) }
     }
 
     #[test]
@@ -215,7 +253,7 @@ mod tests {
     #[test]
     fn persistent_mode_stays_while_on() {
         let t0 = Instant::now();
-        let b = Behavior { duration: None, ..timed(0) };
+        let b = Behavior { lifetime: Lifetime::WhileOn, ..timed(0) };
         let mut s = IndicatorState::default();
         assert_eq!(s.on_caps(true, t0, &b), Command::Show, "already on at startup");
         assert_eq!(s.deadline(), None);
@@ -239,7 +277,7 @@ mod tests {
     #[test]
     fn leaving_the_field_hides_persistent_mode_until_the_next_field() {
         let t0 = Instant::now();
-        let b = Behavior { duration: None, show_on_focus: false, ..timed(0) };
+        let b = Behavior { lifetime: Lifetime::WhileOn, show_on_focus: false, ..timed(0) };
         let mut s = IndicatorState::default();
         s.on_caps(false, t0, &b);
         assert_eq!(s.on_caps(true, t0, &b), Command::Show);
@@ -279,8 +317,45 @@ mod tests {
         s.on_caps(false, t0, &timed(1500));
         s.on_caps(true, t0, &timed(1500));
         s.on_tick(t0 + Duration::from_secs(2));
-        let persistent = Behavior { duration: None, ..timed(0) };
+        let persistent = Behavior { lifetime: Lifetime::WhileOn, ..timed(0) };
         assert_eq!(s.on_settings(t0, &persistent), Command::Show);
     }
 
+    #[test]
+    fn until_typing_stays_until_you_type() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        s.on_caps(false, t0, &until_typing());
+        assert_eq!(s.on_caps(true, t0, &until_typing()), Command::Show);
+        assert_eq!(s.deadline(), None, "no timer");
+        assert_eq!(s.on_tick(t0 + Duration::from_secs(60)), Command::None);
+        assert_eq!(s.on_typed(&until_typing()), Command::Hide);
+        assert_eq!(s.on_typed(&until_typing()), Command::None, "already gone");
+        // the next field brings it back, and Caps Lock off still hides it
+        assert_eq!(s.on_focus(t0 + Duration::from_secs(61), &until_typing()), Command::Show);
+        assert_eq!(s.on_caps(false, t0, &until_typing()), Command::Hide);
+    }
+
+    #[test]
+    fn until_typing_is_not_persistent_mode() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        assert_eq!(s.on_caps(true, t0, &until_typing()), Command::None, "already on at startup");
+        let no_focus = Behavior { show_on_focus: false, ..until_typing() };
+        assert_eq!(s.on_focus(t0, &no_focus), Command::None);
+        assert_eq!(s.on_settings(t0, &until_typing()), Command::None);
+    }
+
+    #[test]
+    fn typing_ends_only_the_until_typing_lifetime() {
+        let t0 = Instant::now();
+        let mut s = IndicatorState::default();
+        s.on_caps(false, t0, &timed(1500));
+        s.on_caps(true, t0, &timed(1500));
+        assert_eq!(s.on_typed(&timed(1500)), Command::None);
+        // switching to it while showing drops the timer
+        assert_eq!(s.on_settings(t0, &until_typing()), Command::None);
+        assert_eq!(s.deadline(), None);
+        assert_eq!(s.on_typed(&until_typing()), Command::Hide);
+    }
 }

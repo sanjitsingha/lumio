@@ -13,6 +13,11 @@
 //!
 //! Whether the focused field has text selected comes from UI Automation,
 //! whose text pattern covers edit controls, Office, WinUI and Chromium.
+//!
+//! Fields that take only numbers get no indicator, as Caps Lock does nothing
+//! there: edit controls with `ES_NUMBER`, and what UI Automation calls a
+//! spinner (a browser's `<input type="number">`, spin boxes, WinUI's
+//! `NumberBox`).
 
 use std::mem::ManuallyDrop;
 
@@ -22,12 +27,13 @@ use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
 use windows::Win32::UI::Accessibility::{
-    AccessibleObjectFromWindow, CUIAutomation8, IAccessible, IUIAutomation, IUIAutomation2, IUIAutomationTextPattern,
-    TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_TextPatternId,
+    AccessibleObjectFromWindow, CUIAutomation8, IAccessible, IUIAutomation, IUIAutomation2, IUIAutomationElement,
+    IUIAutomationTextPattern, TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_SpinnerControlTypeId,
+    UIA_TextPatternId,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetAncestor, GetForegroundWindow, GetGUIThreadInfo, GetWindowRect, GetWindowThreadProcessId, GA_ROOT, GA_ROOTOWNER,
-    GUITHREADINFO, OBJID_CARET,
+    GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW, GetWindowRect,
+    GetWindowThreadProcessId, ES_NUMBER, GA_ROOT, GA_ROOTOWNER, GUITHREADINFO, GWL_STYLE, OBJID_CARET,
 };
 
 use crate::capslock::geometry::Rect;
@@ -61,6 +67,15 @@ impl CaretTracker {
     pub fn has_selection(&mut self) -> bool {
         let Some(automation) = self.automation.get_or_insert_with(ui_automation).as_ref() else { return false };
         unsafe { selection_in_focus(automation) }.unwrap_or(false)
+    }
+
+    /// Whether the focused field takes only numbers.
+    pub fn numeric_field(&mut self) -> bool {
+        if gui_thread_info().is_some_and(|(info, _)| number_edit(info.hwndFocus)) {
+            return true;
+        }
+        let Some(automation) = self.automation.get_or_insert_with(ui_automation).as_ref() else { return false };
+        unsafe { spinner_in_focus(automation) }.unwrap_or(false)
     }
 
     pub fn locate(&mut self) -> Option<Rect> {
@@ -106,13 +121,38 @@ impl CaretTracker {
 
 fn ui_automation() -> Option<IUIAutomation> {
     let automation: IUIAutomation = unsafe { CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER) }
-        .map_err(|e| log::info!("UI Automation is unavailable, so selections are not detected: {e}"))
+        .map_err(|e| log::info!("UI Automation is unavailable, so selections and number fields are not detected: {e}"))
         .ok()?;
     if let Ok(timeouts) = automation.cast::<IUIAutomation2>() {
         let _ = unsafe { timeouts.SetConnectionTimeout(UIA_TIMEOUT_MS) };
         let _ = unsafe { timeouts.SetTransactionTimeout(UIA_TIMEOUT_MS) };
     }
     Some(automation)
+}
+
+/// A classic edit control that accepts only digits.
+fn number_edit(window: HWND) -> bool {
+    if window.is_invalid() {
+        return false;
+    }
+    let mut class = [0u16; 16];
+    let len = unsafe { GetClassNameW(window, &mut class) }.max(0) as usize;
+    String::from_utf16_lossy(&class[..len]).eq_ignore_ascii_case("Edit")
+        && unsafe { GetWindowLongW(window, GWL_STYLE) } & ES_NUMBER != 0
+}
+
+/// Whether the focused element is a spinner, or the text field of one.
+unsafe fn spinner_in_focus(automation: &IUIAutomation) -> windows::core::Result<bool> {
+    let focused = automation.GetFocusedElement()?;
+    if is_spinner(&focused) {
+        return Ok(true);
+    }
+    let parent = automation.ControlViewWalker()?.GetParentElement(&focused)?;
+    Ok(is_spinner(&parent))
+}
+
+unsafe fn is_spinner(element: &IUIAutomationElement) -> bool {
+    element.CurrentControlType().is_ok_and(|t| t == UIA_SpinnerControlTypeId)
 }
 
 /// Whether the focused element's text pattern has a selection that is more
@@ -240,5 +280,23 @@ mod tests {
         // the left half of a split screen, where the window behind it is
         assert!(!within(frame, caret(400, 300)));
         assert!(!within(frame, caret(1200, 1100)));
+    }
+
+    #[test]
+    fn edit_controls_for_digits_are_number_fields() {
+        use windows::core::w;
+        use windows::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WS_POPUP};
+        let edit = |style: i32| unsafe {
+            CreateWindowExW(WINDOW_EX_STYLE(0), w!("EDIT"), w!(""), WS_POPUP | WINDOW_STYLE(style as u32), 0, 0, 80, 20, None, None, None, None)
+        }
+        .unwrap();
+        let (digits, text) = (edit(ES_NUMBER), edit(0));
+        assert!(number_edit(digits));
+        assert!(!number_edit(text));
+        assert!(!number_edit(HWND::default()));
+        unsafe {
+            let _ = DestroyWindow(digits);
+            let _ = DestroyWindow(text);
+        }
     }
 }
