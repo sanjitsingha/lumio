@@ -1,7 +1,7 @@
 {
   "name": "lummo",
   "private": true,
-  "version": "0.1.22",
+  "version": "0.1.23",
   "type": "module",
   "description": "Keyboard-first desktop productivity utility: Spotlight-style search and a cursor-anchored Caps Lock indicator.",
   "license": "MIT",
