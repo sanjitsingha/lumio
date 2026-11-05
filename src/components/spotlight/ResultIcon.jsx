@@ -46,8 +46,9 @@ const FILES = {
 
 const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 
-export function appIconUrl(key) {
-  return isWindows ? `http://lummo-icon.localhost/app/${key}` : `lummo-icon://localhost/app/${key}`;
+/** `kind` is `app` or `file`, the routes of the backend's icon protocol. */
+export function iconUrl(kind, key) {
+  return isWindows ? `http://lummo-icon.localhost/${kind}/${key}` : `lummo-icon://localhost/${kind}/${key}`;
 }
 
 function Tile({ tint, Icon, size }) {
@@ -68,10 +69,11 @@ function Tile({ tint, Icon, size }) {
 export function ResultIcon({ icon, size = 30, selected = false }) {
   const [failed, setFailed] = useState(false);
 
-  if (icon.type === "app" && !failed) {
+  // files get the system's icon for their type; the glyph below is the fallback
+  if ((icon.type === "app" || icon.type === "file") && icon.key && !failed) {
     return (
       <img
-        src={appIconUrl(icon.key)}
+        src={iconUrl(icon.type, icon.key)}
         alt=""
         width={size}
         height={size}

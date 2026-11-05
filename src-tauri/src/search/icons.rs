@@ -1,19 +1,23 @@
 //! `lummo-icon://localhost/app/<hex key>` serves application icons to the
-//! webview. Only icons of indexed applications can be requested, so the
-//! protocol never exposes arbitrary files.
-
-use std::sync::Arc;
+//! webview, and `/file/<hex path>` the system's icon for a file's type. Only
+//! indexed applications and files can be requested, so the protocol never
+//! exposes arbitrary files.
 
 use tauri::http::{header, Response, StatusCode};
 
-use super::apps::{AppIcon, AppIndex};
+use super::apps::AppIcon;
+use super::engine::SearchEngine;
 use super::unhex_key;
 
 pub const SCHEME: &str = "lummo-icon";
 
-pub fn respond(index: &Arc<AppIndex>, path: &str) -> Response<Vec<u8>> {
-    let key = path.trim_start_matches('/').strip_prefix("app/").and_then(unhex_key);
-    let icon = key.as_deref().and_then(|k| index.icon(k));
+pub fn respond(engine: &SearchEngine, path: &str) -> Response<Vec<u8>> {
+    let (kind, key) = path.trim_start_matches('/').split_once('/').unwrap_or_default();
+    let icon = unhex_key(key).and_then(|key| match kind {
+        "app" => engine.apps.icon(&key),
+        "file" => engine.files.icon(&key),
+        _ => None,
+    });
     let body = match icon {
         Some(AppIcon::File(file)) => {
             let mime = match file.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {

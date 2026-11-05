@@ -256,8 +256,8 @@ pub fn run() {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
             std::thread::spawn(move || {
-                let index = app.state::<AppState>().engine.apps.clone();
-                responder.respond(search::icons::respond(&index, &path));
+                let engine = app.state::<AppState>().engine.clone();
+                responder.respond(search::icons::respond(&engine, &path));
             });
         })
         .invoke_handler(tauri::generate_handler![

@@ -142,4 +142,4 @@ Releases are produced by `.github/workflows/release.yml` (tauri-action) when a `
 - **The CSP allows only the app itself, IPC and the `lummo-icon` protocol.** The webview makes no network requests; update checks run in Rust.
 - **Updates must carry a valid signature** from the project's private key.
 - **There is no shell execution.** Apps launch through GIO desktop entries or the Windows shell, and URLs must be `https://`.
-- **The icon protocol serves only icons of indexed apps** (hex-encoded ids), never arbitrary paths.
+- **The icon protocol serves only icons of indexed apps and files** (hex-encoded ids and paths), never arbitrary paths. File icons are the system's icon for the type, never the file's contents.

@@ -65,6 +65,18 @@ pub fn icon_theme_name() -> String {
     from_gsettings.filter(|s| !s.is_empty()).unwrap_or_else(|| "hicolor".into())
 }
 
+/// The icon theme's picture for a file's type (`application-pdf`, else a
+/// generic one such as `x-office-document`), judged by the name alone.
+pub fn file_icon(path: &Path) -> AppIcon {
+    let (content_type, _) = gio::content_type_guess(Some(path), &[]);
+    let names: Vec<String> = gio::content_type_get_icon(&content_type)
+        .downcast::<gio::ThemedIcon>()
+        .map(|icon| icon.names().iter().map(|n| n.to_string()).collect())
+        .unwrap_or_default();
+    let icons = IconResolver::new(&icon_theme_name(), &icon_base_dirs());
+    names.iter().find_map(|name| icons.lookup(name, 64, 1)).map(AppIcon::File).unwrap_or(AppIcon::None)
+}
+
 fn collect_desktop_files(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>, depth: usize) {
     let Ok(reader) = std::fs::read_dir(dir) else { return };
     for item in reader.flatten() {

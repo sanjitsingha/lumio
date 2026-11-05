@@ -5,7 +5,7 @@
 pub mod cache;
 pub mod index;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -14,8 +14,9 @@ use std::time::{Duration, Instant};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
+use super::apps::AppIcon;
 use super::types::{file_category, ExecuteMode, IndexStatus, ResultIcon, ResultKind, SearchResult};
-use super::{ExecutedItem, SearchContext, SearchProvider};
+use super::{hex_key, ExecutedItem, SearchContext, SearchProvider};
 use crate::error::{AppError, AppResult};
 use crate::platform;
 use crate::storage::history::now_secs;
@@ -29,6 +30,9 @@ const MAX_WATCHES: usize = 24_000;
 const CHANGE_DEBOUNCE: Duration = Duration::from_millis(900);
 const REFRESH_WHEN_WATCHING: Duration = Duration::from_secs(6 * 3600);
 const REFRESH_WITHOUT_WATCHING: Duration = Duration::from_secs(30 * 60);
+const MAX_CACHED_ICONS: usize = 512;
+/// Types whose files each carry their own icon (programs, shortcuts, icons).
+const OWN_ICON_EXTENSIONS: &[&str] = &["exe", "lnk", "url", "ico", "cur", "ani", "scr", "cpl", "msc", "appref-ms"];
 
 enum Msg {
     Rebuild,
@@ -56,6 +60,8 @@ pub struct FileIndex {
     cache_path: PathBuf,
     home: Option<PathBuf>,
     enabled: AtomicBool,
+    /// Rendered icons by [`icon_key`], so each file type is drawn once.
+    icons: Mutex<HashMap<String, AppIcon>>,
 }
 
 impl FileIndex {
@@ -69,6 +75,7 @@ impl FileIndex {
             cache_path,
             home,
             enabled: AtomicBool::new(false),
+            icons: Mutex::default(),
         })
     }
 
@@ -137,6 +144,30 @@ impl FileIndex {
                 log::warn!("could not delete file index cache: {e}");
             }
         }
+        self.icons.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    }
+
+    /// Icon for the `lummo-icon` protocol. Only indexed files are handed to
+    /// the system to draw; a type drawn before is answered from the cache.
+    pub fn icon(&self, path: &str) -> Option<AppIcon> {
+        let key = icon_key(Path::new(path));
+        if let Some(icon) = self.icons.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+            return Some(icon.clone());
+        }
+        let is_dir = self.data.read().unwrap_or_else(|e| e.into_inner()).lookup(path)?;
+        if is_dir {
+            return None;
+        }
+        let icon = platform::apps::file_icon(Path::new(path));
+        // a failure may be this file's alone (deleted, unreadable), so it is not remembered
+        if !matches!(icon, AppIcon::None) {
+            let mut icons = self.icons.lock().unwrap_or_else(|e| e.into_inner());
+            if icons.len() >= MAX_CACHED_ICONS {
+                icons.clear();
+            }
+            icons.insert(key, icon.clone());
+        }
+        Some(icon)
     }
 
     pub fn stop_worker(&self) {
@@ -361,7 +392,7 @@ impl FileIndex {
             icon: if is_dir {
                 ResultIcon::Symbol { name: "folder".into() }
             } else {
-                ResultIcon::File { category: file_category(&ext), extension: ext.to_lowercase() }
+                ResultIcon::File { category: file_category(&ext), extension: ext.to_lowercase(), key: hex_key(path) }
             },
             score,
             reveal: true,
@@ -379,6 +410,17 @@ impl FileIndex {
             }
         }
         path.to_string_lossy().into_owned()
+    }
+}
+
+/// Files of one type share an icon (`.pdf`); programs, shortcuts and files
+/// without an extension are drawn one by one.
+fn icon_key(path: &Path) -> String {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if ext.is_empty() || OWN_ICON_EXTENSIONS.contains(&ext.as_str()) {
+        path.to_string_lossy().into_owned()
+    } else {
+        format!(".{ext}")
     }
 }
 
@@ -434,5 +476,28 @@ impl SearchProvider for FilesProvider {
     fn resolve(&self, path: &str) -> Option<SearchResult> {
         let is_dir = self.index.verify(path).ok()?;
         Some(self.index.result_for(path, is_dir, 0.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icons_are_shared_by_type_unless_each_file_has_its_own() {
+        let key = |p: &str| icon_key(Path::new(p));
+        assert_eq!(key("/home/a/Report.PDF"), ".pdf");
+        assert_eq!(key("/home/b/poster.psd"), key("/tmp/other.psd"));
+        assert_eq!(key("/home/a/setup.exe"), "/home/a/setup.exe");
+        assert_eq!(key("/home/a/Makefile"), "/home/a/Makefile");
+    }
+
+    #[test]
+    fn only_indexed_files_get_icons() {
+        let tmp = tempfile::tempdir().unwrap();
+        let index = FileIndex::new(tmp.path().join("cache.bin"), None);
+        let outside = tmp.path().join("not-indexed.pdf");
+        std::fs::write(&outside, b"%PDF").unwrap();
+        assert!(index.icon(&outside.to_string_lossy()).is_none());
     }
 }

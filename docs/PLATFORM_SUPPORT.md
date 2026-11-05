@@ -13,7 +13,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | App search and launch | ✅ | XDG desktop entries, Flatpak exports, icons from the elementary icon theme; launched through GIO. |
 | Web search | 🟡 | Browsers are the apps registered for `https` links (`g_app_info_get_all_for_type`); the search opens with `g_app_info_launch_uris`. |
 | App actions | 🟡 | The selected app's `[Desktop Action]` groups (*New Window*, *New Private Window*…) are listed below it and run through GIO (`g_desktop_app_info_launch_action`). |
-| File search and open | ✅ | Index plus inotify updates, opening with the default app, revealing in Files. |
+| File search and open | ✅ | Index plus inotify updates, opening with the default app, revealing in Files. File-type icons come from the icon theme (GIO content type by name). |
 | Quick actions | ✅ | Settings (`io.elementary.settings`), Calculator, Files, default browser, Terminal. |
 | Caps Lock detection | ✅ | Read from the keyboard's Caps Lock LED (`/sys/class/leds/*::capslock`), the only unprivileged system-wide source on Wayland. Polled every 150 ms (1 s while the indicator is disabled). Requires a keyboard that exposes a Caps Lock LED (practically all do). |
 | Caps Lock indicator **at the text cursor** | ✅ | Verified with GTK 3 (`GtkTextView`, all positions along and across lines while the caret moves), LibreOffice Writer, Chrome started with `--force-renderer-accessibility`, and VS Code started with it (exact only in its *Screen Reader Optimized* mode; otherwise only the line is known). The caret comes from AT-SPI, the window origin from Gala's actors (see [ARCHITECTURE](ARCHITECTURE.md#caps-lock-indicator)). |
@@ -57,7 +57,7 @@ Verified on elementary OS 8 (Ubuntu 24.04 base), Pantheon, Gala, Wayland, WebKit
 | App search | 🟡 | `shell:AppsFolder` enumeration (classic and Store apps) with `IShellItemImageFactory` icons; launch via `ShellExecuteW("shell:AppsFolder\\<AUMID>")`. |
 | Web search | 🟡 | Browsers come from `Clients\StartMenuInternet` (as in Default Apps); the chosen one is started with the search link, otherwise `ShellExecuteW` opens the default browser. |
 | App actions | ❌ | Jump-list tasks (Chrome's *New Incognito window*…) belong to each app; Windows has no public API to read them. |
-| Files | 🟡 | Same index; recursive `ReadDirectoryChangesW`; hidden/system attributes respected; `ShellExecuteW` to open, `explorer /select,` to reveal. |
+| Files | 🟡 | Same index; recursive `ReadDirectoryChangesW`; hidden/system attributes respected; `ShellExecuteW` to open, `explorer /select,` to reveal. File-type icons from `IShellItemImageFactory`, as in Explorer. |
 | Quick actions | 🟡 | `ms-settings:`, `calculator:`, Explorer, default browser (`AssocQueryStringW`), Windows Terminal or PowerShell. |
 | Caps Lock detection | 🟡 | `WH_KEYBOARD_LL` hook wakes a thread that reads `GetKeyState(VK_CAPITAL)`. |
 | Indicator at the text cursor | 🟡 | The foreground thread's system caret (`GetGUIThreadInfo`), else the MSAA caret object (`OBJID_CARET`) of the focused window. Apps that expose neither show no indicator. |

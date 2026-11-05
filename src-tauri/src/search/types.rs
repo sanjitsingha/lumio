@@ -43,8 +43,9 @@ pub enum ResultIcon {
     App { key: String },
     /// A Lucide icon name rendered by the frontend.
     Symbol { name: String },
-    /// Generic file-type glyph chosen by category (document, image, ...).
-    File { category: &'static str, extension: String },
+    /// The system's icon for the file's type, served at `/file/<key>`; the
+    /// glyph for `category` (document, image, ...) stands in when there is none.
+    File { category: &'static str, extension: String, key: String },
 }
 
 #[derive(Debug, Clone, Serialize)]

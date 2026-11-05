@@ -2,9 +2,10 @@
 //! the same list the Start menu shows: classic desktop apps and Store/UWP
 //! apps such as Calculator and Settings.
 
+use std::path::Path;
 use std::sync::Arc;
 
-use windows::core::{Interface, PWSTR};
+use windows::core::{Interface, HSTRING, PWSTR};
 use windows::Win32::Foundation::{HANDLE, SIZE};
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
@@ -12,8 +13,9 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED};
 use windows::Win32::UI::Shell::{
-    BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItemImageFactory, SHGetKnownFolderItem,
-    KF_FLAG_DEFAULT, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+    BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItemImageFactory, SHCreateItemFromParsingName,
+    SHGetKnownFolderItem, KF_FLAG_DEFAULT, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING, SIIGBF_BIGGERSIZEOK,
+    SIIGBF_ICONONLY,
 };
 
 use crate::search::apps::{AppIcon, DiscoveredApp};
@@ -76,6 +78,18 @@ fn display_name(item: &IShellItem, kind: SIGDN) -> Option<String> {
     let text = unsafe { raw.to_string().ok() };
     unsafe { CoTaskMemFree(Some(raw.0 as *const _)) };
     text
+}
+
+/// The icon Explorer shows for a file: its type's (Acrobat's for a PDF), or
+/// the file's own for programs and shortcuts. Never a thumbnail.
+pub fn file_icon(path: &Path) -> AppIcon {
+    let initialized = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_ok();
+    let item: windows::core::Result<IShellItem> = unsafe { SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None) };
+    let png = item.ok().and_then(|item| icon_png(&item));
+    if initialized {
+        unsafe { CoUninitialize() };
+    }
+    png.map(|png| AppIcon::Png(Arc::new(png))).unwrap_or(AppIcon::None)
 }
 
 /// `C:\...\Code.exe` -> `code`, so typing the program name finds the app.
@@ -146,4 +160,22 @@ fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
         writer.write_image_data(rgba).ok()?;
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn files_get_the_shells_icon_for_their_type() {
+        // Smoke test against the real shell: every type has at least the blank-page icon.
+        let tmp = tempfile::tempdir().unwrap();
+        for name in ["report.pdf", "letter.docx", "poster.psd", "notes.txt", "a.zzunknown"] {
+            let path = tmp.path().join(name);
+            std::fs::write(&path, b"x").unwrap();
+            let AppIcon::Png(png) = file_icon(&path) else { panic!("no icon for {name}") };
+            assert!(png.starts_with(b"\x89PNG"));
+        }
+        assert!(matches!(file_icon(&tmp.path().join("missing.pdf")), AppIcon::None));
+    }
 }
