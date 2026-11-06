@@ -60,14 +60,10 @@
      or the window edge would cut it off. */
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
-  /* Liquid glass on buttons, switches and segmented controls */
-  --lm-glass-top: rgba(255, 255, 255, 0.85);
-  --lm-glass-bottom: rgba(240, 240, 244, 0.65);
-  --lm-glass-rim: rgba(255, 255, 255, 0.95);
-  --lm-glass-glow: rgba(255, 255, 255, 0.85);
-  --lm-glass-edge: rgba(0, 0, 0, 0.13);
-  --lm-glass-shade: rgba(0, 0, 0, 0.07);
-  --lm-glass-sheen: rgba(255, 255, 255, 0.75);
+  /* macOS push buttons and the selected segment: a solid face with a hairline edge */
+  --lm-button: #ffffff;
+  --lm-button-pressed: #ebebed;
+  --lm-button-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 0.5px 1.5px rgba(0, 0, 0, 0.14);
   color-scheme: light;
 }
 
@@ -86,21 +82,17 @@
   --lm-accent: #0a84ff;
   --lm-danger: #ff453a;
   --lm-success: #30d158;
-  --lm-icon-tile: #3d3d42;
-  --lm-selection-rim: rgba(255, 255, 255, 0.3);
   --lm-warning: #ff9f0a;
   --lm-panel: rgba(37, 37, 40, 0.97);
   /* a lighter shade of the panel itself */
   --lm-panel-border: rgba(255, 255, 255, 0.16);
+  --lm-icon-tile: #3d3d42;
+  --lm-selection-rim: rgba(255, 255, 255, 0.3);
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
-  --lm-glass-top: rgba(255, 255, 255, 0.15);
-  --lm-glass-bottom: rgba(255, 255, 255, 0.05);
-  --lm-glass-rim: rgba(255, 255, 255, 0.32);
-  --lm-glass-glow: rgba(255, 255, 255, 0.12);
-  --lm-glass-edge: rgba(255, 255, 255, 0.13);
-  --lm-glass-shade: rgba(0, 0, 0, 0.3);
-  --lm-glass-sheen: rgba(255, 255, 255, 0.14);
+  --lm-button: #5b5b5f;
+  --lm-button-pressed: #6c6c70;
+  --lm-button-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12), 0 0.5px 1px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
@@ -115,8 +107,6 @@
   --color-separator: var(--lm-separator);
   --color-separator-strong: var(--lm-separator-strong);
   --color-fill: var(--lm-fill);
-  --color-icon-tile: var(--lm-icon-tile);
-  --color-selection-rim: var(--lm-selection-rim);
   --color-fill-strong: var(--lm-fill-strong);
   --color-accent: var(--lm-accent);
   --color-on-accent: var(--lm-accent-contrast);
@@ -125,6 +115,8 @@
   --color-warning: var(--lm-warning);
   --color-panel: var(--lm-panel);
   --color-panel-border: var(--lm-panel-border);
+  --color-icon-tile: var(--lm-icon-tile);
+  --color-selection-rim: var(--lm-selection-rim);
 
   --font-sans: "SF Pro Display", system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
@@ -247,43 +239,33 @@
     filter: grayscale(1);
   }
 
-  /* Liquid glass: a translucent body lit from above, with a bright specular rim
-     along the top edge and refracted light pooling along the bottom. */
-  .lm-glass {
-    position: relative;
-    isolation: isolate;
-    background: linear-gradient(180deg, var(--lm-glass-top), var(--lm-glass-bottom));
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    backdrop-filter: blur(12px) saturate(180%);
-    box-shadow:
-      0 0 0 0.5px var(--lm-glass-edge),
-      inset 0 1px 0.5px var(--lm-glass-rim),
-      inset 0 -1px 1px var(--lm-glass-glow),
-      inset 0 -8px 10px -8px var(--lm-glass-shade);
+  /* macOS push button: a solid face with a hairline edge that darkens while
+     pressed; the default (primary) button is filled with the accent colour. */
+  .lm-button {
+    background: var(--lm-button);
+    box-shadow: var(--lm-button-shadow);
   }
-  .lm-glass::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background: radial-gradient(130% 100% at 25% 0%, var(--lm-glass-sheen), transparent 55%);
-    pointer-events: none;
+  .lm-button:active:not(:disabled) {
+    background: var(--lm-button-pressed);
   }
-  .lm-glass-tint {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--lm-accent) 70%, white), var(--lm-accent));
+  .lm-button-primary {
+    color: var(--lm-accent-contrast);
+    background: var(--lm-accent) linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
     box-shadow:
-      0 0 0 0.5px color-mix(in srgb, var(--lm-accent) 70%, black),
-      inset 0 1px 0.5px rgba(255, 255, 255, 0.55),
-      inset 0 -1px 1px rgba(255, 255, 255, 0.3),
-      inset 0 -8px 10px -8px rgba(0, 0, 0, 0.18);
+      0 0 0 0.5px color-mix(in srgb, var(--lm-accent) 80%, black),
+      0 0.5px 1.5px rgba(0, 0, 0, 0.16);
+  }
+  .lm-button-primary:active:not(:disabled) {
+    background: color-mix(in srgb, var(--lm-accent) 85%, black);
   }
 
   .lm-segmented {
-    background: var(--lm-fill);
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.08),
-      inset 0 0 0 0.5px var(--lm-separator);
+    background: var(--lm-fill-strong);
+    box-shadow: inset 0 0 0 0.5px var(--lm-separator);
+  }
+  .lm-segment {
+    background: var(--lm-button);
+    box-shadow: var(--lm-button-shadow);
   }
 
   .lm-switch {

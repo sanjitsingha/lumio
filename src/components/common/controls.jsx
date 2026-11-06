@@ -50,7 +50,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
   return (
     <div
       role="radiogroup"
-      className={cx("lm-segmented inline-flex rounded-full p-[2px]", disabled && "pointer-events-none opacity-40")}
+      className={cx("lm-segmented inline-flex rounded-[7px] p-[2px]", disabled && "pointer-events-none opacity-40")}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -62,7 +62,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={cx(
-              "relative rounded-full font-medium",
+              "relative rounded-[5px] font-medium",
               size === "sm" ? "px-2.5 py-[2px] text-[11.5px]" : "px-3 py-[3px] text-[12px]",
               active ? "text-label" : "text-secondary hover:text-label",
             )}
@@ -71,7 +71,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
               <motion.span
                 layoutId={`seg-${id}`}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className="lm-glass absolute inset-0 rounded-full"
+                className="lm-segment absolute inset-0 rounded-[5px]"
               />
             )}
             <span className="relative">{opt.label}</span>
@@ -124,30 +124,27 @@ export function Select({ value, options, onChange, disabled = false }) {
   );
 }
 
+/** A macOS push button: a rounded rectangle that darkens while pressed. */
 export function Button({ children, onClick, variant = "default", busy = false, disabled = false, icon: Icon, type = "button" }) {
   const styles = {
-    default: "lm-glass text-label hover:bg-fill dark:hover:bg-fill-strong",
-    primary: "lm-glass lm-glass-tint text-on-accent hover:brightness-105",
-    destructive: "lm-glass text-danger hover:bg-fill dark:hover:bg-fill-strong",
-    plain: "text-accent hover:underline px-0",
+    default: "lm-button px-3 text-label",
+    primary: "lm-button-primary px-3",
+    destructive: "lm-button px-3 text-danger",
+    plain: "text-accent hover:underline",
   };
-  const inactive = disabled || busy;
   return (
-    <motion.button
+    <button
       type={type}
       onClick={onClick}
-      disabled={inactive}
-      // glass swells a little under the pointer
-      whileTap={variant === "plain" || inactive ? undefined : { scale: 1.05 }}
-      transition={{ type: "spring", stiffness: 600, damping: 22 }}
+      disabled={disabled || busy}
       className={cx(
-        "inline-flex h-[24px] shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium whitespace-nowrap transition-[filter,background-color] disabled:opacity-45",
+        "inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-[6px] text-[13px] whitespace-nowrap disabled:opacity-45",
         styles[variant],
       )}
     >
       {busy ? <LoaderCircle size={13} className="animate-spin" /> : Icon ? <Icon size={13} /> : null}
       {children}
-    </motion.button>
+    </button>
   );
 }
 
