@@ -95,7 +95,7 @@ pointer tracker ─position──▶ geometry::place_body (edge flipping) ──
 | | Windows | Linux X11 | Linux Wayland (elementary) |
 |---|---|---|---|
 | State | low-level keyboard hook + `GetKeyState` | XKB `StateNotify` events | keyboard LED via sysfs (150 ms read) |
-| Text cursor | `GetGUIThreadInfo` system caret, then MSAA `OBJID_CARET` | AT-SPI `Text` caret extents | AT-SPI, plus the window origin from Gala's actors (below) |
+| Text cursor | `GetGUIThreadInfo` system caret, then MSAA `OBJID_CARET`, then the UI Automation caret range of editable text | AT-SPI `Text` caret extents | AT-SPI, plus the window origin from Gala's actors (below) |
 | Pointer | `GetCursorPos` | `QueryPointer` | XWayland tracker window (below) |
 | Overlay | layered `WS_EX_LAYERED|TRANSPARENT|NOACTIVATE|TOPMOST` window | override-redirect ARGB X window, empty input shape | the same, via XWayland |
 

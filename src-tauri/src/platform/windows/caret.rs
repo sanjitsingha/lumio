@@ -6,6 +6,14 @@
 //! 2. Otherwise the MSAA caret object (`OBJID_CARET`) of the focused window,
 //!    which browsers and many UI frameworks expose for screen magnifiers even
 //!    without a system caret.
+//! 3. Otherwise the caret that UI Automation reports for the focused element
+//!    (`TextPattern2` caret range, or the collapsed selection of a text
+//!    pattern), as Narrator and Magnifier read it: WinUI and UWP apps
+//!    (Settings, the Start menu's search) and Windows Terminal create no
+//!    caret of either kind. It comes last because it is less exact where the
+//!    others answer: Chromium reports the end of a placeholder as the caret
+//!    of an empty field. Text that cannot be edited has no text cursor, even
+//!    where UI Automation reports one (a web page you clicked into).
 //!
 //! Either way the caret must belong to the foreground window and lie inside
 //! it: a text field of a window behind it (Notepad next to the browser you
@@ -21,15 +29,19 @@
 
 use std::mem::ManuallyDrop;
 
-use windows::core::Interface;
+use windows::core::{Interface, BOOL};
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::ClientToScreen;
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
-use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, SAFEARRAY,
+};
+use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayDestroy, SafeArrayGetUBound, SafeArrayUnaccessData};
+use windows::Win32::System::Variant::{VariantClear, VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_BOOL, VT_I4};
 use windows::Win32::UI::Accessibility::{
     AccessibleObjectFromWindow, CUIAutomation8, IAccessible, IUIAutomation, IUIAutomation2, IUIAutomationElement,
-    IUIAutomationTextPattern, TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_SpinnerControlTypeId,
-    UIA_TextPatternId,
+    IUIAutomationTextPattern, IUIAutomationTextPattern2, IUIAutomationTextRange, IUIAutomationValuePattern,
+    TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, TextUnit_Character, UIA_DocumentControlTypeId,
+    UIA_IsReadOnlyAttributeId, UIA_SpinnerControlTypeId, UIA_TextPattern2Id, UIA_TextPatternId, UIA_ValuePatternId,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW, GetWindowRect,
@@ -39,7 +51,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::capslock::geometry::Rect;
 
 pub fn support() -> Result<&'static str, String> {
-    Ok("System caret (Win32, MSAA)")
+    Ok("System caret (Win32, MSAA, UI Automation)")
 }
 
 /// How long UI Automation may wait for an app: a hung one must not stall
@@ -80,19 +92,35 @@ impl CaretTracker {
 
     pub fn locate(&mut self) -> Option<Rect> {
         self.located_at = super::ime::focus_moves();
-        let (caret, window) = current_caret()?;
+        let (caret, window) = self.current_caret()?;
         self.located_in = window;
         Some(caret)
     }
 
-    /// Both sources are cheap, so following simply reads the caret again.
-    /// `None` once focus has moved on: the next field's caret is another
-    /// field's, found by `locate` when that field is reported.
+    /// The sources are cheap (UI Automation is asked only where the others
+    /// have no caret), so following simply reads the caret again. `None` once
+    /// focus has moved on: the next field's caret is another field's, found
+    /// by `locate` when that field is reported.
     pub fn refresh(&mut self) -> Option<Rect> {
         if super::ime::focus_moves() != self.located_at {
             return None;
         }
-        current_caret().filter(|(_, window)| *window == self.located_in).map(|(caret, _)| caret)
+        let located_in = self.located_in;
+        self.current_caret().filter(|(_, window)| *window == located_in).map(|(caret, _)| caret)
+    }
+
+    /// The caret of the foreground window, and that window.
+    fn current_caret(&mut self) -> Option<(Rect, HWND)> {
+        let (info, foreground) = gui_thread_info()?;
+        let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
+        let caret = system_caret(&info)
+            .filter(|caret| shown_by(info.hwndCaret, *caret, foreground))
+            .or_else(|| msaa_caret(focus).filter(|caret| shown_by(focus, *caret, foreground)))
+            .or_else(|| {
+                let automation = self.automation.get_or_insert_with(ui_automation).as_ref()?;
+                unsafe { uia_caret(automation, focus) }.filter(|caret| shown_by(focus, *caret, foreground))
+            })?;
+        Some((caret, foreground))
     }
 
     /// Whether another window came to the front since the caret was located:
@@ -170,14 +198,133 @@ unsafe fn selection_in_focus(automation: &IUIAutomation) -> windows::core::Resul
     Ok(false)
 }
 
-/// The caret of the foreground window, and that window.
-fn current_caret() -> Option<(Rect, HWND)> {
-    let (info, foreground) = gui_thread_info()?;
-    let focus = if info.hwndFocus.is_invalid() { foreground } else { info.hwndFocus };
-    let caret = system_caret(&info)
-        .filter(|caret| shown_by(info.hwndCaret, *caret, foreground))
-        .or_else(|| msaa_caret(focus).filter(|caret| shown_by(focus, *caret, foreground)))?;
-    Some((caret, foreground))
+/// The caret UI Automation reports for the focused element, if that element
+/// belongs to the process owning `focus` (the keyboard focus of the
+/// foreground window) and its text can be edited.
+unsafe fn uia_caret(automation: &IUIAutomation, focus: HWND) -> Option<Rect> {
+    let focused = automation.GetFocusedElement().ok()?;
+    let mut owner = 0u32;
+    windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(focus, Some(&mut owner));
+    if focused.CurrentProcessId().ok()? as u32 != owner {
+        return None;
+    }
+    let range = caret_range(&focused)?;
+    if !editable(&focused, &range) {
+        log::debug!("UI Automation reports a caret in text that cannot be edited");
+        return None;
+    }
+    caret_rect(&range)
+}
+
+/// The collapsed range at the caret: from `TextPattern2` while the element
+/// has the keyboard focus, else the selection of its text pattern (Windows
+/// Terminal), which is collapsed at the caret unless text is selected.
+unsafe fn caret_range(element: &IUIAutomationElement) -> Option<IUIAutomationTextRange> {
+    if let Ok(text) = element.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id) {
+        let mut active = BOOL(0);
+        let range = text.GetCaretRange(&mut active).ok()?;
+        return active.as_bool().then_some(range);
+    }
+    let text: IUIAutomationTextPattern = element.GetCurrentPatternAs(UIA_TextPatternId).ok()?;
+    let selection = text.GetSelection().ok()?;
+    if selection.Length().ok()? < 1 {
+        return None;
+    }
+    selection.GetElement(0).ok()
+}
+
+/// Whether the text at the caret can be edited. Where the app reports it for
+/// the text itself (Chromium, XAML) that decides; otherwise the element's
+/// value must not be read-only, and a document counts only with a value that
+/// can be edited (a web page is a read-only document).
+unsafe fn editable(element: &IUIAutomationElement, range: &IUIAutomationTextRange) -> bool {
+    // a collapsed range may not answer for the text around it; the character after it does
+    let at_caret = read_only(range).or_else(|| {
+        let next = range.Clone().ok()?;
+        next.ExpandToEnclosingUnit(TextUnit_Character).ok()?;
+        read_only(&next)
+    });
+    if let Some(read_only) = at_caret {
+        return !read_only;
+    }
+    let value = element.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId).ok();
+    match value.and_then(|v| v.CurrentIsReadOnly().ok()) {
+        Some(read_only) => !read_only.as_bool(),
+        None => element.CurrentControlType().is_ok_and(|t| t != UIA_DocumentControlTypeId),
+    }
+}
+
+/// The range's `IsReadOnly` text attribute; `None` where the app does not
+/// report it or the range mixes both.
+unsafe fn read_only(range: &IUIAutomationTextRange) -> Option<bool> {
+    let mut value = range.GetAttributeValue(UIA_IsReadOnlyAttributeId).ok()?;
+    let inner = &value.Anonymous.Anonymous;
+    let answer = (inner.vt == VT_BOOL).then(|| inner.Anonymous.boolVal.0 != 0);
+    // the "not supported" and "mixed" answers are objects
+    let _ = VariantClear(&mut value);
+    answer
+}
+
+/// The caret of a collapsed range. Most apps give it no rectangle of its
+/// own; then it is the left edge of the character after it, or at the end
+/// of the text the right edge of the character before it.
+unsafe fn caret_rect(range: &IUIAutomationTextRange) -> Option<Rect> {
+    if let Some(own) = bounding_rects(range).first() {
+        return Some(Rect { width: 1, ..*own });
+    }
+    let after = range.Clone().ok().and_then(|next| {
+        next.ExpandToEnclosingUnit(TextUnit_Character).ok()?;
+        bounding_rects(&next).first().copied()
+    });
+    let before = || {
+        let previous = range.Clone().ok()?;
+        previous.MoveEndpointByUnit(TextPatternRangeEndpoint_Start, TextUnit_Character, -1).ok()?;
+        bounding_rects(&previous).last().copied()
+    };
+    caret_beside(after, after.is_none().then(before).flatten())
+}
+
+/// The caret from the character after it, else the one before it.
+fn caret_beside(after: Option<Rect>, before: Option<Rect>) -> Option<Rect> {
+    match (after, before) {
+        (Some(next), _) => Some(Rect { width: 1, ..next }),
+        (None, Some(previous)) => Some(Rect { x: previous.x + previous.width, width: 1, ..previous }),
+        (None, None) => None,
+    }
+}
+
+/// The screen rectangles of a range (one per line it covers).
+unsafe fn bounding_rects(range: &IUIAutomationTextRange) -> Vec<Rect> {
+    let Ok(array) = range.GetBoundingRectangles() else { return Vec::new() };
+    let rects = rects_from(&doubles(array));
+    if !array.is_null() {
+        let _ = SafeArrayDestroy(array);
+    }
+    rects
+}
+
+/// UI Automation's rectangles: left, top, width and height after each
+/// other. Empty ones (text scrolled out of view) are left out.
+fn rects_from(values: &[f64]) -> Vec<Rect> {
+    values
+        .chunks_exact(4)
+        .filter(|r| r[3] > 0.0)
+        .map(|r| Rect { x: r[0].round() as i32, y: r[1].round() as i32, width: r[2].round() as i32, height: r[3].round() as i32 })
+        .collect()
+}
+
+unsafe fn doubles(array: *mut SAFEARRAY) -> Vec<f64> {
+    if array.is_null() {
+        return Vec::new();
+    }
+    let Ok(upper) = SafeArrayGetUBound(array, 1) else { return Vec::new() };
+    let mut data = std::ptr::null_mut();
+    if SafeArrayAccessData(array, &mut data).is_err() || data.is_null() {
+        return Vec::new();
+    }
+    let values = std::slice::from_raw_parts(data as *const f64, (upper + 1).max(0) as usize).to_vec();
+    let _ = SafeArrayUnaccessData(array);
+    values
 }
 
 /// Whether `caret`, in `window`, is a text cursor of the foreground window:
@@ -280,6 +427,28 @@ mod tests {
         // the left half of a split screen, where the window behind it is
         assert!(!within(frame, caret(400, 300)));
         assert!(!within(frame, caret(1200, 1100)));
+    }
+
+    #[test]
+    fn ui_automation_rectangles_are_read_in_fours() {
+        // a range over two lines, and one scrolled out of view (no height)
+        let values = [100.4, 200.0, 7.6, 19.0, 12.0, 219.0, 30.0, 19.0, 50.0, 60.0, 0.0, 0.0];
+        assert_eq!(rects_from(&values), vec![
+            Rect { x: 100, y: 200, width: 8, height: 19 },
+            Rect { x: 12, y: 219, width: 30, height: 19 },
+        ]);
+        assert!(rects_from(&[1.0, 2.0, 3.0]).is_empty(), "an incomplete rectangle");
+    }
+
+    #[test]
+    fn carets_sit_beside_their_character() {
+        let after = Rect { x: 743, y: 14, width: 8, height: 19 };
+        let before = Rect { x: 720, y: 14, width: 9, height: 19 };
+        // the left edge of the character after the caret
+        assert_eq!(caret_beside(Some(after), Some(before)), Some(Rect { x: 743, y: 14, width: 1, height: 19 }));
+        // at the end of the text: the right edge of the last character
+        assert_eq!(caret_beside(None, Some(before)), Some(Rect { x: 729, y: 14, width: 1, height: 19 }));
+        assert_eq!(caret_beside(None, None), None);
     }
 
     #[test]
