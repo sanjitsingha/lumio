@@ -74,6 +74,13 @@ pub fn is_available(id: &str) -> bool {
     resolve(id).is_some()
 }
 
+/// The app an action opens, as its desktop-file id (its key in the app
+/// index) and its name, which find its icon there.
+pub fn app(id: &str) -> Option<(String, String)> {
+    let (app, _) = resolve(id)?;
+    Some((app.id()?.to_string(), app.name().to_string()))
+}
+
 pub fn run(id: &str) -> Result<(), String> {
     let (app, files) = resolve(id).ok_or_else(|| "No suitable application is installed.".to_string())?;
     log::info!("quick action {id} -> {}", app.name());

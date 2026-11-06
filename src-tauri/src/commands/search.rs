@@ -88,6 +88,6 @@ pub fn rebuild_index(state: State<'_, AppState>) {
     let engine = state.engine.clone();
     std::thread::spawn(move || {
         engine.apps.refresh();
-        engine.actions.refresh_availability();
+        engine.refresh_availability();
     });
 }

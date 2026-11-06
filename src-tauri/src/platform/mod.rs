@@ -1,7 +1,7 @@
 //! Operating-system integration. Each platform module exposes the same
-//! submodules (`apps`, `launch`, `quick_actions`, `capslock`, `caret`, `cursor`,
-//! `overlay`, `autostart`, `appearance`) so the rest of the app is platform
-//! neutral.
+//! submodules (`apps`, `launch`, `quick_actions`, `system_settings`, `capslock`,
+//! `caret`, `cursor`, `overlay`, `autostart`, `appearance`) so the rest of the
+//! app is platform neutral.
 
 use serde::Serialize;
 
@@ -18,7 +18,9 @@ use self::windows as imp;
 #[cfg(not(any(target_os = "linux", windows)))]
 compile_error!("Lummo supports Linux and Windows only.");
 
-pub use imp::{appearance, apps, autostart, browser, capslock, caret, cursor, ime, launch, overlay, quick_actions};
+pub use imp::{
+    appearance, apps, autostart, browser, capslock, caret, cursor, ime, launch, overlay, quick_actions, system_settings,
+};
 
 /// A web browser that can open links (Settings → Spotlight → Browser for web searches).
 #[derive(Debug, Clone, PartialEq, Serialize)]

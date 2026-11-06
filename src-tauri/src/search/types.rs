@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub enum ResultKind {
     App,
     Action,
+    /// A page of the system's settings app ("Turn on dark mode").
+    Setting,
     Folder,
     File,
     /// "Search Google for …", always listed last.
@@ -17,6 +19,7 @@ impl ResultKind {
         match self {
             ResultKind::App => 1.0,
             ResultKind::Action => 0.97,
+            ResultKind::Setting => 0.95,
             ResultKind::Folder => 0.86,
             ResultKind::File => 0.84,
             // placed after the ranking, see `engine::finish`
@@ -28,6 +31,7 @@ impl ResultKind {
         match self {
             ResultKind::App => ("apps", "Applications"),
             ResultKind::Action => ("actions", "Quick Actions"),
+            ResultKind::Setting => ("settings", "Settings"),
             ResultKind::Folder => ("folders", "Folders"),
             ResultKind::File => ("files", "Files"),
             ResultKind::Web => ("web", "Web"),

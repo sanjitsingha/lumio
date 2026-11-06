@@ -1,5 +1,5 @@
-//! Spotlight search: providers (apps, files, quick actions), ranking and
-//! result execution.
+//! Spotlight search: providers (apps, files, quick actions, system settings
+//! pages), ranking and result execution.
 //!
 //! New sources (clipboard history, plugins, ...) implement
 //! [`SearchProvider`] and are registered in [`engine::SearchEngine::new`].
@@ -10,6 +10,7 @@ pub mod engine;
 pub mod files;
 pub mod fuzzy;
 pub mod icons;
+pub mod system_settings;
 pub mod types;
 pub mod web;
 

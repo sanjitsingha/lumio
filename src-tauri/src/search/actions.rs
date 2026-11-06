@@ -1,9 +1,12 @@
 //! Quick actions: built-in commands that open common system tools.
 //! Add an entry to [`ACTIONS`] and handle its id in `platform::quick_actions`.
+//! Each shows the icon of the app it opens, or its own symbol until that
+//! app is indexed.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+use super::apps::AppIndex;
 use super::fuzzy::{fold, CONTIGUOUS_MATCH};
 use super::types::{ExecuteMode, ResultIcon, ResultKind, SearchResult};
 use super::{ExecutedItem, SearchContext, SearchProvider};
@@ -16,7 +19,7 @@ pub struct QuickAction {
     pub title: &'static str,
     pub subtitle: &'static str,
     pub keywords: &'static [&'static str],
-    /// Lucide icon name, or [`LUMMO_ICON`].
+    /// Lucide icon name, shown when the app it opens has no icon; or [`LUMMO_ICON`].
     pub icon: &'static str,
 }
 
@@ -70,42 +73,57 @@ pub const ACTIONS: &[QuickAction] = &[
     },
 ];
 
+/// The app an action opens: its key in the app index and its name.
+type TargetApp = Option<(String, String)>;
+
 pub struct ActionsProvider {
-    available: RwLock<HashSet<&'static str>>,
+    /// The actions this system can run, with the app each one opens where known.
+    available: RwLock<HashMap<&'static str, TargetApp>>,
+    apps: Arc<AppIndex>,
     open_lummo_settings: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl ActionsProvider {
-    pub fn new(open_lummo_settings: Arc<dyn Fn() + Send + Sync>) -> Self {
-        let provider = Self { available: RwLock::default(), open_lummo_settings };
+    pub fn new(apps: Arc<AppIndex>, open_lummo_settings: Arc<dyn Fn() + Send + Sync>) -> Self {
+        let provider = Self { available: RwLock::default(), apps, open_lummo_settings };
         provider.refresh_availability();
         provider
     }
 
     /// Hides actions whose target app is not installed.
     pub fn refresh_availability(&self) {
-        let available: HashSet<&'static str> = ACTIONS
+        let available = ACTIONS
             .iter()
             .filter(|a| a.id == LUMMO_SETTINGS || platform::quick_actions::is_available(a.id))
-            .map(|a| a.id)
+            .map(|a| (a.id, platform::quick_actions::app(a.id)))
             .collect();
         *self.available.write().unwrap_or_else(|e| e.into_inner()) = available;
     }
 
     fn is_available(&self, id: &str) -> bool {
-        self.available.read().unwrap_or_else(|e| e.into_inner()).contains(id)
+        self.available.read().unwrap_or_else(|e| e.into_inner()).contains_key(id)
     }
 
-    fn to_result(action: &QuickAction, score: f32) -> SearchResult {
+    /// The icon of the app the action opens, else the action's own symbol.
+    fn icon(&self, action: &QuickAction) -> ResultIcon {
+        if action.icon == LUMMO_ICON {
+            return ResultIcon::Lummo;
+        }
+        let available = self.available.read().unwrap_or_else(|e| e.into_inner());
+        available
+            .get(action.id)
+            .and_then(Option::as_ref)
+            .and_then(|(key, name)| self.apps.result_icon(key, name))
+            .unwrap_or_else(|| ResultIcon::Symbol { name: action.icon.into() })
+    }
+
+    fn to_result(&self, action: &QuickAction, score: f32) -> SearchResult {
         SearchResult {
             id: format!("action:{}", action.id),
             kind: ResultKind::Action,
             title: action.title.into(),
             subtitle: action.subtitle.into(),
-            icon: match action.icon {
-                LUMMO_ICON => ResultIcon::Lummo,
-                name => ResultIcon::Symbol { name: name.into() },
-            },
+            icon: self.icon(action),
             score,
             reveal: false,
             note: None,
@@ -134,7 +152,7 @@ impl SearchProvider for ActionsProvider {
                 .max()
                 .map(|s| s * 9 / 10);
             if let Some(score) = title.max(keyword) {
-                out.push(Self::to_result(action, score as f32));
+                out.push(self.to_result(action, score as f32));
             }
         }
     }
@@ -156,13 +174,20 @@ impl SearchProvider for ActionsProvider {
         ACTIONS
             .iter()
             .find(|a| a.id == local_id && self.is_available(a.id))
-            .map(|a| Self::to_result(a, 0.0))
+            .map(|a| self.to_result(a, 0.0))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::apps::{AppIcon, DiscoveredApp};
+    use crate::search::hex_key;
+    use std::collections::HashSet;
+
+    fn provider(apps: Vec<DiscoveredApp>) -> ActionsProvider {
+        ActionsProvider::new(Arc::new(AppIndex::with_apps(apps)), Arc::new(|| {}))
+    }
 
     #[test]
     fn action_ids_are_unique() {
@@ -171,8 +196,35 @@ mod tests {
     }
 
     #[test]
+    fn actions_show_the_icon_of_the_app_they_open() {
+        let calculator = DiscoveredApp {
+            key: "calc".into(),
+            name: "Calculator".into(),
+            description: String::new(),
+            keywords: Vec::new(),
+            icon: AppIcon::Png(Arc::new(vec![1])),
+            target: String::new(),
+            actions: Vec::new(),
+        };
+        let provider = provider(vec![calculator]);
+        let app = |key: &str, name: &str| Some((key.to_string(), name.to_string()));
+        *provider.available.write().unwrap() = HashMap::from([
+            ("calculator", app("calc", "Calculator")),
+            ("terminal", app("terminal", "Terminal")),
+            ("browser", None),
+            (LUMMO_SETTINGS, None),
+        ]);
+        let icon = |id| provider.resolve(id).unwrap().icon;
+        assert_eq!(icon("calculator"), ResultIcon::App { key: hex_key("calc") });
+        let symbol = |name: &str| ResultIcon::Symbol { name: name.into() };
+        assert_eq!(icon("terminal"), symbol("square-terminal"), "its own symbol while the app is not indexed");
+        assert_eq!(icon("browser"), symbol("globe"));
+        assert_eq!(icon(LUMMO_SETTINGS), ResultIcon::Lummo);
+    }
+
+    #[test]
     fn lummo_settings_is_always_searchable() {
-        let provider = ActionsProvider::new(Arc::new(|| {}));
+        let provider = provider(Vec::new());
         let query = super::super::fuzzy::Query::new("lummo");
         let settings = SpotlightSettings::default();
         let ctx = SearchContext { raw: "lummo", query: &query, settings: &settings, limit: 10 };
@@ -184,7 +236,7 @@ mod tests {
 
     #[test]
     fn unknown_actions_are_rejected() {
-        let provider = ActionsProvider::new(Arc::new(|| {}));
+        let provider = provider(Vec::new());
         assert_eq!(provider.execute("rm-rf", ExecuteMode::Open).unwrap_err().code(), "not-found");
     }
 }

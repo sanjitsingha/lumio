@@ -18,7 +18,8 @@ use windows::Win32::UI::Shell::{
     SIIGBF_ICONONLY,
 };
 
-use crate::search::apps::{AppIcon, DiscoveredApp};
+use super::jump_list;
+use crate::search::apps::{AppAction, AppIcon, DiscoveredApp};
 
 /// Non-app entries (help files, web links, readmes) that installers add to the Start menu.
 const SKIP_EXTENSIONS: &[&str] = &[".url", ".chm", ".txt", ".pdf", ".htm", ".html", ".rtf", ".hlp", ".ini"];
@@ -59,6 +60,9 @@ fn enumerate() -> windows::core::Result<Vec<DiscoveredApp>> {
         }
         let icon = icon_png(&item).map(|png| AppIcon::Png(Arc::new(png))).unwrap_or(AppIcon::None);
         let keywords = executable_keyword(&parsing).into_iter().collect();
+        // the tasks of its jump list (Chrome's "New Incognito window"), as on the taskbar
+        let actions =
+            jump_list::tasks(&parsing).into_iter().map(|t| AppAction { id: t.id, name: t.title }).collect();
         apps.push(DiscoveredApp {
             key: parsing.clone(),
             name,
@@ -66,8 +70,7 @@ fn enumerate() -> windows::core::Result<Vec<DiscoveredApp>> {
             keywords,
             icon,
             target: parsing,
-            // jump-list tasks are private to each app; Windows has no API to read them
-            actions: Vec::new(),
+            actions,
         });
     }
     Ok(apps)

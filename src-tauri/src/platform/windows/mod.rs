@@ -8,10 +8,12 @@ pub mod capslock;
 pub mod caret;
 pub mod cursor;
 pub mod ime;
+mod jump_list;
 pub mod launch;
 pub mod overlay;
 pub mod quick_actions;
 mod registry;
+pub mod system_settings;
 
 use std::os::windows::fs::MetadataExt;
 

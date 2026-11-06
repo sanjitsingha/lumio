@@ -55,6 +55,7 @@ pub fn result_opened(kind: ResultKind) {
     count(match kind {
         ResultKind::App => "opened_apps",
         ResultKind::Action => "opened_actions",
+        ResultKind::Setting => "opened_settings",
         ResultKind::Folder => "opened_folders",
         ResultKind::File => "opened_files",
         ResultKind::Web => "opened_web_searches",

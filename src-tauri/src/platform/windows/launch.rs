@@ -4,8 +4,12 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 
 use windows::core::{w, HSTRING, PCWSTR};
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE};
-use windows::Win32::UI::Shell::ShellExecuteW;
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+};
+use windows::Win32::UI::Shell::{ApplicationActivationManager, IApplicationActivationManager, ShellExecuteW, AO_NONE};
+
+use super::jump_list::Launch;
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 /// ShellExecute needs COM on the calling thread (STA, no OLE1 DDE).
@@ -15,15 +19,21 @@ fn ensure_com() {
 }
 
 pub fn shell_open(target: &str, directory: Option<&Path>) -> Result<(), String> {
+    shell_execute(w!("open"), target, "", directory)
+}
+
+/// `ShellExecuteW` with a verb (`open`, or `runas` to start elevated) and arguments.
+fn shell_execute(verb: PCWSTR, target: &str, arguments: &str, directory: Option<&Path>) -> Result<(), String> {
     ensure_com();
     let target = HSTRING::from(target);
+    let arguments = (!arguments.is_empty()).then(|| HSTRING::from(arguments));
     let dir = directory.map(|d| HSTRING::from(d.as_os_str()));
     let result = unsafe {
         ShellExecuteW(
             None,
-            w!("open"),
+            verb,
             &target,
-            PCWSTR::null(),
+            arguments.as_ref().map(|a| PCWSTR(a.as_ptr())).unwrap_or(PCWSTR::null()),
             dir.as_ref().map(|d| PCWSTR(d.as_ptr())).unwrap_or(PCWSTR::null()),
             SW_SHOWNORMAL,
         )
@@ -48,9 +58,33 @@ pub fn launch_app(target: &str) -> Result<(), String> {
     shell_open(&format!("shell:AppsFolder\\{target}"), None)
 }
 
-/// Windows apps report no actions of their own (see `apps::discover`).
-pub fn launch_app_action(_target: &str, _action: &str) -> Result<(), String> {
-    Err("apps have no actions on Windows".into())
+/// Runs one of the app's jump-list tasks, read again from its jump list so
+/// only a task the app still offers can run (see `jump_list`).
+pub fn launch_app_action(target: &str, action: &str) -> Result<(), String> {
+    ensure_com();
+    let task = super::jump_list::tasks(target)
+        .into_iter()
+        .find(|t| t.id == action)
+        .ok_or("the application no longer offers this action")?;
+    log::info!("jump-list task “{}” of {target}: {:?}", task.title, task.launch);
+    match &task.launch {
+        Launch::Program { path, arguments, directory, run_as_admin } => {
+            let verb = if *run_as_admin { w!("runas") } else { w!("open") };
+            let directory = (!directory.is_empty()).then(|| Path::new(directory));
+            shell_execute(verb, path, arguments, directory)
+        }
+        Launch::StoreApp { app_id, arguments } => activate_store_app(app_id, arguments),
+    }
+}
+
+/// Starts a Store app with launch arguments, as its taskbar jump list does.
+fn activate_store_app(app_id: &str, arguments: &str) -> Result<(), String> {
+    unsafe {
+        let manager: IApplicationActivationManager =
+            CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_LOCAL_SERVER).map_err(|e| e.message())?;
+        manager.ActivateApplication(&HSTRING::from(app_id), &HSTRING::from(arguments), AO_NONE).map_err(|e| e.message())?;
+    }
+    Ok(())
 }
 
 pub fn open_path(path: &Path) -> Result<(), String> {

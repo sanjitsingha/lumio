@@ -5,6 +5,7 @@ use super::actions::ActionsProvider;
 use super::apps::{AppIndex, AppsProvider};
 use super::files::{FileIndex, FilesProvider};
 use super::fuzzy::Query;
+use super::system_settings::SystemSettingsProvider;
 use super::types::{ExecuteMode, ResultKind, SearchResponse, SearchResult, Section};
 use super::web::WebSearchProvider;
 use super::{split_id, ExecutedItem, SearchContext, SearchProvider};
@@ -14,14 +15,15 @@ use crate::storage::settings::SpotlightSettings;
 
 /// A result this strong (after weighting) is promoted to "Top Hit".
 const TOP_HIT_THRESHOLD: f32 = 700.0;
-const SECTION_ORDER: [ResultKind; 5] =
-    [ResultKind::App, ResultKind::Action, ResultKind::Folder, ResultKind::File, ResultKind::Web];
+const SECTION_ORDER: [ResultKind; 6] =
+    [ResultKind::App, ResultKind::Action, ResultKind::Setting, ResultKind::Folder, ResultKind::File, ResultKind::Web];
 
 pub struct SearchEngine {
     providers: Vec<Arc<dyn SearchProvider>>,
     pub apps: Arc<AppIndex>,
     pub files: Arc<FileIndex>,
     pub actions: Arc<ActionsProvider>,
+    pub system_settings: Arc<SystemSettingsProvider>,
     pub history: Arc<History>,
 }
 
@@ -33,13 +35,22 @@ impl SearchEngine {
         web: Arc<WebSearchProvider>,
         history: Arc<History>,
     ) -> Self {
+        let system_settings = Arc::new(SystemSettingsProvider::new(apps.clone()));
         let providers: Vec<Arc<dyn SearchProvider>> = vec![
             Arc::new(AppsProvider::new(apps.clone())),
             actions.clone(),
+            system_settings.clone(),
             Arc::new(FilesProvider::new(files.clone())),
             web,
         ];
-        Self { providers, apps, files, actions, history }
+        Self { providers, apps, files, actions, system_settings, history }
+    }
+
+    /// Re-checks which quick actions and settings pages this system can open
+    /// (after apps were installed or removed).
+    pub fn refresh_availability(&self) {
+        self.actions.refresh_availability();
+        self.system_settings.refresh_availability();
     }
 
     pub fn search(&self, raw: &str, settings: &SpotlightSettings, request_id: u64) -> SearchResponse {
@@ -205,6 +216,26 @@ mod tests {
         let ids: Vec<_> = sections.iter().map(|s| s.id).collect();
         assert_eq!(ids, vec!["top", "apps", "actions", "files"]);
         assert_eq!(sections[0].results[0].title, "Reports");
+    }
+
+    #[test]
+    fn settings_pages_follow_quick_actions() {
+        let ranked = vec![
+            result("s", ResultKind::Setting, "Turn on dark mode", 864.0),
+            result("f", ResultKind::File, "dark-mode.css", 705.0),
+            result("q", ResultKind::Action, "Open Settings", 500.0),
+            result("d", ResultKind::Folder, "Dark", 400.0),
+        ];
+        let sections = group(ranked);
+        let ids: Vec<_> = sections.iter().map(|s| s.id).collect();
+        assert_eq!(ids, vec!["top", "actions", "folders", "files"], "a strong page is the Top Hit");
+        assert_eq!(sections[0].results[0].title, "Turn on dark mode");
+        let weaker = group(vec![
+            result("a", ResultKind::App, "Darktable", 900.0),
+            result("s", ResultKind::Setting, "Turn on dark mode", 800.0),
+            result("f", ResultKind::File, "dark.txt", 600.0),
+        ]);
+        assert_eq!(weaker.iter().map(|s| s.id).collect::<Vec<_>>(), ["top", "settings", "files"]);
     }
 
     #[test]

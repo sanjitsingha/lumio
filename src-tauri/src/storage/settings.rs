@@ -64,6 +64,8 @@ pub struct SpotlightSettings {
     pub search_files: bool,
     pub search_folders: bool,
     pub search_actions: bool,
+    /// Pages of the system's settings app ("Turn on dark mode").
+    pub search_settings: bool,
     pub keep_history: bool,
     pub max_results: u32,
     pub search_delay_ms: u32,
@@ -89,6 +91,7 @@ impl Default for SpotlightSettings {
             search_files: true,
             search_folders: true,
             search_actions: true,
+            search_settings: true,
             keep_history: true,
             max_results: 24,
             search_delay_ms: 60,

@@ -35,13 +35,13 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
       ref={listRef}
       role="listbox"
       aria-label="Results"
-      className="scroll-area max-h-[min(452px,calc(100vw*632/752-182px))] pb-2"
+      className="scroll-area max-h-[min(452px,calc(100vw*632/752-182px))] pb-2 tracking-[var(--lm-spotlight-tracking)]"
     >
       {groups.map(({ sectionIndex, rows }) => {
         const section = sections[sectionIndex];
         return (
           <div key={section.id} role="group" aria-label={section.title}>
-            <div className="px-[22px] pt-2.5 pb-1 text-[11px] font-semibold tracking-[0.06em] text-secondary">
+            <div className="px-[14px] pt-3 pb-1.5 text-[12px] leading-[16px] text-secondary">
               {section.title}
             </div>
             {rows.map(([item, i]) => {
@@ -51,7 +51,9 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
                 onHover: () => i !== selected && onSelect(i),
                 onOpen: () => onOpen(item.action ?? item.result, "open"),
               };
-              if (item.action) return <ActionRow key={item.key} action={item.action} {...row} />;
+              if (item.action) {
+                return <ActionRow key={item.key} action={item.action} icon={item.result.icon} {...row} />;
+              }
               const Row = item.result.kind === "calculator" ? CalculatorRow : ResultRow;
               return <Row key={item.key} result={item.result} {...row} />;
             })}

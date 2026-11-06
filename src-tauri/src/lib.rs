@@ -134,7 +134,8 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
     let apps = Arc::new(AppIndex::new());
     let files = FileIndex::new(paths.file_index_cache(), app_state::dirs_home());
     let settings_handle = handle.clone();
-    let actions = Arc::new(ActionsProvider::new(Arc::new(move || window_manager::open_settings(&settings_handle, None))));
+    let actions =
+        Arc::new(ActionsProvider::new(apps.clone(), Arc::new(move || window_manager::open_settings(&settings_handle, None))));
     let browser_handle = handle.clone();
     let web = Arc::new(WebSearchProvider::new(
         Arc::new(move || browser_handle.try_state::<AppState>().map(|s| s.settings().spotlight.web_browser).unwrap_or_default()),

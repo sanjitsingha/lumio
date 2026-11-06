@@ -27,7 +27,7 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
           // left padding is not clipped
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 -left-2 flex items-center overflow-hidden pl-2 whitespace-pre text-[21px] font-light tracking-[-0.01em]"
+            className="pointer-events-none absolute inset-y-0 right-0 -left-2 flex items-center overflow-hidden pl-2 whitespace-pre text-[21px] font-light tracking-[var(--lm-spotlight-tracking)]"
           >
             <span className="flex items-center" style={{ transform: `translateX(${-scroll}px)` }}>
               {/* padding and equal negative margin: the highlight grows around the text without moving it */}
@@ -53,7 +53,7 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
           autoCorrect="off"
           autoCapitalize="off"
           aria-label="Search"
-          className="relative w-full bg-transparent text-[21px] font-light tracking-[-0.01em] text-label outline-none placeholder:text-tertiary"
+          className="relative w-full bg-transparent text-[21px] font-light tracking-[var(--lm-spotlight-tracking)] text-label outline-none placeholder:tracking-[-0.01em] placeholder:text-tertiary"
         />
       </div>
       {loading && <LoaderCircle size={18} className="shrink-0 animate-spin text-secondary" aria-label="Searching" />}

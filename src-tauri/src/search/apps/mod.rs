@@ -33,11 +33,12 @@ pub struct DiscoveredApp {
     pub icon: AppIcon,
     /// Platform launch target (desktop file path / shell parsing name).
     pub target: String,
-    /// The app's own actions in the order it lists them (none on Windows).
+    /// The app's own actions in the order it lists them.
     pub actions: Vec<AppAction>,
 }
 
-/// An action the app declares itself (`[Desktop Action …]` groups on Linux).
+/// An action the app declares itself: a `[Desktop Action …]` group on Linux,
+/// a task of its jump list on Windows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppAction {
     /// The app's identifier for it, e.g. `new-private-window`.

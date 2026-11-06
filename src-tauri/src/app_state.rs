@@ -155,7 +155,7 @@ pub fn start_background_services(app: &AppHandle) {
         .name("lummo-app-index".into())
         .spawn(move || {
             engine.apps.refresh();
-            engine.actions.refresh_availability();
+            engine.refresh_availability();
         })
         .map_err(|e| log::error!("could not start app indexing: {e}"))
         .ok();

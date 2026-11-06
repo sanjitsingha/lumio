@@ -44,15 +44,17 @@ Windows:
 
 ## Search
 
-`SearchEngine` holds `SearchProvider`s (`apps`, `action`, `file`). Each provider returns raw match scores. The engine then:
+`SearchEngine` holds `SearchProvider`s (`apps`, `action`, `setting`, `file`). Each provider returns raw match scores. The engine then:
 
 1. applies kind weights and a frecency boost from history;
 2. ranks the results and trims them to *Maximum results*;
 3. promotes a strong first result to **Top Hit**, then groups the rest in a fixed section order.
 
-Result ids are `provider:local-id`. **Execution re-resolves the id inside the provider:** apps must be in the app index and files must be live entries of the file index. An app's own actions have ids `app:<key>#<action>` and run only if the indexed app declares that action. The web search (`web:<query>`, `search/web.rs`) is placed after the ranking so it is always last; its link is built in Rust and is always a Google results page, opened in the browser chosen in Settings (`platform::browser`: Windows' `Clients\StartMenuInternet` registrations, or Linux's `https` handlers) or the system default. The frontend therefore cannot make the backend open arbitrary paths. Executable files are revealed in the file manager instead of being run.
+Result ids are `provider:local-id`. **Execution re-resolves the id inside the provider:** apps must be in the app index and files must be live entries of the file index. An app's own actions have ids `app:<key>#<action>` and run only if the indexed app declares that action, and the platform reads that action again before running it: from the desktop entry's `[Desktop Action]` groups on Linux, from the app's jump-list tasks on Windows (`platform/windows/jump_list.rs`, which reads the file Windows keeps for each app, since there is no API for another app's jump list). The web search (`web:<query>`, `search/web.rs`) is placed after the ranking so it is always last; its link is built in Rust and is always a Google results page, opened in the browser chosen in Settings (`platform::browser`: Windows' `Clients\StartMenuInternet` registrations, or Linux's `https` handlers) or the system default. The frontend therefore cannot make the backend open arbitrary paths. Executable files are revealed in the file manager instead of being run.
 
 To add a feature such as clipboard history or plugins, implement `SearchProvider` and register it in `SearchEngine::new`.
+
+**Settings pages** (`search/system_settings.rs`) are a fixed catalog of tasks such as *Turn on dark mode*, each with keywords and a deep link per platform: `ms-settings:colors` on Windows, `settings://desktop/appearance` on elementary OS (the keys each System Settings plug declares as `supported_settings`). A page without a link for the running platform is not offered, and on Linux none are unless `settings://` is handled by elementary's System Settings. Matching skips the scattered-letters tier, and also compares the query and keywords with spaces and punctuation removed, so `darkmode` finds *dark mode* and `wifi` finds *Wi-Fi*. Words such as *settings* are ignored, so `display settings` finds *Display settings* and `settings` alone is left to the *Open Settings* quick action. At most five pages are listed, below the quick actions. Every page shows the settings app's own icon from the app index (Settings' AppUserModelID on Windows, System Settings' desktop-file id on Linux), as an app's actions and the quick actions show the icon of the app they open (`platform::quick_actions::app`); their own symbol tile stands in until the apps are indexed.
 
 The **calculator** is the exception: it needs no system access, so the page computes it (`src/utils/calc.js`, a small parser; the CSP forbids `eval`) on every keystroke, without waiting for the backend, and shows it as a *Calculator* section above the backend's results. Enter copies the answer.
 
@@ -141,5 +143,5 @@ Releases are produced by `.github/workflows/release.yml` (tauri-action) when a `
 - **App commands are declared in `build.rs`.** Each window gets only what its capability file grants: Spotlight cannot change settings or read logs.
 - **The CSP allows only the app itself, IPC and the `lummo-icon` protocol.** The webview makes no network requests; update checks run in Rust.
 - **Updates must carry a valid signature** from the project's private key.
-- **There is no shell execution.** Apps launch through GIO desktop entries or the Windows shell, and URLs must be `https://`.
+- **There is no shell execution.** Apps launch through GIO desktop entries or the Windows shell, and URLs must be `https://`. A Windows jump-list task runs the program its own app's jump list names (`ShellExecuteW`, no command interpreter), and a Store app's task can only start that same app.
 - **The icon protocol serves only icons of indexed apps and files** (hex-encoded ids and paths), never arbitrary paths. File icons are the system's icon for the type, never the file's contents.

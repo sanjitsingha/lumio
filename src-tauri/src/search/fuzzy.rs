@@ -101,17 +101,28 @@ impl Query {
 
     /// Scores a candidate that has already been passed through [`fold`].
     pub fn score(&self, folded: &str, allow_typos: bool) -> Option<u32> {
+        self.score_with(folded, allow_typos, true)
+    }
+
+    /// Like [`Query::score`], without the scattered-letters tier: for long
+    /// lists of short phrases (settings pages), where `frfx`-style matches
+    /// would mostly be noise. Typos are still forgiven when allowed.
+    pub fn score_contiguous(&self, folded: &str, allow_typos: bool) -> Option<u32> {
+        self.score_with(folded, allow_typos, false)
+    }
+
+    fn score_with(&self, folded: &str, allow_typos: bool, scattered: bool) -> Option<u32> {
         if self.is_empty() {
             return None;
         }
         let t: Vec<char> = folded.chars().collect();
-        let whole = score_token(&self.chars, &t, allow_typos);
+        let whole = score_token_in(&self.chars, &t, allow_typos, scattered);
         if self.tokens.len() <= 1 {
             return whole;
         }
         let mut sum = 0u32;
         for token in &self.tokens {
-            sum += score_token(token, &t, allow_typos)?;
+            sum += score_token_in(token, &t, allow_typos, scattered)?;
         }
         let combined = (sum / self.tokens.len() as u32) * 9 / 10;
         Some(whole.unwrap_or(0).max(combined))
@@ -123,7 +134,11 @@ impl Query {
 /// long keyword list do not produce noise.
 pub const CONTIGUOUS_MATCH: u32 = 540;
 
-pub fn score_token(q: &[char], t: &[char], allow_typos: bool) -> Option<u32> {
+/// Lowest score of a match at the very start of the candidate (`fire` → Firefox).
+pub const PREFIX_MATCH: u32 = 880;
+
+/// `scattered` allows the subsequence tier (`frfx` → Firefox).
+fn score_token_in(q: &[char], t: &[char], allow_typos: bool, scattered: bool) -> Option<u32> {
     if q.is_empty() || t.is_empty() {
         return None;
     }
@@ -163,7 +178,7 @@ pub fn score_token(q: &[char], t: &[char], allow_typos: bool) -> Option<u32> {
             bump(&mut best, 600 - pos.min(60) as u32);
         }
     }
-    if best.is_none() && q.len() >= 2 {
+    if best.is_none() && scattered && q.len() >= 2 {
         if let Some(s) = subsequence_score(q, t, &words) {
             bump(&mut best, s);
         }
@@ -349,6 +364,17 @@ mod tests {
     fn contiguous_threshold_separates_substring_from_scattered() {
         assert!(s("fox", "Firefox").unwrap() >= CONTIGUOUS_MATCH);
         assert!(s("frfx", "Firefox").unwrap() < CONTIGUOUS_MATCH);
+    }
+
+    #[test]
+    fn contiguous_scoring_drops_only_scattered_letters() {
+        let c = |q: &str, t: &str| Query::new(q).score_contiguous(&fold(t), true);
+        assert_eq!(c("frfx", "Firefox"), None);
+        assert_eq!(c("fox", "Firefox"), s("fox", "Firefox"));
+        assert_eq!(c("dark", "Turn on dark mode"), s("dark", "Turn on dark mode"));
+        assert_eq!(c("tod", "Turn on dark mode"), Some(760), "acronyms still count");
+        assert_eq!(c("blutooth", "Bluetooth"), Some(300), "and typos");
+        assert!(s("fire", "Firefox").unwrap() >= PREFIX_MATCH);
     }
 
     #[test]

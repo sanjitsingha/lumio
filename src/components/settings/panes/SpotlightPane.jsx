@@ -131,6 +131,17 @@ export default function SpotlightPane() {
           disabled={!s.enabled}
         />
         <ToggleRow
+          label="System settings"
+          description={
+            platform?.os === "windows"
+              ? "Pages of Windows Settings, such as “Turn on dark mode” or “Connect to Wi-Fi”."
+              : "Pages of System Settings, such as “Turn on dark mode” or “Connect to Wi-Fi” (elementary OS)."
+          }
+          checked={s.searchSettings}
+          onChange={(v) => set({ searchSettings: v })}
+          disabled={!s.enabled}
+        />
+        <ToggleRow
           label="Web search"
           description="Ends every search with “Search Google for …”."
           checked={s.webSearch}
