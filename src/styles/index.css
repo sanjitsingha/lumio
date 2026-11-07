@@ -4,32 +4,6 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* SF Pro Display. The set has no upright Semibold, so font-semibold renders as Bold. */
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("/fonts/SFProDisplay-Light.otf") format("opentype");
-  font-weight: 300;
-  font-display: block;
-}
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("/fonts/SFProDisplay-Regular.otf") format("opentype");
-  font-weight: 400;
-  font-display: block;
-}
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("/fonts/SFProDisplay-Medium.otf") format("opentype");
-  font-weight: 500;
-  font-display: block;
-}
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("/fonts/SFProDisplay-Bold.otf") format("opentype");
-  font-weight: 700;
-  font-display: block;
-}
-
 /* Design tokens. Values come from the Lummo palette; components only use the
    semantic names below so light/dark/accent switch instantly. */
 :root {
@@ -55,7 +29,7 @@
   --lm-icon-tile: #ffffff;
   --lm-selection-rim: rgba(255, 255, 255, 0.62);
   /* letter spacing of the typed text and the results, kept equal */
-  --lm-spotlight-tracking: 0.065em;
+  --lm-spotlight-tracking: 0;
   /* Fades out within Spotlight's 36 px transparent margin (offset + blur + spread <= 36),
      or the window edge would cut it off. */
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -118,7 +92,8 @@
   --color-icon-tile: var(--lm-icon-tile);
   --color-selection-rim: var(--lm-selection-rim);
 
-  --font-sans: "SF Pro Display", system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
+  /* the system's own UI font: Segoe UI on Windows, the GTK font on Linux, SF on macOS */
+  --font-sans: system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
 
   --text-2xs: 11px;
@@ -141,8 +116,6 @@
   body {
     font-family: var(--font-sans);
     font-size: 13px;
-    /* SF Pro Display is spaced for large sizes; open it up for UI text */
-    letter-spacing: 0.045em;
     color: var(--lm-label);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -161,7 +134,6 @@
   html[data-window="settings"] body {
     background: var(--lm-bg);
   }
-
   input,
   textarea,
   button,
