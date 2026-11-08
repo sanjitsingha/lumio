@@ -32,9 +32,9 @@ export const ResultRow = forwardRef(function ResultRow({ result, selected, onHov
         <ResultIcon icon={result.icon} size={40} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[16px] leading-[20px] font-light">{result.title}</span>
+        <span className="block truncate text-[16px]">{result.title}</span>
         <span
-          className={cx("block truncate text-[11px] leading-[14px]", selected ? "text-on-accent/85" : "text-secondary")}
+          className={cx("block truncate text-[11px]", selected ? "text-on-accent/85" : "text-secondary")}
           title={result.subtitle}
         >
           {selected && result.note ? result.note : result.subtitle || KIND_LABEL[result.kind]}
@@ -45,25 +45,13 @@ export const ResultRow = forwardRef(function ResultRow({ result, selected, onHov
   );
 });
 
-/** One of an app's own actions, listed below the app while it is selected, with the app's icon. */
-export const ActionRow = forwardRef(function ActionRow({ action, icon, selected, onHover, onOpen }, ref) {
-  return (
-    <div
-      ref={ref}
-      role="option"
-      aria-selected={selected}
-      onMouseMove={onHover}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onOpen}
-      className={cx("mx-2 flex h-[36px] items-center gap-2.5 rounded-[10px] pr-3 pl-1.5", rowTone(selected))}
-    >
-      <span className="flex h-[24px] w-[40px] shrink-0 items-center justify-center">
-        <ResultIcon icon={icon} size={24} />
-      </span>
-      <span className="min-w-0 flex-1 truncate text-[14px] leading-[18px] font-light">{action.title}</span>
-      {selected && <EnterKey />}
-    </div>
-  );
+/**
+ * One of an app's own actions, listed under "Actions" below the app while it
+ * is selected: a row like the app's, with its icon and its name below.
+ */
+export const ActionRow = forwardRef(function ActionRow({ action, app, ...row }, ref) {
+  const result = { icon: app.icon, title: action.title, subtitle: action.subtitle || app.title, kind: "action" };
+  return <ResultRow ref={ref} result={result} {...row} />;
 });
 
 /** The calculator's answer on one line, "2 + 2 = 4"; a long sum shortens, the answer never does. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expansionFor, flatten, jumpSection, moveSelection, selectItem } from "../src/utils/navigation";
+import { expansionFor, flatten, jumpSection, moveSelection, sectionLines, selectItem } from "../src/utils/navigation";
 
 const sections = [
   { id: "top", results: [{ id: "a" }] },
@@ -64,6 +64,30 @@ describe("app actions", () => {
     expect(items[2]).toMatchObject({ action: { title: "New Private Window" }, sectionIndex: 0, index: 2 });
     expect(items[2].result.id).toBe("app:ff");
     expect(flatten(withActions).map((i) => i.key)).toEqual(["app:ff", "file:a", "file:b"]);
+  });
+
+  it("heads the actions, and the section again for the results after them", () => {
+    const apps = [{ id: "apps", results: [{ id: "app:x" }, firefox, { id: "app:y" }] }];
+    const items = flatten(apps, "app:ff");
+    const lines = sectionLines(items.map((item, i) => [item, i]), "Applications");
+    expect(lines.map((l) => l.heading ?? l.item.key)).toEqual([
+      "app:x",
+      "app:ff",
+      "Actions",
+      "app:ff#new",
+      "app:ff#private",
+      "Applications",
+      "app:y",
+    ]);
+    expect(lines[3].index).toBe(2);
+    // actions at the end of a section need no heading after them
+    const top = flatten(withActions, "app:ff").filter((i) => i.sectionIndex === 0);
+    expect(sectionLines(top.map((item, i) => [item, i]), "Top Hit").map((l) => l.heading ?? l.item.key)).toEqual([
+      "app:ff",
+      "Actions",
+      "app:ff#new",
+      "app:ff#private",
+    ]);
   });
 
   it("keeps the actions open while the app or one of its actions is selected", () => {

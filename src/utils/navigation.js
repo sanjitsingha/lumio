@@ -18,6 +18,22 @@ export function flatten(sections, expandedId = null) {
   return items;
 }
 
+/**
+ * The lines of one section as the list shows them: its rows (`[item, index]`
+ * pairs), with an "Actions" heading before an app's actions and the
+ * section's own heading again after them when more of its results follow.
+ */
+export function sectionLines(rows, title) {
+  const lines = [];
+  rows.forEach(([item, index], n) => {
+    const previous = n > 0 ? rows[n - 1][0] : null;
+    if (item.action && !previous?.action) lines.push({ heading: "Actions", key: `actions:${item.result.id}` });
+    else if (!item.action && previous?.action) lines.push({ heading: title, key: `after:${previous.result.id}` });
+    lines.push({ item, index });
+  });
+  return lines;
+}
+
 /** The app whose actions are shown while `item` is selected: the app itself, or an action's app. */
 export function expansionFor(item) {
   if (!item || !(item.action || item.result.actions?.length)) return null;

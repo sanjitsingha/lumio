@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
 import { ActionRow, CalculatorRow, ResultRow } from "./ResultRow";
+import { sectionLines } from "../../utils/navigation";
+
+function Heading({ children }) {
+  return <div className="px-[14px] pt-3 pb-1.5 text-[12px] leading-[16px] text-secondary">{children}</div>;
+}
 
 /**
  * Grouped results with section headers; scrolls the selection into view.
@@ -23,8 +28,8 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
 
   // The cap uses the window's largest height, 632/752 of its fixed width (see
   // window_manager.rs), not 100vh: on Windows the window is sized to this
-  // content, so a 100vh cap would shrink along with it. 182 px = 2 × 36 margin
-  // + search bar, footer and borders (91) + 19 spare.
+  // content, so a 100vh cap would shrink along with it. 198 px = 2 × 36 margin
+  // + 2 × 8 panel padding + search bar, footer and borders (91) + 19 spare.
   const groups = [];
   items.forEach((item, i) => {
     if (groups.at(-1)?.sectionIndex !== item.sectionIndex) groups.push({ sectionIndex: item.sectionIndex, rows: [] });
@@ -35,16 +40,15 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
       ref={listRef}
       role="listbox"
       aria-label="Results"
-      className="scroll-area max-h-[min(452px,calc(100vw*632/752-182px))] pb-2 tracking-[var(--lm-spotlight-tracking)]"
+      className="scroll-hidden max-h-[min(436px,calc(100vw*632/752-198px))] pb-2"
     >
       {groups.map(({ sectionIndex, rows }) => {
         const section = sections[sectionIndex];
         return (
           <div key={section.id} role="group" aria-label={section.title}>
-            <div className="px-[14px] pt-3 pb-1.5 text-[12px] leading-[16px] text-secondary">
-              {section.title}
-            </div>
-            {rows.map(([item, i]) => {
+            <Heading>{section.title}</Heading>
+            {sectionLines(rows, section.title).map(({ heading, key, item, index: i }) => {
+              if (heading) return <Heading key={key}>{heading}</Heading>;
               const row = {
                 ref: (el) => (rowRefs.current[i] = el),
                 selected: i === selected,
@@ -52,7 +56,7 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
                 onOpen: () => onOpen(item.action ?? item.result, "open"),
               };
               if (item.action) {
-                return <ActionRow key={item.key} action={item.action} icon={item.result.icon} {...row} />;
+                return <ActionRow key={item.key} action={item.action} app={item.result} {...row} />;
               }
               const Row = item.result.kind === "calculator" ? CalculatorRow : ResultRow;
               return <Row key={item.key} result={item.result} {...row} />;

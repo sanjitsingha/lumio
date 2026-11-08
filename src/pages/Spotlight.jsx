@@ -202,7 +202,7 @@ export default function SpotlightPage() {
         animate={closing ? { opacity: 0, scale: 0.985, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
         // the fade-out must end before the window hides (FADE_OUT, 120 ms, in window_manager.rs)
         transition={{ duration: closing ? 0.1 : 0.16, ease: EASE }}
-        className="w-full overflow-hidden rounded-[16px] border border-panel-border bg-panel shadow-panel"
+        className="w-full overflow-hidden rounded-[32px] border border-panel-border bg-panel shadow-panel"
       >
         <motion.div
           initial={false}
@@ -210,7 +210,8 @@ export default function SpotlightPage() {
           transition={RESIZE}
           className="overflow-hidden"
         >
-          <div ref={setContent}>
+          {/* the panel's inner padding, counted in the results list's height cap (ResultList.jsx) */}
+          <div ref={setContent} className="p-2">
             <SearchBar
               ref={inputRef}
               value={query}

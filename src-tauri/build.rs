@@ -25,14 +25,10 @@ const COMMANDS: &[&str] = &[
     "validate_shortcut",
     // caps lock
     "get_capslock_support",
-    "preview_capslock_indicator",
     // system
     "get_platform_info",
     "get_system_appearance",
     "get_browsers",
-    "get_diagnostics",
-    "read_log_tail",
-    "open_log_folder",
     "clear_cache",
     "open_repository",
     "quit_app",

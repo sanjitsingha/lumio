@@ -24,12 +24,10 @@
   --lm-success: #34c759;
   --lm-warning: #ff9500;
   --lm-panel: rgba(241, 241, 241, 0.97);
-  --lm-panel-border: rgba(0, 0, 0, 0.14);
+  --lm-panel-border: #ffffff;
   /* Spotlight: the plate app icons sit on, and the rim of the selected row */
   --lm-icon-tile: #ffffff;
   --lm-selection-rim: rgba(255, 255, 255, 0.62);
-  /* letter spacing of the typed text and the results, kept equal */
-  --lm-spotlight-tracking: 0;
   /* Fades out within Spotlight's 36 px transparent margin (offset + blur + spread <= 36),
      or the window edge would cut it off. */
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -177,6 +175,15 @@
   }
   .scroll-area::-webkit-scrollbar-track {
     background: transparent;
+  }
+
+  /* scrolls by wheel, touchpad and keyboard, with no scrollbar shown (Spotlight's results) */
+  .scroll-hidden {
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .scroll-hidden::-webkit-scrollbar {
+    display: none;
   }
 
   .hairline-b {
