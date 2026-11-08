@@ -333,6 +333,11 @@ impl CaretTracker {
         self.located_in.as_ref().is_some_and(|located| self.focused_window().as_ref() != Some(located))
     }
 
+    /// Whether the field `locate` found is a password field.
+    pub fn in_password_field(&self) -> bool {
+        self.target.as_ref().is_some_and(|t| self.role_name(&t.field) == "password text")
+    }
+
     /// The text field `locate` found, on screen (where the caret must be).
     /// Unknown for a field hidden outside its window (Google Docs).
     pub fn focused_field(&self) -> Option<Rect> {

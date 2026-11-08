@@ -430,6 +430,10 @@ struct Runner {
     /// The indicator stands at the input method's cursor: it reports every
     /// move, so accessibility is not polled while following.
     follow_ime: bool,
+    /// The focused field is a password field. GTK reports its cursor to the
+    /// input method as if its text were shown, not its dots, so
+    /// accessibility places and follows the indicator there.
+    password: bool,
     /// The focused field has text selected: the indicator waits for its text
     /// cursor to come back.
     selection: bool,
@@ -473,6 +477,7 @@ impl Runner {
             refocused: false,
             field: None,
             follow_ime: false,
+            password: false,
             selection: false,
             selection_checked: Instant::now(),
             shown_at: Instant::now(),
@@ -808,6 +813,8 @@ impl Runner {
     fn find_anchor(&mut self) -> Option<Anchor> {
         let ime = self.ime_caret(true);
         let accessible = self.caret_tracker().and_then(|c| c.locate().map(|caret| (caret, c.focused_field())));
+        self.password = accessible.is_some() && self.caret.as_ref().is_some_and(|c| c.in_password_field());
+        let ime = if self.password { None } else { ime };
         let caret = choose_caret(ime, accessible);
         self.field = accessible.and_then(|(_, field)| field);
         self.follow_ime = ime.is_some() && caret == ime;
@@ -839,8 +846,9 @@ impl Runner {
     /// The anchor's new position while following, if it moved.
     fn poll_anchor(&mut self, now: Instant) -> Option<Anchor> {
         self.anchor?;
-        // the input method reports every move as it happens
-        if self.ime_moved {
+        // the input method reports every move as it happens (but not where the
+        // dots of a password field end)
+        if self.ime_moved && !self.password {
             if let Some(caret) = self.ime_caret(false) {
                 // accessibility placed the indicator; its field cannot vouch
                 // for input method positions, which disagreed with it
@@ -948,6 +956,7 @@ impl Runner {
         self.blur_at = None;
         self.refocused = false;
         self.field = None;
+        self.password = false;
         if let Some(o) = self.overlay.as_mut() {
             o.hide();
         }

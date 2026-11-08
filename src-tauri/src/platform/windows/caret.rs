@@ -131,6 +131,11 @@ impl CaretTracker {
 
     pub fn release(&mut self) {}
 
+    /// The system caret is right in password fields too.
+    pub fn in_password_field(&self) -> bool {
+        false
+    }
+
     /// The system caret needs no cross-check against its field.
     pub fn focused_field(&self) -> Option<Rect> {
         None

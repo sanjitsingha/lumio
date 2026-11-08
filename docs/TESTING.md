@@ -106,6 +106,41 @@ Run this on each platform and record the results.
 | 13 | Launch at login starts Lummo in the background | ☐ | ☐ | ☐ | ☐ |
 | 14 | Quit releases shortcuts (Ctrl+Space works in other apps again) | ✅ | ☐ | ☐ | ☐ |
 
+## Caps Lock indicator: text cursor matrix
+
+Every app reports its text cursor in its own way (input method, accessibility, or neither), so the indicator is checked per kind of app. Run it before a release that touches `capslock/` or `platform/*/caret.rs`, and whenever someone reports a wrong position: the row tells you which code path failed.
+
+In each cell, check:
+
+1. Caps Lock on: the indicator appears just below the text cursor.
+2. Typing moves the cursor: the indicator follows.
+3. With Caps Lock already on, clicking into the field shows the indicator.
+4. Moving to another field pops it in there; it does not glide across.
+5. Caps Lock off hides it.
+
+Put the cursor at the end of some text (an empty field hides placement errors). ✅ = all five pass; otherwise write what failed.
+
+| App type | elementary OS 8 (Wayland) | Windows 11 |
+|---|---|---|
+| GTK 3 text field | ✅ input method (2026-11-08) | n/a |
+| GTK 3 multi-line text | ✅ (2026-11-08) | n/a |
+| GTK 3 **password** field | ✅ since 0.1.28: accessibility (GTK reports the input method a cursor as if the text were shown, not its dots) | n/a |
+| GTK 3 app on XWayland (field, password) | ✅ (2026-11-08) | n/a |
+| GTK 4 (System Settings, Calculator) | ✅ input method only; GTK 4 reports no positions to accessibility | n/a |
+| Terminal | ✅ input method | ☐ Windows Terminal |
+| LibreOffice Writer | ✅ | ☐ |
+| Microsoft Word | n/a | ☐ |
+| Notepad / text editor | ✅ GTK editors | ☐ Notepad |
+| VS Code | ✅ input method | ☐ |
+| Chrome: page field, text area, rich editor (ChatGPT, Gmail) | ✅ (needs Chrome's accessibility and input method flags, see TROUBLESHOOTING) | ☐ |
+| Chrome address bar | ✅ below its text start (no character positions) | ☐ |
+| Chrome **password** field | ✅ (2026-11-08) | ☐ |
+| Google Docs | ✅ its drawn cursor | ☐ |
+| System search (Start menu, Settings search) | n/a | ☐ |
+| Firefox | ☐ not installed here | ☐ |
+| GNOME Web (Epiphany) | ☐ by hand: local test pages cannot reach its sandbox | n/a |
+| Qt app | ☐ none with a text field installed here | ☐ |
+
 ## Manual multi-monitor and scaling notes
 
 - **Placement uses the monitor containing the text cursor or pointer.** The indicator flips to the other side at screen edges and never covers the caret's line (covered by `capslock::geometry` tests).

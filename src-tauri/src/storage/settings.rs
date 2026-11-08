@@ -22,7 +22,15 @@ pub struct Settings {
     pub shortcuts: ShortcutSettings,
     pub caps_lock: CapsLockSettings,
     pub appearance: AppearanceSettings,
+    /// Sections this version does not know, written by a newer or a test
+    /// build: kept as they are, so going back and forth between versions
+    /// loses nothing.
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, Value>,
 }
+
+/// The sections `Settings` reads; any other top-level key is kept in `unknown`.
+const SECTIONS: &[&str] = &["schemaVersion", "general", "spotlight", "shortcuts", "capsLock", "appearance"];
 
 impl Default for Settings {
     fn default() -> Self {
@@ -33,6 +41,7 @@ impl Default for Settings {
             shortcuts: ShortcutSettings::default(),
             caps_lock: CapsLockSettings::default(),
             appearance: AppearanceSettings::default(),
+            unknown: serde_json::Map::new(),
         }
     }
 }
@@ -269,6 +278,8 @@ impl Settings {
         settings.shortcuts = section(obj, "shortcuts", &mut warnings);
         settings.caps_lock = section(obj, "capsLock", &mut warnings);
         settings.appearance = section(obj, "appearance", &mut warnings);
+        settings.unknown =
+            obj.iter().filter(|(key, _)| !SECTIONS.contains(&key.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
         settings.schema_version = SCHEMA_VERSION;
         (settings, warnings)
     }
@@ -522,6 +533,18 @@ mod tests {
         assert!(settings.general.launch_at_startup);
         assert!(settings.general.share_usage_statistics);
         assert_eq!(settings.spotlight, SpotlightSettings::default());
+    }
+
+    #[test]
+    fn unknown_sections_survive_loading_and_saving() {
+        let value = json!({ "general": { "launchAtStartup": false }, "futureFeature": { "on": true, "level": 3 } });
+        let (settings, warnings) = Settings::from_value_lenient(&value);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let saved = serde_json::to_value(&settings).unwrap();
+        assert_eq!(saved["futureFeature"], json!({ "on": true, "level": 3 }));
+        assert_eq!(saved["general"]["launchAtStartup"], false);
+        let (again, _) = Settings::from_value_lenient(&saved);
+        assert_eq!(again, settings);
     }
 
     #[test]
