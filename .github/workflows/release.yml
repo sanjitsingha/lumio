@@ -65,6 +65,14 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Bundling downloads its tools (AppImage's AppRun and linuxdeploy, NSIS);
+      # kept between runs, so a GitHub hiccup cannot fail the build
+      - uses: actions/cache@v6
+        with:
+          path: ${{ runner.os == 'Windows' && '~/AppData/Local/tauri' || '~/.cache/tauri' }}
+          key: tauri-tools-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: tauri-tools-${{ runner.os }}-
+
       - run: npm ci
 
       - name: Signing key must work

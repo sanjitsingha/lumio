@@ -40,13 +40,23 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Bundling downloads its tools (AppImage's AppRun and linuxdeploy, NSIS);
+      # kept between runs, so a GitHub hiccup cannot fail the build
+      - uses: actions/cache@v6
+        with:
+          path: ${{ runner.os == 'Windows' && '~/AppData/Local/tauri' || '~/.cache/tauri' }}
+          key: tauri-tools-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: tauri-tools-${{ runner.os }}-
+
       - run: npm ci
       - run: npm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       # unsigned test build; signed releases come from release.yml
-      - run: npx tauri build --bundles ${{ matrix.bundles }} --config src-tauri/tauri.unsigned.conf.json
+      - name: Unsigned build
+        shell: bash
+        run: bash scripts/ci-tauri.sh build --bundles ${{ matrix.bundles }} --config src-tauri/tauri.unsigned.conf.json
 
       - uses: actions/upload-artifact@v7
         with:
