@@ -29,7 +29,7 @@ export function ResultList({ sections, items, selected, onSelect, onOpen }) {
   // The cap uses the window's largest height, 632/752 of its fixed width (see
   // window_manager.rs), not 100vh: on Windows the window is sized to this
   // content, so a 100vh cap would shrink along with it. 198 px = 2 × 36 margin
-  // + 2 × 8 panel padding + search bar, footer and borders (91) + 19 spare.
+  // + 2 × 8 panel padding + search bar, footer and borders (81) + 29 spare.
   const groups = [];
   items.forEach((item, i) => {
     if (groups.at(-1)?.sectionIndex !== item.sectionIndex) groups.push({ sectionIndex: item.sectionIndex, rows: [] });

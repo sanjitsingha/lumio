@@ -138,7 +138,8 @@ Put the cursor at the end of some text (an empty field hides placement errors). 
 | Google Docs | ✅ its drawn cursor | ☐ |
 | System search (Start menu, Settings search) | n/a | ☐ |
 | Firefox | ☐ not installed here | ☐ |
-| GNOME Web (Epiphany) | ☐ by hand: local test pages cannot reach its sandbox | n/a |
+| Lummo's own Settings (WebKitGTK) | ✅ since 0.1.29: WebKitGTK reports the input method a cursor with its web view's place in the window (shadow and title bar) counted twice; Lummo subtracts it for its own windows | ☐ |
+| GNOME Web (Epiphany) | ☐ by hand (local test pages cannot reach its sandbox); WebKitGTK's doubled offset is caught where accessibility reports the field | n/a |
 | Qt app | ☐ none with a text field installed here | ☐ |
 
 ## Manual multi-monitor and scaling notes

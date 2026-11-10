@@ -4,6 +4,9 @@
 //! * `--dev-snapshot <dir>` writes `<dir>/<window>.png` for every Lummo webview
 //!   (only Lummo's own content is captured, never the rest of the desktop).
 //! * `--dev-eval <window> <js>` runs JavaScript in a Lummo window (UI tests).
+//! * `--dev-a11y-drop` closes the Caps Lock indicator's accessibility
+//!   connection, as if the service had restarted, then looks up the text
+//!   cursor: the log shows whether it reconnected.
 
 use tauri::{AppHandle, Manager};
 
@@ -25,6 +28,11 @@ pub fn handle(app: &AppHandle, argv: &[String]) -> bool {
                 }
                 None => log::error!("dev-eval: no window named {label}"),
             }
+            true
+        }
+        #[cfg(target_os = "linux")]
+        ["--dev-a11y-drop", ..] => {
+            app.state::<crate::app_state::AppState>().capslock.dev_drop_accessibility();
             true
         }
         _ => false,

@@ -45,6 +45,37 @@ const IME_RETRY: Duration = Duration::from_secs(10);
 /// Input contexts remembered (one per text field or app).
 const MAX_IME_CONTEXTS: usize = 64;
 
+/// When to try again to reach a service that could not be reached: 1 s after
+/// the first failure, then twice as long after each one, up to a minute.
+/// Attempts are made only when the service is needed, never in the background.
+#[derive(Debug, Default)]
+struct Backoff {
+    failures: u32,
+    next: Option<Instant>,
+}
+
+impl Backoff {
+    const FIRST: Duration = Duration::from_secs(1);
+    const MAX: Duration = Duration::from_secs(60);
+
+    fn due(&self, now: Instant) -> bool {
+        self.next.is_none_or(|next| now >= next)
+    }
+
+    /// Records a failure; returns how long until the next attempt.
+    fn failed(&mut self, now: Instant) -> Duration {
+        let delay = (Self::FIRST * (1 << self.failures.min(6))).min(Self::MAX);
+        self.failures += 1;
+        self.next = Some(now + delay);
+        delay
+    }
+
+    /// Records a success, or a lost connection worth retrying at once.
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
@@ -99,6 +130,10 @@ enum Msg {
     Settings(CapsLockSettings),
     /// The app's appearance, which the indicator follows.
     Theme(AppearanceMode),
+    /// Developer aid: drop the accessibility connection, then look up the
+    /// text cursor (`lummo --dev-a11y-drop`).
+    #[cfg(all(feature = "dev-snapshot", target_os = "linux"))]
+    DevDropAccessibility,
     Shutdown,
 }
 
@@ -234,6 +269,11 @@ impl CapsLockController {
 
     pub fn shutdown(&self) {
         let _ = self.tx.send(Msg::Shutdown);
+    }
+
+    #[cfg(all(feature = "dev-snapshot", target_os = "linux"))]
+    pub fn dev_drop_accessibility(&self) {
+        let _ = self.tx.send(Msg::DevDropAccessibility);
     }
 }
 
@@ -397,8 +437,11 @@ struct Runner {
     state: IndicatorState,
     caps_state: Arc<Mutex<Option<bool>>>,
     overlay: Option<platform::overlay::Overlay>,
+    /// Accessibility, connected when first needed and again after it failed
+    /// or its connection closed.
     caret: Option<platform::caret::CaretTracker>,
-    caret_unavailable: bool,
+    caret_retry: Backoff,
+    caret_error: Option<String>,
     visual: Option<Visual>,
     anchor: Option<Anchor>,
     last_caret_poll: Instant,
@@ -460,7 +503,8 @@ impl Runner {
             caps_state,
             overlay: None,
             caret: None,
-            caret_unavailable: false,
+            caret_retry: Backoff::default(),
+            caret_error: None,
             visual: None,
             anchor: None,
             last_caret_poll: Instant::now(),
@@ -519,6 +563,19 @@ impl Runner {
                         v.dark = dark;
                         v.frame = None;
                     }
+                    Command::None
+                }
+                #[cfg(all(feature = "dev-snapshot", target_os = "linux"))]
+                Ok(Msg::DevDropAccessibility) => {
+                    if let Some(c) = self.caret.as_ref() {
+                        c.dev_disconnect();
+                    }
+                    let found = self.caret_tracker().map(|c| {
+                        let found = c.locate().is_some();
+                        c.release();
+                        found
+                    });
+                    log::info!("dev: text cursor lookup after dropping accessibility: {found:?}");
                     Command::None
                 }
                 Ok(Msg::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
@@ -830,13 +887,32 @@ impl Runner {
         self.caret.as_mut().is_some_and(|c| c.take_window_switch())
     }
 
+    /// Accessibility, (re)connected if needed: when it could not be reached
+    /// (at login it may start after Lummo) it is tried again later, and when
+    /// its bus went away (the service restarted) it is reconnected at once.
     fn caret_tracker(&mut self) -> Option<&mut platform::caret::CaretTracker> {
-        if self.caret.is_none() && !self.caret_unavailable {
+        if self.caret.as_ref().is_some_and(|c| !c.is_connected()) {
+            log::info!("the accessibility connection closed; reconnecting");
+            self.caret = None;
+            self.caret_retry.reset();
+        }
+        let now = Instant::now();
+        if self.caret.is_none() && self.caret_retry.due(now) {
             match platform::caret::CaretTracker::new() {
-                Ok(c) => self.caret = Some(c),
+                Ok(c) => {
+                    if self.caret_error.take().is_some() {
+                        log::info!("text cursor positions are available again");
+                    }
+                    self.caret = Some(c);
+                    self.caret_retry.reset();
+                }
                 Err(e) => {
-                    log::info!("text cursor positions are unavailable: {e}");
-                    self.caret_unavailable = true;
+                    let delay = self.caret_retry.failed(now);
+                    if self.caret_error.as_deref() != Some(e.as_str()) {
+                        log::info!("text cursor positions are unavailable: {e}");
+                        self.caret_error = Some(e);
+                    }
+                    log::debug!("trying accessibility again in {delay:?} or later, when needed");
                 }
             }
         }
@@ -1166,6 +1242,21 @@ mod tests {
 
     fn r(x: i32, y: i32, width: i32, height: i32) -> Rect {
         Rect { x, y, width, height }
+    }
+
+    #[test]
+    fn accessibility_is_retried_ever_more_slowly_until_it_answers() {
+        let start = Instant::now();
+        let mut retry = Backoff::default();
+        assert!(retry.due(start), "the first attempt is made at once");
+        let delays: Vec<u64> = (0..9).map(|_| retry.failed(start).as_secs()).collect();
+        assert_eq!(delays, [1, 2, 4, 8, 16, 32, 60, 60, 60]);
+        assert!(!retry.due(start + Duration::from_secs(59)));
+        assert!(retry.due(start + Duration::from_secs(60)));
+        // reconnecting after a success, or a lost connection, starts over
+        retry.reset();
+        assert!(retry.due(start));
+        assert_eq!(retry.failed(start), Duration::from_secs(1));
     }
 
     #[test]

@@ -6,8 +6,9 @@ import { LoaderCircle, Search } from "lucide-react";
  * `suggestion` (from search history) is drawn as ghost text after it,
  * accepted with → or End. Both are drawn by a copy of the text behind the
  * transparent input, kept in step with the input's horizontal scrolling.
+ * `kind` names what the selected result is ("Application"), at the right end.
  */
-export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyDown, loading, suggestion }, ref) {
+export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyDown, loading, suggestion, kind }, ref) {
   const input = useRef(null);
   const [scroll, setScroll] = useState(0);
   const syncScroll = () => setScroll(input.current?.scrollLeft ?? 0);
@@ -19,7 +20,7 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
       ? suggestion.slice(value.length)
       : "";
   return (
-    <div className="flex h-[58px] items-center gap-3 px-4">
+    <div className="flex h-[48px] items-center gap-3 px-4">
       <Search size={22} strokeWidth={2} className="shrink-0 text-secondary" aria-hidden />
       <div className="relative min-w-0 flex-1">
         {value && (
@@ -56,6 +57,7 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
           className="relative w-full bg-transparent text-[21px] text-label outline-none placeholder:text-tertiary"
         />
       </div>
+      {kind && <span className="shrink-0 text-[14px] text-secondary">{kind}</span>}
       {loading && <LoaderCircle size={18} className="shrink-0 animate-spin text-secondary" aria-label="Searching" />}
     </div>
   );

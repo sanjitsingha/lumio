@@ -255,7 +255,11 @@ pub fn open_settings(app: &AppHandle, pane: Option<&str>) {
                 .visible(true)
                 .build();
             match built {
-                Ok(w) => w,
+                Ok(w) => {
+                    #[cfg(target_os = "linux")]
+                    track_webview_offset(app, &w, "Lummo Settings");
+                    w
+                }
                 Err(e) => {
                     log::error!("could not create the Settings window: {e}");
                     return;
@@ -269,6 +273,36 @@ pub fn open_settings(app: &AppHandle, pane: Option<&str>) {
     if let Some(pane) = pane {
         let _ = window.emit(events::NAVIGATE, pane);
     }
+}
+
+/// Keeps the caret tracker told where the window's web view sits in its
+/// surface (CSD shadow and title bar): WebKitGTK reports the text cursor to
+/// the input method with that offset counted twice (see
+/// `platform::caret::set_own_webview_offset`). Spotlight's web view starts
+/// at its window's corner, so only Settings needs it.
+#[cfg(target_os = "linux")]
+fn track_webview_offset(app: &AppHandle, window: &WebviewWindow, title: &'static str) {
+    fn find_webview(widget: &gtk::Widget) -> Option<gtk::Widget> {
+        use gtk::prelude::*;
+        if widget.type_().name() == "WebKitWebView" {
+            return Some(widget.clone());
+        }
+        widget.downcast_ref::<gtk::Container>()?.children().iter().find_map(find_webview)
+    }
+    let window = window.clone();
+    let _ = app.run_on_main_thread(move || {
+        use gtk::prelude::*;
+        let Ok(toplevel) = window.gtk_window() else { return };
+        let Some(webview) = find_webview(toplevel.upcast_ref()) else {
+            log::debug!("no web view found in {title}");
+            return;
+        };
+        webview.connect_size_allocate(move |webview, _| {
+            if let Some(offset) = webview.translate_coordinates(&toplevel, 0, 0) {
+                crate::platform::caret::set_own_webview_offset(title, offset);
+            }
+        });
+    });
 }
 
 /// After Spotlight loses focus: `None` to hide it now, or how long to wait

@@ -135,6 +135,27 @@ fn has(state: u64, bit: u32) -> bool {
     state & (1 << bit) != 0
 }
 
+/// Where Lummo's own web views sit in their window's surface, by window
+/// title. WebKitGTK reports a web view's text cursor to the input method
+/// relative to the surface with this offset added a second time, which puts
+/// the indicator too far right and down by the window's shadow and title bar.
+static OWN_WEBVIEWS: std::sync::Mutex<Vec<(String, (i32, i32))>> = std::sync::Mutex::new(Vec::new());
+
+/// Records where the web view of Lummo's window `title` sits in its surface.
+pub fn set_own_webview_offset(title: &str, offset: (i32, i32)) {
+    let mut own = OWN_WEBVIEWS.lock().unwrap_or_else(|e| e.into_inner());
+    match own.iter_mut().find(|(t, _)| t == title) {
+        Some(entry) if entry.1 == offset => return,
+        Some(entry) => entry.1 = offset,
+        None => own.push((title.to_string(), offset)),
+    }
+    log::debug!("web view of {title} at {offset:?} in its window");
+}
+
+fn own_webview_offset(title: &str) -> Option<(i32, i32)> {
+    OWN_WEBVIEWS.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|(t, _)| t == title).map(|(_, o)| *o)
+}
+
 struct Target {
     field: Obj,
     /// The text cursor the page draws itself, read instead of the field's
@@ -194,6 +215,22 @@ impl CaretTracker {
         })
     }
 
+    /// Whether the connection to the accessibility bus is still open. It
+    /// closes when the bus goes away (its service restarted), and every
+    /// lookup fails from then on.
+    pub fn is_connected(&self) -> bool {
+        !self.a11y.is_closed()
+    }
+
+    /// Developer aid (`lummo --dev-a11y-drop`): closes the connection as if
+    /// the accessibility bus had gone away, to test reconnecting.
+    #[cfg(feature = "dev-snapshot")]
+    pub fn dev_disconnect(&self) {
+        if let Err(e) = self.a11y.close_sync(gio::Cancellable::NONE) {
+            log::warn!("dev: could not close the accessibility connection: {e}");
+        }
+    }
+
     /// Converts a text cursor reported to the input method into screen
     /// coordinates. `relative` positions are relative to the focused window
     /// (GTK, Qt); the others are screen positions (Wayland text-input clients
@@ -202,6 +239,13 @@ impl CaretTracker {
     /// that kept its focus).
     pub fn map_input_method(&mut self, rect: Rect, relative: bool, fresh: bool) -> Option<Rect> {
         let geometry = self.window_geometry(fresh)?;
+        // WebKitGTK counts its web view's place in the window twice; Lummo
+        // knows where its own web views sit
+        let own = self.geometry.as_ref().and_then(|(_, focus, _)| own_webview_offset(&focus.title));
+        let rect = match own {
+            Some((dx, dy)) if relative && !geometry.x11 => Rect { x: rect.x - dx, y: rect.y - dy, ..rect },
+            _ => rect,
+        };
         let caret = map_reported(rect, relative, &geometry);
         let inside = geometry.x11 || within(geometry.actor, caret, 8);
         if !inside {

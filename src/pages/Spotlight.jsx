@@ -12,12 +12,19 @@ import { EVENTS, subscribe } from "../services/events";
 import { calculate } from "../utils/calc";
 import { copyText } from "../utils/clipboard";
 import { deletePreviousSegment } from "../utils/keys";
-import { expansionFor, flatten, jumpSection, moveSelection, selectItem } from "../utils/navigation";
+import { expansionFor, flatten, jumpSection, kindLabel, moveSelection, selectItem } from "../utils/navigation";
 
 /** Transparent margin around the panel that holds its drop shadow (`SPOTLIGHT_MARGIN` in window_manager.rs). */
 const MARGIN = 36;
 /** The panel's top and bottom border (`border`, 1 px each). */
 const PANEL_BORDERS = 2;
+/** The search field's height (`SearchBar`) and the panel's inner padding (`p-2`). */
+const SEARCH_HEIGHT = 48;
+const PANEL_PADDING = 8;
+/** Corners with only the search field showing: a pill… */
+const PILL_RADIUS = (SEARCH_HEIGHT + 2 * PANEL_PADDING + PANEL_BORDERS) / 2;
+/** …and with results or recent items below it. */
+const PANEL_RADIUS = 32;
 const EASE = [0.2, 0.8, 0.2, 1];
 /** How the panel's height follows its contents as results come and go. */
 const RESIZE = { duration: 0.2, ease: EASE };
@@ -189,6 +196,11 @@ export default function SpotlightPage() {
   };
 
   const hasList = sections.length > 0;
+  // results, recent items, "no results" or an error below the search field
+  const hasBody = Boolean(hasList || noResults || error || launchError);
+  const radius = hasBody ? PANEL_RADIUS : PILL_RADIUS;
+  // what the selected result is, at the right of the search field while searching
+  const kind = query.trim() ? kindLabel(items[selected]) : null;
   return (
     <div
       className="flex h-full w-full items-start justify-center"
@@ -198,11 +210,14 @@ export default function SpotlightPage() {
     >
       <motion.div
         key={showKey}
-        initial={{ opacity: 0, scale: 0.985, y: -6 }}
-        animate={closing ? { opacity: 0, scale: 0.985, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.985, y: -6, borderRadius: radius }}
+        animate={
+          closing ? { opacity: 0, scale: 0.985, y: 0, borderRadius: radius } : { opacity: 1, scale: 1, y: 0, borderRadius: radius }
+        }
         // the fade-out must end before the window hides (FADE_OUT, 120 ms, in window_manager.rs)
-        transition={{ duration: closing ? 0.1 : 0.16, ease: EASE }}
-        className="w-full overflow-hidden rounded-[32px] border border-panel-border bg-panel shadow-panel"
+        // the corners change with the panel's height (RESIZE)
+        transition={{ duration: closing ? 0.1 : 0.16, ease: EASE, borderRadius: RESIZE }}
+        className="w-full overflow-hidden border border-panel-border bg-panel shadow-panel"
       >
         <motion.div
           initial={false}
@@ -222,9 +237,10 @@ export default function SpotlightPage() {
               onKeyDown={onKeyDown}
               loading={loading}
               suggestion={shown?.suggestion}
+              kind={kind}
             />
             <AnimatePresence initial={false}>
-              {(hasList || noResults || error || launchError) && (
+              {hasBody && (
                 <motion.div
                   key="body"
                   initial={{ opacity: 0 }}

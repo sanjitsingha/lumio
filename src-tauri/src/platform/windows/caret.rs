@@ -74,6 +74,11 @@ impl CaretTracker {
         Ok(CaretTracker { located_at: 0, located_in: HWND::default(), automation: None })
     }
 
+    /// UI Automation has no connection that could be lost.
+    pub fn is_connected(&self) -> bool {
+        true
+    }
+
     /// Whether the focused field has text selected: it then shows no text
     /// cursor. Fields UI Automation cannot read count as without one.
     pub fn has_selection(&mut self) -> bool {

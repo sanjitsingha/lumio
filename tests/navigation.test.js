@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expansionFor, flatten, jumpSection, moveSelection, sectionLines, selectItem } from "../src/utils/navigation";
+import { expansionFor, flatten, jumpSection, kindLabel, moveSelection, sectionLines, selectItem } from "../src/utils/navigation";
 
 const sections = [
   { id: "top", results: [{ id: "a" }] },
@@ -12,6 +12,16 @@ describe("flatten", () => {
     const items = flatten(sections);
     expect(items.map((i) => i.result.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
     expect(items[3]).toMatchObject({ section: "files", sectionIndex: 2, index: 3 });
+  });
+});
+
+describe("kindLabel (the search field's right end)", () => {
+  it("names the selected result's kind, and an app's own actions as actions", () => {
+    const chrome = { id: "chrome", kind: "app", actions: [{ id: "chrome:new-window" }] };
+    const items = flatten([{ id: "top", results: [chrome, { id: "notes.txt", kind: "file" }] }], "chrome");
+    expect(items.map(kindLabel)).toEqual(["Application", "Action", "File"]);
+    expect(kindLabel(undefined)).toBeNull();
+    expect(kindLabel({ result: { kind: "something-new" }, action: null })).toBeNull();
   });
 });
 

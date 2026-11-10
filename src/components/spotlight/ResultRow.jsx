@@ -2,8 +2,7 @@ import { forwardRef } from "react";
 import { CornerDownLeft } from "lucide-react";
 import { ResultIcon } from "./ResultIcon";
 import { cx } from "../../utils/cx";
-
-const KIND_LABEL = { app: "Application", action: "Action", setting: "Setting", folder: "Folder", file: "File" };
+import { KIND_LABELS } from "../../utils/navigation";
 
 /** Row colours; the selected row gets a light rim inside its edge. */
 const rowTone = (selected) =>
@@ -37,7 +36,7 @@ export const ResultRow = forwardRef(function ResultRow({ result, selected, onHov
           className={cx("block truncate text-[11px]", selected ? "text-on-accent/85" : "text-secondary")}
           title={result.subtitle}
         >
-          {selected && result.note ? result.note : result.subtitle || KIND_LABEL[result.kind]}
+          {selected && result.note ? result.note : result.subtitle || KIND_LABELS[result.kind]}
         </span>
       </span>
       {selected && <EnterKey />}

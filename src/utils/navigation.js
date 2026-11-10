@@ -18,6 +18,23 @@ export function flatten(sections, expandedId = null) {
   return items;
 }
 
+/** What each kind of result is called ("Application" for Google Chrome). */
+export const KIND_LABELS = {
+  app: "Application",
+  action: "Action",
+  setting: "Setting",
+  folder: "Folder",
+  file: "File",
+  web: "Web Search",
+  calculator: "Calculator",
+};
+
+/** What an item of `flatten` is; an app's own actions are "Action". */
+export function kindLabel(item) {
+  if (!item) return null;
+  return item.action ? KIND_LABELS.action : (KIND_LABELS[item.result.kind] ?? null);
+}
+
 /**
  * The lines of one section as the list shows them: its rows (`[item, index]`
  * pairs), with an "Actions" heading before an app's actions and the
