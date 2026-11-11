@@ -83,55 +83,27 @@ function SystemIcon({ src, size, onError }) {
   );
 }
 
-/** The white (dark grey in dark mode) rounded square that app, file and folder icons sit on. */
-function Plate({ size, children }) {
-  return (
-    <span
-      className="flex items-center justify-center bg-icon-tile shadow-control"
-      style={{ width: size, height: size, borderRadius: radius(size) }}
-    >
-      {children}
-    </span>
-  );
-}
-
 /**
- * The icon of a result, `size` px square. App, file and folder icons sit on a
- * plate of that size; symbols are coloured tiles of it.
+ * The icon of a result, `size` px square. App, file and folder icons are drawn
+ * bare; symbols are coloured tiles of that size.
  */
 export function ResultIcon({ icon, size = 40 }) {
   const [failed, setFailed] = useState(false);
-  const inner = Math.round(size * 0.75);
+  const glyph = Math.round(size * 0.85);
 
   // apps and files get the system's icon; the glyphs below are the fallback
   if ((icon.type === "app" || icon.type === "file") && icon.key && !failed) {
-    return (
-      <Plate size={size}>
-        <SystemIcon src={iconUrl(icon.type, icon.key)} size={inner} onError={() => setFailed(true)} />
-      </Plate>
-    );
+    return <SystemIcon src={iconUrl(icon.type, icon.key)} size={size} onError={() => setFailed(true)} />;
   }
-  // Lummo's logo is a full rounded square, like a plate
   if (icon.type === "lummo") return <SystemIcon src="/app-icon.png" size={size} />;
   if (icon.type === "symbol" && icon.name === "folder") {
     return (
-      <Plate size={size}>
-        <Folder
-          size={Math.round(size * 0.65)}
-          strokeWidth={1.4}
-          fill="color-mix(in srgb, #5AC8FA 70%, transparent)"
-          color="#2E9BE6"
-        />
-      </Plate>
+      <Folder size={glyph} strokeWidth={1.2} fill="color-mix(in srgb, #5AC8FA 70%, transparent)" color="#2E9BE6" />
     );
   }
   if (icon.type === "file") {
     const { Icon, tint } = FILES[icon.category] || FILES.generic;
-    return (
-      <Plate size={size}>
-        <Icon size={Math.round(size * 0.6)} strokeWidth={1.5} color={tint} />
-      </Plate>
-    );
+    return <Icon size={glyph} strokeWidth={1.25} color={tint} />;
   }
   const symbol = SYMBOLS[icon.name] || SYMBOLS["app-window"];
   return <Tile tint={symbol.tint} Icon={symbol.Icon} size={size} />;
