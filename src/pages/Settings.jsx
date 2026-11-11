@@ -5,6 +5,7 @@ import { Sidebar, PANES } from "../components/settings/Sidebar";
 import GeneralPane from "../components/settings/panes/GeneralPane";
 import SpotlightPane from "../components/settings/panes/SpotlightPane";
 import CapsLockPane from "../components/settings/panes/CapsLockPane";
+import NotchPane from "../components/settings/panes/NotchPane";
 import AppearancePane from "../components/settings/panes/AppearancePane";
 import About from "./About";
 import { Toaster } from "../components/common/Toaster";
@@ -43,13 +44,22 @@ export default function SettingsPage({ appearance }) {
     general: <GeneralPane onCheckUpdates={onCheckUpdates} />,
     spotlight: <SpotlightPane />,
     capslock: <CapsLockPane appearance={appearance} />,
+    notch: <NotchPane />,
     appearance: <AppearancePane appearance={appearance} />,
     about: <About updates={updates} />,
   }[pane];
+  // the notch exists only in some builds
+  const panes = PANES.filter((p) => p.id !== "notch" || platform?.notchAvailable);
 
   return (
     <div className="flex h-full">
-      <Sidebar active={pane} onSelect={setPane} appName={platform?.appName} version={platform?.version} />
+      <Sidebar
+        active={pane}
+        onSelect={setPane}
+        appName={platform?.appName}
+        version={platform?.version}
+        panes={panes}
+      />
       <main className="scroll-area relative flex-1">
         <div className="mx-auto max-w-[620px] px-8 pt-7 pb-10">
           {notices.length > 0 && (

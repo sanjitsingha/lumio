@@ -25,8 +25,7 @@
   --lm-warning: #ff9500;
   --lm-panel: rgba(241, 241, 241, 0.97);
   --lm-panel-border: #ffffff;
-  /* Spotlight: the plate app icons sit on, and the rim of the selected row */
-  --lm-icon-tile: #ffffff;
+  /* Spotlight: the rim of the selected row */
   --lm-selection-rim: rgba(255, 255, 255, 0.62);
   /* Fades out within Spotlight's 36 px transparent margin (offset + blur + spread <= 36),
      or the window edge would cut it off. */
@@ -58,7 +57,6 @@
   --lm-panel: rgba(37, 37, 40, 0.97);
   /* a lighter shade of the panel itself */
   --lm-panel-border: rgba(255, 255, 255, 0.16);
-  --lm-icon-tile: #3d3d42;
   --lm-selection-rim: rgba(255, 255, 255, 0.3);
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
@@ -87,7 +85,6 @@
   --color-warning: var(--lm-warning);
   --color-panel: var(--lm-panel);
   --color-panel-border: var(--lm-panel-border);
-  --color-icon-tile: var(--lm-icon-tile);
   --color-selection-rim: var(--lm-selection-rim);
 
   /* the system's own UI font: Segoe UI on Windows, the GTK font on Linux, SF on macOS */
@@ -123,9 +120,11 @@
     overflow: hidden;
   }
 
-  /* The Spotlight window is transparent; Settings paints its own background. */
+  /* The Spotlight and notch windows are transparent; Settings paints its own background. */
   html[data-window="spotlight"],
-  html[data-window="spotlight"] body {
+  html[data-window="spotlight"] body,
+  html[data-window="notch"],
+  html[data-window="notch"] body {
     background: transparent;
   }
 

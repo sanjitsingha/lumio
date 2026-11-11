@@ -17,6 +17,8 @@ pub struct PlatformPayload {
     pub authors: String,
     pub license: String,
     pub description: String,
+    /// This build has the notch (Windows), so Settings shows its pane.
+    pub notch_available: bool,
 }
 
 fn repository() -> Option<String> {
@@ -35,6 +37,7 @@ pub fn get_platform_info(app: AppHandle, state: State<'_, AppState>) -> Platform
         authors: env!("CARGO_PKG_AUTHORS").replace(':', ", "),
         license: env!("CARGO_PKG_LICENSE").to_string(),
         description: env!("CARGO_PKG_DESCRIPTION").to_string(),
+        notch_available: cfg!(windows),
     }
 }
 

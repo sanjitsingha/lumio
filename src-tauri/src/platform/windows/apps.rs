@@ -15,7 +15,7 @@ use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize,
 use windows::Win32::UI::Shell::{
     BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItemImageFactory, SHCreateItemFromParsingName,
     SHGetKnownFolderItem, KF_FLAG_DEFAULT, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING, SIIGBF_BIGGERSIZEOK,
-    SIIGBF_ICONONLY,
+    SIIGBF_ICONONLY, SIIGBF_THUMBNAILONLY,
 };
 
 use super::jump_list;
@@ -93,6 +93,27 @@ pub fn file_icon(path: &Path) -> AppIcon {
         unsafe { CoUninitialize() };
     }
     png.map(|png| AppIcon::Png(Arc::new(png))).unwrap_or(AppIcon::None)
+}
+
+/// Explorer's thumbnail of a file (a photo's picture, a video's or PDF's first
+/// page) as straight RGBA, at most about `size` px on its longer side. `None`
+/// for files without one, which Explorer shows with their type's icon.
+pub fn file_thumbnail(path: &Path, size: i32) -> Option<(u32, u32, Vec<u8>)> {
+    let initialized = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_ok();
+    let pixels = (|| {
+        let item: IShellItem = unsafe { SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None) }.ok()?;
+        let factory: IShellItemImageFactory = item.cast().ok()?;
+        let bitmap = unsafe { factory.GetImage(SIZE { cx: size, cy: size }, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK).ok()? };
+        let pixels = bitmap_rgba(bitmap);
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        }
+        pixels
+    })();
+    if initialized {
+        unsafe { CoUninitialize() };
+    }
+    pixels
 }
 
 /// `C:\...\Code.exe` -> `code`, so typing the program name finds the app.

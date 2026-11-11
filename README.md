@@ -4,6 +4,7 @@ A keyboard-first desktop utility for **elementary OS 8** and **Windows 10/11**, 
 
 - **Spotlight-style search**: apps, files, folders, quick actions and settings pages (“Turn on dark mode”) behind a global shortcut.
 - **Caps Lock indicator**: a small ⇪ badge that appears **at the blinking text cursor** of the field you type in and follows it, like on a Mac, including on Wayland.
+- **Notch** (Windows): rest the mouse at the top centre of the screen and your clipboard history drops down from the edge.
 
 Built with Tauri 2 (Rust) and React. It is a native desktop app, not Electron or a website.
 
@@ -21,8 +22,9 @@ Lummo was called Lumio before version 0.1.15. Installed copies update to Lummo a
 | **Quick actions** | Open Settings, Calculator, File Manager, Browser, Terminal, and Lummo Settings, each with the icon of the app it opens. The list is extensible. |
 | **Settings pages** | Tasks such as *Turn on dark mode*, *Connect to Wi-Fi*, *Turn on Night Light*, *Change wallpaper* or *Uninstall apps* open the system's settings app at the right page and show its icon: Windows Settings (`ms-settings:`), or System Settings on elementary OS (`settings://`): 89 pages on Windows, 63 on elementary OS. They are found however you type them (`darkmode`, `dark mode`, `night light settings`, `wifi`). |
 | **Caps Lock indicator** | Anchored to the text cursor (read from the input method on Linux, where every app that types reports its cursor, and through accessibility; the system caret on Windows, or UI Automation in apps such as Settings, the Start menu's search and Windows Terminal), shown also when you click into a text field while Caps Lock is on: near, below or above the cursor. Where there is no text cursor it is not shown. You can set size, opacity, corner radius, duration ("until you type" as on a Mac, "while on", or a time) and animation speed. As on a Mac it only shows Caps Lock on: turning it off just hides it. It follows the app's light or dark appearance. It is click-through and never takes keyboard focus. |
+| **Notch** (Windows) | Hidden until the mouse rests for a moment on the top edge of the screen near its centre; then a panel springs down with the clipboard history: text, images (with a preview) and copied files (with Explorer's thumbnail or icon), newest first, as wide as its items up to a limit and scrolling past it. Click a copy to put it back on the clipboard; drag a file or image out into any app (always as a copy). Copying something opens it by itself for a moment to show the copy arriving. The history is kept on this PC for as long as Settings → Notch says (hours or days, a day by default), so it survives restarts; copies that password managers mark as private are never kept. |
 | **Global shortcuts** | Configurable, with a live recorder, validation, duplicate and system-conflict detection (Lummo names the owner, e.g. *"Alt+Space is already used by the system shortcut “Activate window menu”"*), reset, clear, and persistence. |
-| **Settings** | A macOS System Settings–style window: General (startup, updates, clearing the cache and history, resetting settings), Spotlight (including its keyboard shortcut), Caps Lock Indicator, Appearance (light/dark/system, accent colours including the system accent), About (with an update check). |
+| **Settings** | A macOS System Settings–style window: General (startup, updates, clearing the cache and history, resetting settings), Spotlight (including its keyboard shortcut), Caps Lock Indicator, Notch (Windows: how long copies are kept), Appearance (light/dark/system, accent colours including the system accent), About (with an update check). |
 | **Background** | Runs in the background, single instance, launch at login, tray menu (where the desktop shows tray icons), clean shutdown that releases its shortcuts. |
 
 ## Quick start (development)
@@ -64,6 +66,8 @@ First-time setup (GitHub repository, signing-key secret) and local update testin
 ## Privacy
 
 Lummo sends anonymous usage statistics to [Aptabase](https://aptabase.com) unless **Share usage statistics** is turned off in Settings → General. It sends one event when Lummo starts (how it was started, whether Spotlight and the Caps Lock indicator are on) and one a day with counts: how often Spotlight opened, how many apps, files, folders, actions, settings pages and web searches were opened from it, and how often the Caps Lock indicator appeared or found no text cursor. Aptabase adds the Lummo version, the OS name and version and the locale; on Linux Lummo adds the session type (X11/Wayland) and the desktop. Nothing identifies you, and nothing you type, search for or open is ever sent. The code is in [`src-tauri/src/analytics.rs`](src-tauri/src/analytics.rs).
+
+The notch's clipboard history never leaves your PC either: it is saved in Lummo's data folder (`%APPDATA%\com.lumio.desktop\notch clipboard`) and each copy is deleted once it is older than Settings → Notch allows.
 
 ## Tests
 

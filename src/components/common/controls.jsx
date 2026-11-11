@@ -104,6 +104,40 @@ export function Slider({ value, min, max, step = 1, onChange, onCommit, format =
   );
 }
 
+/**
+ * A small number box. What is typed stays local until Enter or leaving the
+ * box, then goes to `onCommit` rounded and kept within `min`–`max`.
+ */
+export function NumberField({ value, min, max, onCommit, disabled = false, width = 64, label }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const typed = Math.round(Number(text));
+    const next = text.trim() !== "" && Number.isFinite(typed) ? Math.min(max, Math.max(min, typed)) : value;
+    setText(String(next));
+    if (next !== value) onCommit(next);
+  };
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      aria-label={label}
+      min={min}
+      max={max}
+      value={text}
+      disabled={disabled}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      style={{ width }}
+      className={cx(
+        "rounded-[6px] bg-surface px-2 py-[3px] text-right text-[12.5px] tabular-nums text-label shadow-control outline-none dark:bg-raised",
+        disabled && "opacity-40",
+      )}
+    />
+  );
+}
+
 export function Select({ value, options, onChange, disabled = false }) {
   return (
     <div className={cx("relative inline-flex", disabled && "opacity-40")}>

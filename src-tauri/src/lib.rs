@@ -12,6 +12,8 @@ mod error;
 mod events;
 #[cfg(test)]
 mod integration_tests;
+#[cfg(windows)]
+mod notch;
 mod platform;
 mod search;
 mod shortcuts;
@@ -186,6 +188,10 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
         log::error!("could not create the Spotlight window: {e}");
     }
     tray::sync(&handle, &settings);
+    #[cfg(windows)]
+    if let Err(e) = notch::create(&handle) {
+        log::error!("could not create the notch: {e}");
+    }
     app_state::start_background_services(&handle);
     updater::start_background_checks(&handle);
 

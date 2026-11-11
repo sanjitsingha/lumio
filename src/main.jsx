@@ -1,7 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { error as logError } from "@tauri-apps/plugin-log";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import App from "./App";
+import NotchPage from "./pages/Notch";
 import "./styles/index.css";
 
 // Frontend failures end up in the same log file as the backend's.
@@ -17,8 +19,7 @@ if (!import.meta.env.DEV) {
   });
 }
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// the notch needs no settings, so it skips App's settings load
+const isNotch = getCurrentWebviewWindow().label === "notch";
+
+createRoot(document.getElementById("root")).render(<StrictMode>{isNotch ? <NotchPage /> : <App />}</StrictMode>);

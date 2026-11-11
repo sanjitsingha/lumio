@@ -4,6 +4,8 @@ export const PANES = [
   { id: "general", label: "General", icon: "/settings-icons/general.svg" },
   { id: "spotlight", label: "Spotlight", icon: "/settings-icons/spotlight.svg" },
   { id: "capslock", label: "Caps Lock Indicator", icon: "/settings-icons/capslock.svg" },
+  // only in builds that have the notch (`notchAvailable` from the backend)
+  { id: "notch", label: "Notch", icon: "/settings-icons/notch.svg" },
   { id: "appearance", label: "Appearance", icon: "/settings-icons/appearance.svg" },
   { id: "about", label: "About", icon: "/settings-icons/about.svg" },
 ];
@@ -12,11 +14,11 @@ export function PaneIcon({ icon, size = 22 }) {
   return <img src={icon} alt="" width={size} height={size} draggable={false} className="shrink-0" />;
 }
 
-export function Sidebar({ active, onSelect, appName, version }) {
+export function Sidebar({ active, onSelect, appName, version, panes = PANES }) {
   return (
     <nav aria-label="Settings sections" className="flex w-[228px] shrink-0 flex-col border-r-[0.5px] border-separator-strong bg-sidebar">
       <ul className="flex flex-col gap-2.5 px-2.5 pt-4">
-        {PANES.map((pane) => {
+        {panes.map((pane) => {
           const selected = pane.id === active;
           return (
             <li key={pane.id}>

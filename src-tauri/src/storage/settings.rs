@@ -22,6 +22,7 @@ pub struct Settings {
     pub shortcuts: ShortcutSettings,
     pub caps_lock: CapsLockSettings,
     pub appearance: AppearanceSettings,
+    pub notch: NotchSettings,
     /// Sections this version does not know, written by a newer or a test
     /// build: kept as they are, so going back and forth between versions
     /// loses nothing.
@@ -30,7 +31,7 @@ pub struct Settings {
 }
 
 /// The sections `Settings` reads; any other top-level key is kept in `unknown`.
-const SECTIONS: &[&str] = &["schemaVersion", "general", "spotlight", "shortcuts", "capsLock", "appearance"];
+const SECTIONS: &[&str] = &["schemaVersion", "general", "spotlight", "shortcuts", "capsLock", "appearance", "notch"];
 
 impl Default for Settings {
     fn default() -> Self {
@@ -41,6 +42,7 @@ impl Default for Settings {
             shortcuts: ShortcutSettings::default(),
             caps_lock: CapsLockSettings::default(),
             appearance: AppearanceSettings::default(),
+            notch: NotchSettings::default(),
             unknown: serde_json::Map::new(),
         }
     }
@@ -254,6 +256,48 @@ impl Default for AppearanceSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RetentionUnit {
+    Hours,
+    Days,
+}
+
+/// The notch at the top of the screen (Windows only): its clipboard
+/// history keeps each copy for `keep_for` hours or days after it was last
+/// copied, then lets it go.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NotchSettings {
+    pub keep_for: u32,
+    pub keep_unit: RetentionUnit,
+}
+
+impl Default for NotchSettings {
+    fn default() -> Self {
+        Self { keep_for: 1, keep_unit: RetentionUnit::Days }
+    }
+}
+
+impl NotchSettings {
+    /// The longest `keep_for` allowed in each unit: 30 days in hours, a year in days.
+    pub fn keep_for_max(unit: RetentionUnit) -> u32 {
+        match unit {
+            RetentionUnit::Hours => 720,
+            RetentionUnit::Days => 365,
+        }
+    }
+
+    #[cfg_attr(not(windows), allow(dead_code))] // only the notch reads it, which is Windows only
+    pub fn keep_duration(&self) -> std::time::Duration {
+        let hours = match self.keep_unit {
+            RetentionUnit::Hours => u64::from(self.keep_for),
+            RetentionUnit::Days => u64::from(self.keep_for) * 24,
+        };
+        std::time::Duration::from_secs(hours * 3600)
+    }
+}
+
 impl Settings {
     /// Deserializes section by section so one malformed section (e.g. a string
     /// where a number belongs) falls back to defaults without losing the rest.
@@ -278,6 +322,7 @@ impl Settings {
         settings.shortcuts = section(obj, "shortcuts", &mut warnings);
         settings.caps_lock = section(obj, "capsLock", &mut warnings);
         settings.appearance = section(obj, "appearance", &mut warnings);
+        settings.notch = section(obj, "notch", &mut warnings);
         settings.unknown =
             obj.iter().filter(|(key, _)| !SECTIONS.contains(&key.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
         settings.schema_version = SCHEMA_VERSION;
@@ -338,6 +383,13 @@ impl Settings {
         if c.corner_radius > INDICATOR_RADIUS_MAX {
             c.corner_radius = INDICATOR_RADIUS_MAX;
             fixes.push("Indicator corner radius adjusted.".into());
+        }
+
+        let n = &mut self.notch;
+        let keep_for = n.keep_for.clamp(1, NotchSettings::keep_for_max(n.keep_unit));
+        if keep_for != n.keep_for {
+            fixes.push("How long the notch keeps copies was adjusted.".into());
+            n.keep_for = keep_for;
         }
 
         fixes.extend(self.shortcuts.sanitize());
@@ -513,6 +565,19 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(settings, back);
+    }
+
+    #[test]
+    fn notch_keeps_copies_for_a_day_and_clamps_to_its_unit() {
+        let value = serde_json::to_value(Settings::default()).unwrap();
+        assert_eq!(value["notch"], json!({ "keepFor": 1, "keepUnit": "days" }));
+        assert_eq!(Settings::default().notch.keep_duration(), std::time::Duration::from_secs(24 * 3600));
+
+        let next = apply_patch(&Settings::default(), &json!({ "notch": { "keepFor": 900, "keepUnit": "hours" } })).unwrap();
+        assert_eq!(next.notch.keep_for, 720);
+        assert_eq!(next.notch.keep_duration(), std::time::Duration::from_secs(720 * 3600));
+        let next = apply_patch(&Settings::default(), &json!({ "notch": { "keepFor": 0 } })).unwrap();
+        assert_eq!(next.notch.keep_for, 1);
     }
 
     #[test]
