@@ -24,13 +24,10 @@ export default function NotchPane() {
 
   return (
     <>
-      <PaneHeader pane="notch" subtitle="Rest the mouse at the top centre of the screen to see what you copied." />
+      <PaneHeader pane="notch" />
 
-      <Group
-        title="Clipboard history"
-        footer="Older copies leave the notch. The history is kept only on this PC, so it is still there after a restart; copies that password managers mark as private are never kept."
-      >
-        <Row label="Keep copies for" description="Counted from when each one was last copied.">
+      <Group title="Clipboard history">
+        <Row label="Keep copies for">
           <NumberField
             label="Keep copies for"
             value={n.keepFor}

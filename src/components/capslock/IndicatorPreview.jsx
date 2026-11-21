@@ -57,9 +57,9 @@ export function IndicatorPreview({ settings, dark }) {
     above: { left: -size / 2, top: -6 - size },
   }[settings.position];
   return (
-    <div className="relative h-[160px] w-full overflow-hidden rounded-[10px] bg-fill p-3">
+    <div className="relative h-[160px] w-full overflow-hidden rounded-[6px] bg-fill p-3">
       <div
-        className="relative h-full w-full rounded-[8px] border border-black/[0.06] bg-white"
+        className="relative h-full w-full rounded-[4px] border border-black/[0.06] bg-white"
         style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
       >
         <div className="absolute flex items-center" style={{ left: 22, top: settings.position === "above" ? 92 : 22 }}>

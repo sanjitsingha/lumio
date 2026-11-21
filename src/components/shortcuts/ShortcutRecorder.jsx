@@ -42,7 +42,7 @@ export function ShortcutRecorder({ os, onCapture, onCancel, busy }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex h-[26px] min-w-[210px] items-center justify-center gap-2 rounded-[7px] bg-accent/10 px-3 ring-2 ring-accent/60"
+      className="flex h-[26px] min-w-[210px] items-center justify-center gap-2 rounded-[4px] bg-accent/10 px-3 ring-2 ring-accent/60"
       aria-live="polite"
     >
       {live.length ? (

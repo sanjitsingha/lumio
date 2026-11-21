@@ -21,18 +21,18 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
       : "";
   return (
     <div className="flex h-[48px] items-center gap-3 px-4">
-      <Search size={22} strokeWidth={2} className="shrink-0 text-secondary" aria-hidden />
-      <div className="relative min-w-0 flex-1">
+      <Search size={18} strokeWidth={2} className="shrink-0 text-secondary" aria-hidden />
+      <div className="relative min-w-0 flex-1 font-search">
         {value && (
           // starts 8 px left of the text (pl-2 puts the text back) so the highlight's
           // left padding is not clipped
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 -left-2 flex items-center overflow-hidden pl-2 whitespace-pre text-[21px]"
+            className="pointer-events-none absolute inset-y-0 right-0 -left-2 flex items-center overflow-hidden pl-2 whitespace-pre text-[18px]"
           >
             <span className="flex items-center" style={{ transform: `translateX(${-scroll}px)` }}>
               {/* padding and equal negative margin: the highlight grows around the text without moving it */}
-              <span className="-mx-2 rounded-[8px] bg-fill-strong px-2 py-[3px] text-transparent">{value}</span>
+              <span className="-mx-2 rounded-[4px] bg-fill-strong px-2 py-[3px] text-transparent">{value}</span>
               {ghost && <span className="text-tertiary">{ghost}</span>}
             </span>
           </div>
@@ -54,11 +54,11 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
           autoCorrect="off"
           autoCapitalize="off"
           aria-label="Search"
-          className="relative w-full bg-transparent text-[21px] text-label outline-none placeholder:text-tertiary"
+          className="relative w-full bg-transparent text-[18px] text-label outline-none placeholder:text-tertiary"
         />
       </div>
-      {kind && <span className="shrink-0 text-[14px] text-secondary">{kind}</span>}
-      {loading && <LoaderCircle size={18} className="shrink-0 animate-spin text-secondary" aria-label="Searching" />}
+      {kind && <span className="shrink-0 text-[12px] text-secondary">{kind}</span>}
+      {loading && <LoaderCircle size={15} className="shrink-0 animate-spin text-secondary" aria-label="Searching" />}
     </div>
   );
 });

@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 import { cx } from "../../utils/cx";
 
-const KNOB_TRAVEL = 12; // .lm-switch width - knob width - 2 * inset
+const KNOB_TRAVEL = 10; // .lm-switch width - knob width - 2 * inset
 
 export function Switch({ checked, onChange, disabled = false, label }) {
   // While pressed, and for a moment after so the slide plays as glass, the
@@ -50,7 +50,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
   return (
     <div
       role="radiogroup"
-      className={cx("lm-segmented inline-flex rounded-[7px] p-[2px]", disabled && "pointer-events-none opacity-40")}
+      className={cx("lm-segmented inline-flex rounded-[4px] p-[2px]", disabled && "pointer-events-none opacity-40")}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -62,8 +62,8 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={cx(
-              "relative rounded-[5px] font-medium",
-              size === "sm" ? "px-2.5 py-[2px] text-[11.5px]" : "px-3 py-[3px] text-[12px]",
+              "relative rounded-[3px] font-medium",
+              size === "sm" ? "px-2 py-px text-[10.5px]" : "px-2.5 py-[2px] text-[11px]",
               active ? "text-label" : "text-secondary hover:text-label",
             )}
           >
@@ -71,7 +71,7 @@ export function Segmented({ value, options, onChange, disabled = false, size = "
               <motion.span
                 layoutId={`seg-${id}`}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className="lm-segment absolute inset-0 rounded-[5px]"
+                className="lm-segment absolute inset-0 rounded-[3px]"
               />
             )}
             <span className="relative">{opt.label}</span>
@@ -131,7 +131,7 @@ export function NumberField({ value, min, max, onCommit, disabled = false, width
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       style={{ width }}
       className={cx(
-        "rounded-[6px] bg-surface px-2 py-[3px] text-right text-[12.5px] tabular-nums text-label shadow-control outline-none dark:bg-raised",
+        "rounded-[4px] bg-surface px-2 py-[3px] text-right text-[12.5px] tabular-nums text-label shadow-control outline-none dark:bg-raised",
         disabled && "opacity-40",
       )}
     />
@@ -145,7 +145,7 @@ export function Select({ value, options, onChange, disabled = false }) {
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none rounded-[6px] bg-surface py-[3px] pr-7 pl-2.5 text-[12.5px] text-label shadow-control outline-none dark:bg-raised"
+        className="appearance-none rounded-[4px] bg-surface py-[3px] pr-7 pl-2.5 text-[12.5px] text-label shadow-control outline-none dark:bg-raised"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -161,9 +161,9 @@ export function Select({ value, options, onChange, disabled = false }) {
 /** A macOS push button: a rounded rectangle that darkens while pressed. */
 export function Button({ children, onClick, variant = "default", busy = false, disabled = false, icon: Icon, type = "button" }) {
   const styles = {
-    default: "lm-button px-3 text-label",
-    primary: "lm-button-primary px-3",
-    destructive: "lm-button px-3 text-danger",
+    default: "lm-button px-2 text-label",
+    primary: "lm-button-primary px-2",
+    destructive: "lm-button px-2 text-danger",
     plain: "text-accent hover:underline",
   };
   return (
@@ -172,25 +172,24 @@ export function Button({ children, onClick, variant = "default", busy = false, d
       onClick={onClick}
       disabled={disabled || busy}
       className={cx(
-        "inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-[6px] text-[13px] whitespace-nowrap disabled:opacity-45",
+        "inline-flex h-[20px] shrink-0 items-center gap-1 rounded-[4px] text-[11.5px] whitespace-nowrap disabled:opacity-45",
         styles[variant],
       )}
     >
-      {busy ? <LoaderCircle size={13} className="animate-spin" /> : Icon ? <Icon size={13} /> : null}
+      {busy ? <LoaderCircle size={11} className="animate-spin" /> : Icon ? <Icon size={11} /> : null}
       {children}
     </button>
   );
 }
 
 /** Inset grouped list, like macOS System Settings. */
-export function Group({ title, footer, children }) {
+export function Group({ title, children }) {
   return (
     <section className="mb-5">
       {title && <h3 className="mb-1.5 px-1 text-[12px] text-secondary">{title}</h3>}
-      <div className="overflow-hidden rounded-[10px] border-[0.5px] border-separator bg-surface [&>*+*]:border-t-[0.5px] [&>*+*]:border-separator">
+      <div className="overflow-hidden rounded-[6px] bg-surface [&>*+*]:border-t-[0.5px] [&>*+*]:border-separator">
         {children}
       </div>
-      {footer && <p className="mt-1.5 px-1 text-[11.5px] leading-[15px] font-light text-secondary">{footer}</p>}
     </section>
   );
 }
@@ -223,7 +222,7 @@ export function KeyCaps({ keys, size = "md", muted = false }) {
         <kbd
           key={`${k}-${i}`}
           className={cx(
-            "inline-flex items-center justify-center rounded-[5px] border-[0.5px] border-separator-strong bg-surface font-sans font-medium shadow-[0_1px_0_var(--lm-separator-strong)] dark:bg-raised",
+            "inline-flex items-center justify-center rounded-[3px] border-[0.5px] border-separator-strong bg-surface font-sans font-medium shadow-[0_1px_0_var(--lm-separator-strong)] dark:bg-raised",
             size === "sm" ? "h-[18px] min-w-[18px] px-1 text-[10.5px]" : "h-[22px] min-w-[22px] px-1.5 text-[11.5px]",
             muted ? "text-secondary" : "text-label",
           )}

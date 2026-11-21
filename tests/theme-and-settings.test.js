@@ -1,15 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ACCENTS, contrastText, resolveAccent, resolveTheme } from "../src/utils/theme";
+import { ACCENTS, contrastText, resolveAccent } from "../src/utils/theme";
 import { deepMerge } from "../src/stores/settingsStore";
 
 describe("theme resolution", () => {
-  it("follows the system only in system mode", () => {
-    expect(resolveTheme("system", true)).toBe("dark");
-    expect(resolveTheme("system", false)).toBe("light");
-    expect(resolveTheme("light", true)).toBe("light");
-    expect(resolveTheme("dark", false)).toBe("dark");
-  });
-
   it("uses the light/dark variant of the palette accent", () => {
     expect(resolveAccent("blue", false)).toBe("#007AFF");
     expect(resolveAccent("blue", true)).toBe("#0A84FF");

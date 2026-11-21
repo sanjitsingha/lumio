@@ -252,7 +252,7 @@ pub struct AppearanceSettings {
 
 impl Default for AppearanceSettings {
     fn default() -> Self {
-        Self { theme: AppearanceMode::System, accent: Accent::Blue, motion: MotionPreference::System }
+        Self { theme: AppearanceMode::Dark, accent: Accent::Blue, motion: MotionPreference::System }
     }
 }
 
@@ -391,6 +391,9 @@ impl Settings {
             fixes.push("How long the notch keeps copies was adjusted.".into());
             n.keep_for = keep_for;
         }
+
+        // Lummo is dark only; a light or system value saved earlier is not worth a notice
+        self.appearance.theme = AppearanceMode::Dark;
 
         fixes.extend(self.shortcuts.sanitize());
         self.schema_version = SCHEMA_VERSION;
@@ -684,6 +687,14 @@ mod tests {
         assert_eq!(next.caps_lock.size, 64);
         assert_eq!(next.caps_lock.opacity, current.caps_lock.opacity);
         assert_eq!(next.appearance.theme, AppearanceMode::Dark);
+    }
+
+    #[test]
+    fn sanitize_keeps_the_app_dark() {
+        let mut s = Settings::default();
+        s.appearance.theme = AppearanceMode::Light;
+        assert!(s.sanitize().is_empty(), "no notice for this");
+        assert_eq!(s.appearance.theme, AppearanceMode::Dark);
     }
 
     #[test]

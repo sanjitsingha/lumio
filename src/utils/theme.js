@@ -1,4 +1,4 @@
-// Accent palette (light, dark) and theme resolution.
+// Accent palette (light, dark).
 
 export const ACCENTS = {
   blue: ["#007AFF", "#0A84FF"],
@@ -23,12 +23,6 @@ export function contrastText(hex) {
   });
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luminance > 0.55 ? "#1d1d1f" : "#ffffff";
-}
-
-export function resolveTheme(preference, systemDark) {
-  if (preference === "dark") return "dark";
-  if (preference === "light") return "light";
-  return systemDark ? "dark" : "light";
 }
 
 export function resolveAccent(accent, dark, systemAccent) {

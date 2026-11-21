@@ -23,10 +23,9 @@
   --lm-danger: #ff3b30;
   --lm-success: #34c759;
   --lm-warning: #ff9500;
-  --lm-panel: rgba(241, 241, 241, 0.97);
+  /* Spotlight's panel: the opaque gray under its gradient (.lm-panel-sheen) */
+  --lm-panel: #222222;
   --lm-panel-border: #ffffff;
-  /* Spotlight: the rim of the selected row */
-  --lm-selection-rim: rgba(255, 255, 255, 0.62);
   /* Fades out within Spotlight's 36 px transparent margin (offset + blur + spread <= 36),
      or the window edge would cut it off. */
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -54,16 +53,19 @@
   --lm-danger: #ff453a;
   --lm-success: #30d158;
   --lm-warning: #ff9f0a;
-  --lm-panel: rgba(37, 37, 40, 0.97);
   /* a lighter shade of the panel itself */
-  --lm-panel-border: rgba(255, 255, 255, 0.16);
-  --lm-selection-rim: rgba(255, 255, 255, 0.3);
+  --lm-panel-border: #444444;
   --lm-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
   --lm-control-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.4);
-  --lm-button: #5b5b5f;
-  --lm-button-pressed: #6c6c70;
+  --lm-button: #3a3a3e;
+  --lm-button-pressed: #444448;
   --lm-button-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12), 0 0.5px 1px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
+}
+
+/* Spotlight's gray panel needs a brighter faint text (placeholder, ghost suggestion) */
+html[data-window="spotlight"] {
+  --lm-tertiary: #8e8e93;
 }
 
 @theme {
@@ -85,11 +87,12 @@
   --color-warning: var(--lm-warning);
   --color-panel: var(--lm-panel);
   --color-panel-border: var(--lm-panel-border);
-  --color-selection-rim: var(--lm-selection-rim);
 
   /* the system's own UI font: Segoe UI on Windows, the GTK font on Linux, SF on macOS */
   --font-sans: system-ui, -apple-system, "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
+  /* Spotlight's search text: Windows 11's own UI face (system-ui is the older Segoe UI) */
+  --font-search: "Segoe UI Variable Text", var(--font-sans);
 
   --text-2xs: 11px;
   --text-xs: 12px;
@@ -149,7 +152,7 @@
   :focus-visible {
     outline: 3px solid color-mix(in srgb, var(--lm-accent) 45%, transparent);
     outline-offset: 1px;
-    border-radius: 6px;
+    border-radius: 4px;
   }
 
   ::selection {
@@ -158,6 +161,13 @@
 }
 
 @layer components {
+  /* Spotlight's panel: soft light from the top, over an opaque dark gray */
+  .lm-panel-sheen {
+    background-image:
+      radial-gradient(ellipse 37% 175% at 43% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055) 58%, rgba(255, 255, 255, 0) 100%),
+      linear-gradient(200deg, #292929 0%, #252525 45%, #171717 100%);
+  }
+
   .scroll-area {
     overflow-y: auto;
     scrollbar-width: thin;
@@ -248,8 +258,8 @@
 
   .lm-switch {
     position: relative;
-    width: 40px;
-    height: 22px;
+    width: 30px;
+    height: 16px;
     border-radius: 999px;
     background: var(--lm-fill-strong);
     box-shadow:
@@ -267,8 +277,8 @@
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 24px;
-    height: 18px;
+    width: 16px;
+    height: 12px;
     border-radius: 999px;
     background: #ffffff;
     box-shadow:

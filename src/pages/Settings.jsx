@@ -63,7 +63,7 @@ export default function SettingsPage({ appearance }) {
       <main className="scroll-area relative flex-1">
         <div className="mx-auto max-w-[620px] px-8 pt-7 pb-10">
           {notices.length > 0 && (
-            <div className="mb-5 flex gap-2.5 rounded-[10px] border-[0.5px] border-warning/40 bg-warning/10 px-3.5 py-2.5">
+            <div className="mb-5 flex gap-2.5 rounded-[6px] border-[0.5px] border-warning/40 bg-warning/10 px-3.5 py-2.5">
               <TriangleAlert size={15} className="mt-[1px] shrink-0 text-warning" />
               <div className="flex-1 text-[12px] leading-[16px] text-label">
                 {notices.map((n) => (

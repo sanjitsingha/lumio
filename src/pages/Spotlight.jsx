@@ -18,13 +18,6 @@ import { expansionFor, flatten, jumpSection, kindLabel, moveSelection, selectIte
 const MARGIN = 36;
 /** The panel's top and bottom border (`border`, 1 px each). */
 const PANEL_BORDERS = 2;
-/** The search field's height (`SearchBar`) and the panel's inner padding (`p-2`). */
-const SEARCH_HEIGHT = 48;
-const PANEL_PADDING = 8;
-/** Corners with only the search field showing: a pill… */
-const PILL_RADIUS = (SEARCH_HEIGHT + 2 * PANEL_PADDING + PANEL_BORDERS) / 2;
-/** …and with results or recent items below it. */
-const PANEL_RADIUS = 32;
 const EASE = [0.2, 0.8, 0.2, 1];
 /** How the panel's height follows its contents as results come and go. */
 const RESIZE = { duration: 0.2, ease: EASE };
@@ -198,7 +191,6 @@ export default function SpotlightPage() {
   const hasList = sections.length > 0;
   // results, recent items, "no results" or an error below the search field
   const hasBody = Boolean(hasList || noResults || error || launchError);
-  const radius = hasBody ? PANEL_RADIUS : PILL_RADIUS;
   // what the selected result is, at the right of the search field while searching
   const kind = query.trim() ? kindLabel(items[selected]) : null;
   return (
@@ -210,14 +202,11 @@ export default function SpotlightPage() {
     >
       <motion.div
         key={showKey}
-        initial={{ opacity: 0, scale: 0.985, y: -6, borderRadius: radius }}
-        animate={
-          closing ? { opacity: 0, scale: 0.985, y: 0, borderRadius: radius } : { opacity: 1, scale: 1, y: 0, borderRadius: radius }
-        }
+        initial={{ opacity: 0, scale: 0.985, y: -6 }}
+        animate={closing ? { opacity: 0, scale: 0.985, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
         // the fade-out must end before the window hides (FADE_OUT, 120 ms, in window_manager.rs)
-        // the corners change with the panel's height (RESIZE)
-        transition={{ duration: closing ? 0.1 : 0.16, ease: EASE, borderRadius: RESIZE }}
-        className="w-full overflow-hidden border border-panel-border bg-panel shadow-panel"
+        transition={{ duration: closing ? 0.1 : 0.16, ease: EASE }}
+        className="w-full overflow-hidden rounded-[8px] border border-panel-border bg-panel lm-panel-sheen shadow-panel"
       >
         <motion.div
           initial={false}
@@ -254,16 +243,16 @@ export default function SpotlightPage() {
                   )}
                   {noResults && (
                     <div className="flex items-center gap-3 px-5 py-4 text-secondary">
-                      <SearchX size={20} strokeWidth={1.8} />
+                      <SearchX size={17} strokeWidth={1.8} />
                       <div>
-                        <div className="text-[13px] text-label">No results for “{query.trim()}”</div>
-                        <div className="text-[12px]">Try another name, or check which folders Lummo indexes in Settings.</div>
+                        <div className="text-[12px] text-label">No results for “{query.trim()}”</div>
+                        <div className="text-[11px]">Try another name, or check which folders Lummo indexes in Settings.</div>
                       </div>
                     </div>
                   )}
                   {(error || launchError) && (
-                    <div className="flex items-center gap-2 px-5 py-3 text-[12px] text-danger">
-                      <CircleAlert size={15} />
+                    <div className="flex items-center gap-2 px-5 py-3 text-[11px] text-danger">
+                      <CircleAlert size={13} />
                       <span className="truncate">{launchError || errorMessage(error)}</span>
                     </div>
                   )}

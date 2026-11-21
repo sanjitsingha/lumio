@@ -11,9 +11,6 @@ export default function About({ updates }) {
         <img src="/app-icon.png" alt="" width={96} height={96} draggable={false} />
         <h1 className="mt-3 text-[22px] font-semibold tracking-[-0.01em] text-label">{info?.appName ?? "Lummo"}</h1>
         <p className="text-[12.5px] text-secondary">Version {info?.version ?? "…"}</p>
-        <p className="mt-2 max-w-[380px] text-[12.5px] leading-[17px] text-secondary">
-          {info?.description ?? "Spotlight-style search and a cursor-anchored Caps Lock indicator."}
-        </p>
       </div>
 
       <UpdateCard updates={updates} />
@@ -24,14 +21,6 @@ export default function About({ updates }) {
         </Row>
         <Row label="License">
           <span className="text-[12.5px] text-secondary">{info?.license || "—"}</span>
-        </Row>
-        <Row label="Identifier">
-          <span className="selectable font-mono text-[11.5px] text-secondary">{info?.identifier}</span>
-        </Row>
-        <Row label="System">
-          <span className="text-[12.5px] text-secondary">
-            {info ? `${info.osName}${info.sessionType ? ` · ${info.sessionType}` : ""} · ${info.arch}` : "…"}
-          </span>
         </Row>
       </Group>
       <p className="mt-6 text-center text-[11px] text-tertiary">Inspired by macOS. Not affiliated with Apple Inc.</p>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/tauri";
 import { EVENTS, subscribe } from "../services/events";
-import { contrastText, resolveAccent, resolveTheme } from "../utils/theme";
+import { contrastText, resolveAccent } from "../utils/theme";
 
 const darkQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 const motionQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -35,11 +35,11 @@ export function useSystemAppearance() {
   };
 }
 
-/** Applies theme, accent and motion preference to the document. */
+/** Applies the dark theme, accent and motion preference to the document. */
 export function useAppearance(settings) {
   const system = useSystemAppearance();
-  const appearance = settings?.appearance ?? { theme: "system", accent: "blue", motion: "system" };
-  const theme = resolveTheme(appearance.theme, system.dark);
+  const appearance = settings?.appearance ?? { accent: "blue", motion: "system" };
+  const theme = "dark";
   const accent = resolveAccent(appearance.accent, theme === "dark", system.accent);
   const reduceMotion = appearance.motion === "reduced" || (appearance.motion === "system" && system.reduceMotion);
 

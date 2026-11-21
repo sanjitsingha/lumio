@@ -58,10 +58,10 @@ export default function CapsLockPane({ appearance }) {
 
   return (
     <>
-      <PaneHeader pane="capslock" subtitle="A small indicator at the text cursor when Caps Lock is on." />
+      <PaneHeader pane="capslock" />
 
       {message && (
-        <div className="mb-5 flex gap-2 rounded-[10px] bg-fill px-3.5 py-2.5 text-[12px] leading-[16px] text-secondary">
+        <div className="mb-5 flex gap-2 rounded-[6px] bg-fill px-3.5 py-2.5 text-[12px] leading-[16px] text-secondary">
           <TriangleAlert size={14} className="mt-[1px] shrink-0 text-warning" />
           <span>{message}</span>
         </div>
@@ -78,7 +78,7 @@ export default function CapsLockPane({ appearance }) {
       </Group>
 
       <Group title="Placement">
-        <Row label="Position" description="Relative to the text cursor." disabled={!atCursor}>
+        <Row label="Position" disabled={!atCursor}>
           <Segmented
             value={c.position}
             disabled={!atCursor}
@@ -92,7 +92,6 @@ export default function CapsLockPane({ appearance }) {
         </Row>
         <ToggleRow
           label="Follow the text cursor"
-          description="Keep the indicator next to the text cursor while you type."
           checked={c.followCursor}
           disabled={!atCursor}
           onChange={(v) => set({ followCursor: v })}
@@ -112,7 +111,7 @@ export default function CapsLockPane({ appearance }) {
       </Group>
 
       <Group title="Timing">
-        <Row label="Display duration" description="How long the indicator stays visible after Caps Lock is turned on.">
+        <Row label="Display duration">
           <Select value={duration} options={durationOptions} onChange={setDuration} />
         </Row>
         <Row label="Animation">
@@ -129,7 +128,6 @@ export default function CapsLockPane({ appearance }) {
         </Row>
         <ToggleRow
           label="Show when you click into a text field"
-          description="With Caps Lock already on, the indicator appears as soon as a field gets focus."
           checked={c.showOnFocus}
           onChange={(v) => set({ showOnFocus: v })}
         />

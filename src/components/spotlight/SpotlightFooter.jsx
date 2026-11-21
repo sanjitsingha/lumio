@@ -4,7 +4,7 @@ import { LoaderCircle } from "lucide-react";
 export function SpotlightFooter({ index }) {
   const status = index?.indexing ? (
     <>
-      <LoaderCircle size={11} className="animate-spin" />
+      <LoaderCircle size={10} className="animate-spin" />
       Indexing files…
     </>
   ) : index && !index.ready && index.files === 0 ? (
@@ -12,7 +12,7 @@ export function SpotlightFooter({ index }) {
   ) : null;
   if (!status) return null;
   return (
-    <div className="flex h-[30px] items-center gap-1.5 border-t border-separator px-4 text-[11px] text-secondary">
+    <div className="flex h-[30px] items-center gap-1.5 border-t border-separator px-4 text-[10px] text-secondary">
       {status}
     </div>
   );

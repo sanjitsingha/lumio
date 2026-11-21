@@ -3,7 +3,7 @@ import { ActionRow, CalculatorRow, ResultRow } from "./ResultRow";
 import { sectionLines } from "../../utils/navigation";
 
 function Heading({ children }) {
-  return <div className="px-[14px] pt-3 pb-1.5 text-[12px] leading-[16px] text-secondary">{children}</div>;
+  return <div className="px-[14px] pt-3 pb-1.5 text-[11px] leading-[16px] text-secondary">{children}</div>;
 }
 
 /**

@@ -21,7 +21,7 @@ export function Toaster() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="pointer-events-auto flex items-start gap-2.5 rounded-[10px] border-[0.5px] border-separator bg-raised px-3 py-2.5 shadow-panel"
+              className="pointer-events-auto flex items-start gap-2.5 rounded-[6px] border-[0.5px] border-separator bg-raised px-3 py-2.5 shadow-panel"
             >
               <Icon size={16} className={`mt-[1px] shrink-0 ${TONES[t.kind]}`} />
               <span className="selectable flex-1 text-[12.5px] leading-[17px] text-label">{t.message}</span>

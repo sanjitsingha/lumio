@@ -10,11 +10,6 @@ import { toast } from "../../../stores/toastStore";
 
 const SPOTLIGHT_SHORTCUTS = ["spotlight.toggle"];
 
-function formatTime(seconds) {
-  if (!seconds) return "never";
-  return new Date(seconds * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
 function useIndexStatus() {
   const [status, setStatus] = useState(null);
   const refresh = useCallback(() => api.getIndexStatus().then(setStatus).catch(() => {}), []);
@@ -45,14 +40,14 @@ function ListEditor({ items, placeholder, onChange, validate, mono = false }) {
         {items.map((item) => (
           <span
             key={item}
-            className={`inline-flex max-w-full items-center gap-1 rounded-[6px] bg-fill py-[3px] pr-1 pl-2 text-[12px] text-label ${mono ? "font-mono text-[11.5px]" : ""}`}
+            className={`inline-flex max-w-full items-center gap-1 rounded-[4px] bg-fill py-[3px] pr-1 pl-2 text-[12px] text-label ${mono ? "font-mono text-[11.5px]" : ""}`}
           >
             <span className="truncate">{item}</span>
             <button
               type="button"
               aria-label={`Remove ${item}`}
               onClick={() => onChange(items.filter((i) => i !== item))}
-              className="rounded p-0.5 text-secondary hover:bg-fill-strong hover:text-label"
+              className="rounded-[3px] p-0.5 text-secondary hover:bg-fill-strong hover:text-label"
             >
               <X size={12} />
             </button>
@@ -61,7 +56,7 @@ function ListEditor({ items, placeholder, onChange, validate, mono = false }) {
         {items.length === 0 && <span className="text-[12px] text-tertiary">None</span>}
       </div>
       <form
-        className="mt-2 flex gap-2"
+        className="mt-2 flex items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           add();
@@ -72,7 +67,7 @@ function ListEditor({ items, placeholder, onChange, validate, mono = false }) {
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
           spellCheck={false}
-          className="h-[24px] flex-1 rounded-[6px] bg-fill px-2 text-[12px] text-label outline-none placeholder:text-tertiary focus:ring-2 focus:ring-accent/40"
+          className="h-[24px] flex-1 rounded-[4px] bg-fill px-2 text-[12px] text-label outline-none placeholder:text-tertiary focus:ring-2 focus:ring-accent/40"
         />
         <Button type="submit" icon={Plus} disabled={!draft.trim()}>
           Add
@@ -110,7 +105,7 @@ export default function SpotlightPane() {
 
   return (
     <>
-      <PaneHeader pane="spotlight" subtitle="Find apps, files, folders and actions from anywhere." />
+      <PaneHeader pane="spotlight" />
       <Group>
         <ToggleRow label="Enable Spotlight" checked={s.enabled} onChange={(v) => set({ enabled: v })} />
       </Group>
@@ -125,34 +120,23 @@ export default function SpotlightPane() {
         <ToggleRow label="Folders" checked={s.searchFolders} onChange={(v) => set({ searchFolders: v })} disabled={!s.enabled} />
         <ToggleRow
           label="Quick actions"
-          description="Settings, Calculator, File Manager, Browser and Terminal."
           checked={s.searchActions}
           onChange={(v) => set({ searchActions: v })}
           disabled={!s.enabled}
         />
         <ToggleRow
           label="System settings"
-          description={
-            platform?.os === "windows"
-              ? "Pages of Windows Settings, such as “Turn on dark mode” or “Connect to Wi-Fi”."
-              : "Pages of System Settings, such as “Turn on dark mode” or “Connect to Wi-Fi” (elementary OS)."
-          }
           checked={s.searchSettings}
           onChange={(v) => set({ searchSettings: v })}
           disabled={!s.enabled}
         />
         <ToggleRow
           label="Web search"
-          description="Ends every search with “Search Google for …”."
           checked={s.webSearch}
           onChange={(v) => set({ webSearch: v })}
           disabled={!s.enabled}
         />
-        <Row
-          label="Browser for web searches"
-          description="Missing or uninstalled browsers fall back to the system default."
-          disabled={!s.enabled || !s.webSearch}
-        >
+        <Row label="Browser for web searches" disabled={!s.enabled || !s.webSearch}>
           <Select
             value={s.webBrowser}
             options={browserOptions}
@@ -163,10 +147,10 @@ export default function SpotlightPane() {
       </Group>
 
       <Group title="Results">
-        <Row label="Maximum results" description="Total number of results shown at once.">
+        <Row label="Maximum results">
           <Slider value={maxResults} min={5} max={60} onChange={setMaxResults} onCommit={(v) => set({ maxResults: v })} />
         </Row>
-        <Row label="Search delay" description="Wait this long after typing before searching. Lower feels faster.">
+        <Row label="Search delay">
           <Slider
             value={delay}
             min={0}
@@ -179,9 +163,9 @@ export default function SpotlightPane() {
         </Row>
       </Group>
 
-      <Group title="History" footer="History is stored only on this computer and is used for Recent items, suggestions and ranking.">
+      <Group title="History">
         <ToggleRow label="Remember search history" checked={s.keepHistory} onChange={(v) => set({ keepHistory: v })} />
-        <Row label="Clear search history" description="Forget recent items, past searches and usage counts.">
+        <Row label="Clear search history">
           <Button
             onClick={() =>
               api
@@ -208,7 +192,7 @@ export default function SpotlightPane() {
           }
           description={
             status
-              ? `${status.files.toLocaleString()} files · ${status.folders.toLocaleString()} folders · ${status.apps} apps · updated ${formatTime(status.lastIndexed)}${status.limitReached ? " · entry limit reached" : ""}${status.watching ? " · watching for changes" : ""}`
+              ? `${status.files.toLocaleString()} files · ${status.folders.toLocaleString()} folders · ${status.apps} apps${status.limitReached ? " · entry limit reached" : ""}`
               : "Loading…"
           }
         >
@@ -225,13 +209,12 @@ export default function SpotlightPane() {
         {status?.error && <div className="px-3.5 py-2 text-[11.5px] text-danger">{status.error}</div>}
         <ToggleRow
           label="Include hidden files and folders"
-          description="Items whose names start with a dot (Linux) or that are marked hidden (Windows)."
           checked={s.indexHidden}
           onChange={(v) => set({ indexHidden: v })}
         />
       </Group>
 
-      <Group title="Folders to index" footer="Leave empty to index your home folder. Use absolute paths.">
+      <Group title="Folders to index">
         <ListEditor
           items={s.indexRoots}
           mono
@@ -241,10 +224,7 @@ export default function SpotlightPane() {
         />
       </Group>
 
-      <Group
-        title="Exclusions"
-        footer="Folder or file names (wildcards like *.tmp allowed) or absolute paths that Spotlight skips."
-      >
+      <Group title="Exclusions">
         <ListEditor items={s.exclusions} placeholder="node_modules" onChange={(exclusions) => set({ exclusions })} />
       </Group>
       <div className="mb-2 flex justify-end">

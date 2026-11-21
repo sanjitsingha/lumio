@@ -104,7 +104,7 @@ export function UpdateCard({ updates }) {
         )}
 
         {latest?.notes && (phase === "available" || phase === "ready" || phase === "downloading") && (
-          <div className="selectable mt-2.5 max-h-[140px] overflow-auto rounded-[7px] bg-fill px-3 py-2 text-[11.5px] leading-[16px] whitespace-pre-wrap text-label">
+          <div className="selectable mt-2.5 max-h-[140px] overflow-auto rounded-[4px] bg-fill px-3 py-2 text-[11.5px] leading-[16px] whitespace-pre-wrap text-label">
             {latest.notes}
           </div>
         )}
@@ -117,8 +117,7 @@ export function UpdateCard({ updates }) {
         )}
       </div>
       {status.releasePage && (
-        <div className="flex items-center justify-between px-3.5 py-2.5">
-          <span className="text-[11.5px] text-secondary">Prefer to update manually? Download the installer yourself.</span>
+        <div className="flex items-center justify-end px-3.5 py-2.5">
           <Button variant="plain" icon={ExternalLink} onClick={openReleasePage}>
             Release Page
           </Button>

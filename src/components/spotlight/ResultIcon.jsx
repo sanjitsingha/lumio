@@ -50,7 +50,7 @@ export function iconUrl(kind, key) {
   return isWindows ? `http://lummo-icon.localhost/${kind}/${key}` : `lummo-icon://localhost/${kind}/${key}`;
 }
 
-const radius = (size) => Math.round(size * 0.18);
+const radius = (size) => Math.round(size * 0.125);
 
 function Tile({ tint, Icon, size }) {
   return (
