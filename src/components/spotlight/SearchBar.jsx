@@ -1,5 +1,6 @@
 import { forwardRef, useLayoutEffect, useRef, useState } from "react";
-import { LoaderCircle, Search } from "lucide-react";
+import { ChevronDown, LoaderCircle, Search } from "lucide-react";
+import { cx } from "../../utils/cx";
 
 /**
  * The input row. The typed text sits on a soft rounded highlight, and
@@ -7,8 +8,12 @@ import { LoaderCircle, Search } from "lucide-react";
  * accepted with → or End. Both are drawn by a copy of the text behind the
  * transparent input, kept in step with the input's horizontal scrolling.
  * `kind` names what the selected result is ("Application"), at the right end.
+ * With an empty field that end holds the Tab hint, which opens the quick panel.
  */
-export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyDown, loading, suggestion, kind }, ref) {
+export const SearchBar = forwardRef(function SearchBar(
+  { value, onChange, onKeyDown, loading, suggestion, kind, quickOpen, onToggleQuick },
+  ref,
+) {
   const input = useRef(null);
   const [scroll, setScroll] = useState(0);
   const syncScroll = () => setScroll(input.current?.scrollLeft ?? 0);
@@ -58,6 +63,21 @@ export const SearchBar = forwardRef(function SearchBar({ value, onChange, onKeyD
         />
       </div>
       {kind && <span className="shrink-0 text-[12px] text-secondary">{kind}</span>}
+      {onToggleQuick && !value.trim() && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-expanded={quickOpen}
+          // keeps the focus, and with it the keyboard, in the search field
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onToggleQuick}
+          className="flex shrink-0 items-center gap-1.5 rounded-[4px] py-1 pr-1 pl-1.5 text-[11px] text-secondary hover:bg-fill"
+        >
+          <kbd className="rounded-[3px] bg-fill-strong px-1.5 py-px font-sans text-[10px] font-medium text-label">Tab</kbd>
+          Quick files
+          <ChevronDown size={12} aria-hidden className={cx("transition-transform duration-200", quickOpen && "rotate-180")} />
+        </button>
+      )}
       {loading && <LoaderCircle size={15} className="shrink-0 animate-spin text-secondary" aria-label="Searching" />}
     </div>
   );

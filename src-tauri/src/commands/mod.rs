@@ -2,6 +2,8 @@
 //! capability file grants (see `capabilities/`).
 
 pub mod capslock;
+pub mod currency;
+pub mod screenshots;
 pub mod search;
 pub mod settings;
 pub mod shortcuts;

@@ -27,6 +27,8 @@ export const KIND_LABELS = {
   file: "File",
   web: "Web Search",
   calculator: "Calculator",
+  conversion: "Currency",
+  measurement: "Measurement",
 };
 
 /** What an item of `flatten` is; an app's own actions are "Action". */

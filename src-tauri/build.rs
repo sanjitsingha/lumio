@@ -16,6 +16,13 @@ const COMMANDS: &[&str] = &[
     "hide_spotlight",
     "set_spotlight_height",
     "open_settings_window",
+    // spotlight's quick files
+    "get_screenshots",
+    "copy_screenshot",
+    "get_clips",
+    "copy_clip",
+    // spotlight's currency answers
+    "get_currency_rates",
     // shortcuts
     "get_shortcut_status",
     "begin_shortcut_recording",

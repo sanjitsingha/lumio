@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "spotlight",
-  "description": "Search window: query, open results, read appearance. No settings or filesystem access.",
+  "description": "Search window: query, open results, read appearance, list and copy recent screenshots and clipboard history. No settings or other filesystem access.",
   "windows": ["spotlight"],
   "permissions": [
     "core:event:default",
@@ -16,6 +16,11 @@
     "allow-hide-spotlight",
     "allow-set-spotlight-height",
     "allow-open-settings-window",
+    "allow-get-screenshots",
+    "allow-copy-screenshot",
+    "allow-get-clips",
+    "allow-copy-clip",
+    "allow-get-currency-rates",
     "allow-get-platform-info",
     "allow-get-system-appearance"
   ]

@@ -20,6 +20,11 @@ export const api = {
   hideSpotlight: () => invoke("hide_spotlight"),
   setSpotlightHeight: (height, viewportWidth) => invoke("set_spotlight_height", { height, viewportWidth }),
   openSettingsWindow: (pane = null) => invoke("open_settings_window", { pane }),
+  getScreenshots: () => invoke("get_screenshots"),
+  copyScreenshot: (name) => invoke("copy_screenshot", { name }),
+  getClips: () => invoke("get_clips"),
+  copyClip: (id) => invoke("copy_clip", { id }),
+  getCurrencyRates: () => invoke("get_currency_rates"),
 
   // shortcuts
   getShortcutStatus: () => invoke("get_shortcut_status"),

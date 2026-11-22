@@ -5,7 +5,10 @@ mod analytics;
 mod app_state;
 mod capslock;
 mod cli;
+#[cfg(target_os = "linux")]
+mod clips;
 mod commands;
+mod currency;
 #[cfg(feature = "dev-snapshot")]
 mod dev;
 mod error;
@@ -15,6 +18,7 @@ mod integration_tests;
 #[cfg(windows)]
 mod notch;
 mod platform;
+mod screenshots;
 mod search;
 mod shortcuts;
 mod storage;
@@ -192,6 +196,9 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
     if let Err(e) = notch::create(&handle) {
         log::error!("could not create the notch: {e}");
     }
+    #[cfg(target_os = "linux")]
+    clips::start(&handle);
+    currency::start(&handle);
     app_state::start_background_services(&handle);
     updater::start_background_checks(&handle);
 
@@ -263,6 +270,15 @@ pub fn run() {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
             std::thread::spawn(move || {
+                // `/screenshot/<hex name>`: a thumbnail in Spotlight's Quick files
+                if let Some(key) = path.strip_prefix("/screenshot/") {
+                    return responder.respond(screenshots::respond(&app, key));
+                }
+                // `/clip/<id>`: the picture of a copy in Spotlight's Quick files
+                #[cfg(target_os = "linux")]
+                if let Some(id) = path.strip_prefix("/clip/") {
+                    return responder.respond(clips::respond(&app, id));
+                }
                 let engine = app.state::<AppState>().engine.clone();
                 responder.respond(search::icons::respond(&engine, &path));
             });
@@ -280,6 +296,11 @@ pub fn run() {
             commands::window::hide_spotlight,
             commands::window::set_spotlight_height,
             commands::window::open_settings_window,
+            commands::screenshots::get_screenshots,
+            commands::screenshots::copy_screenshot,
+            commands::screenshots::get_clips,
+            commands::screenshots::copy_clip,
+            commands::currency::get_currency_rates,
             commands::shortcuts::get_shortcut_status,
             commands::shortcuts::begin_shortcut_recording,
             commands::shortcuts::end_shortcut_recording,

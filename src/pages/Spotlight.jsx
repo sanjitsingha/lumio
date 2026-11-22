@@ -4,13 +4,18 @@ import { CircleAlert, SearchX } from "lucide-react";
 import { SearchBar } from "../components/spotlight/SearchBar";
 import { ResultList } from "../components/spotlight/ResultList";
 import { SpotlightFooter } from "../components/spotlight/SpotlightFooter";
+import { QUICK_PANEL_HEIGHT, QuickPanel } from "../components/spotlight/QuickPanel";
 import { useSearch } from "../hooks/useSearch";
 import { useAutoHeight } from "../hooks/useAutoHeight";
+import { useConversionResults } from "../hooks/useConversionResults";
 import { useSettings } from "../hooks/useSettings";
+import { usePlatform } from "../hooks/usePlatform";
 import { api, errorMessage } from "../services/tauri";
 import { EVENTS, subscribe } from "../services/events";
 import { calculate } from "../utils/calc";
 import { copyText } from "../utils/clipboard";
+import { answerConversion } from "../utils/currency";
+import { answerMeasurement } from "../utils/units";
 import { deletePreviousSegment } from "../utils/keys";
 import { expansionFor, flatten, jumpSection, kindLabel, moveSelection, selectItem } from "../utils/navigation";
 
@@ -21,9 +26,14 @@ const PANEL_BORDERS = 2;
 const EASE = [0.2, 0.8, 0.2, 1];
 /** How the panel's height follows its contents as results come and go. */
 const RESIZE = { duration: 0.2, ease: EASE };
+/** What the results list gives up for the quick panel; its height cap already spares 29 px (ResultList.jsx). */
+const QUICK_PANEL_RESERVE = QUICK_PANEL_HEIGHT - 29;
 
 export default function SpotlightPage() {
   const settings = useSettings();
+  // Quick files stands in for the notch, so Windows, which has one, keeps Tab for sections
+  const platform = usePlatform();
+  const hasQuickFiles = platform ? !platform.notchAvailable : false;
   const delay = settings?.spotlight?.searchDelayMs ?? 60;
   const { query, setQuery, response, staleResponse, loading, error, reset } = useSearch(delay);
   const [selected, setSelected] = useState(0);
@@ -34,6 +44,10 @@ export default function SpotlightPage() {
   // fading out before the window hides
   const [closing, setClosing] = useState(false);
   const [launchError, setLaunchError] = useState(null);
+  // the area below the results, opened with Tab while the search field is empty
+  const [quickOpen, setQuickOpen] = useState(false);
+  // the saved exchange rates; conversions never go to the network
+  const [rates, setRates] = useState(null);
   const inputRef = useRef(null);
   // the panel's contents at their natural size; state, not a ref, because the
   // panel is remounted (key) every time Spotlight opens
@@ -45,6 +59,10 @@ export default function SpotlightPage() {
     api.getRecentItems(6).then(setRecent).catch(() => setRecent([]));
   }, []);
 
+  const loadRates = useCallback(() => {
+    api.getCurrencyRates().then(setRates).catch(() => {});
+  }, []);
+
   const focusInput = useCallback(() => {
     const input = inputRef.current;
     if (!input) return;
@@ -54,13 +72,16 @@ export default function SpotlightPage() {
 
   useEffect(() => {
     loadRecent();
+    loadRates();
     focusInput();
     const offShown = subscribe(EVENTS.spotlightShown, () => {
       setClosing(false);
       setShowKey((k) => k + 1);
       setSelected(0);
       setLaunchError(null);
+      setQuickOpen(false);
       loadRecent();
+      loadRates();
       // the webview receives focus a moment after the window is mapped
       requestAnimationFrame(focusInput);
       setTimeout(focusInput, 60);
@@ -76,15 +97,28 @@ export default function SpotlightPage() {
       offHiding();
       offHidden();
     };
-  }, [focusInput, loadRecent, reset]);
+  }, [focusInput, loadRates, loadRecent, reset]);
 
   // Show previous results while the next ones load, to avoid flicker.
   const shown = response || (query.trim() ? staleResponse : null);
   // computed here rather than in the backend, so it follows every keystroke
   const calc = useMemo(() => calculate(query), [query]);
+  // money first, so that "1 pound to inr" is currency and "1 pound to kg" a measurement
+  const conversion = useMemo(
+    () => (calc ? null : (answerConversion(query, rates) ?? answerMeasurement(query))),
+    [query, calc, rates],
+  );
+  const related = useConversionResults(conversion);
   const sections = useMemo(() => {
     if (query.trim()) {
       const found = shown?.sections ?? [];
+      if (conversion) {
+        // as tall as Quick files (ConversionRow), with only what relates to it below; Enter copies the title
+        const kind = conversion.measure ? "measurement" : "conversion";
+        const result = { ...conversion, id: "conversion:answer", kind, title: conversion.answer, reveal: false, actions: [] };
+        const answer = { id: "conversion", title: conversion.measure ? "Measurement" : "Currency", results: [result] };
+        return related.length ? [answer, { id: "related", title: "Related", results: related }] : [answer];
+      }
       if (!calc) return found;
       // drawn as "2 + 2 = 4" (CalculatorRow); Enter copies the title
       const result = {
@@ -98,14 +132,14 @@ export default function SpotlightPage() {
       return [{ id: "calculator", title: "Calculator", results: [result] }, ...found];
     }
     return recent.length ? [{ id: "recent", title: "Recent", results: recent }] : [];
-  }, [query, shown, recent, calc]);
+  }, [query, shown, recent, calc, conversion, related]);
   const items = useMemo(() => flatten(sections, expanded), [sections, expanded]);
 
   // new results start at the first item, showing its actions if it is an app
   useEffect(() => {
     setSelected(0);
     setExpanded(expansionFor(flatten(sections)[0]));
-  }, [shown?.requestId, recent]);
+  }, [shown?.requestId, recent, Boolean(conversion), related]);
 
   // keyboard moves expand and collapse app actions; hovering only highlights,
   // so rows never shift under the pointer
@@ -117,13 +151,15 @@ export default function SpotlightPage() {
 
   // an action row runs that action
   const current = items[selected]?.action ?? items[selected]?.result;
-  const noResults = !calc && query.trim() && response && response.total === 0 && !loading;
+  const noResults = !calc && !conversion && query.trim() && response && response.total === 0 && !loading;
 
   const open = useCallback(
     async (result, mode) => {
       if (!result) return;
       setLaunchError(null);
-      if (result.kind === "calculator") {
+      if (result.kind === "calculator" || result.kind === "conversion" || result.kind === "measurement") {
+        // a conversion has nothing to copy until rates are saved
+        if (!result.title) return;
         try {
           await copyText(result.title);
           api.hideSpotlight();
@@ -156,7 +192,9 @@ export default function SpotlightPage() {
         break;
       case "Tab":
         e.preventDefault();
-        select(jumpSection(items, selected, e.shiftKey ? -1 : 1));
+        // while searching, Tab keeps moving between the result sections
+        if (hasQuickFiles && !query.trim() && !e.shiftKey) setQuickOpen((isOpen) => !isOpen);
+        else select(jumpSection(items, selected, e.shiftKey ? -1 : 1));
         break;
       case "Enter":
         e.preventDefault();
@@ -164,7 +202,8 @@ export default function SpotlightPage() {
         break;
       case "Escape":
         e.preventDefault();
-        api.hideSpotlight();
+        if (quickOpen) setQuickOpen(false);
+        else api.hideSpotlight();
         break;
       case "ArrowRight":
       case "End": {
@@ -222,11 +261,14 @@ export default function SpotlightPage() {
               onChange={(v) => {
                 setQuery(v);
                 setLaunchError(null);
+                if (v.trim()) setQuickOpen(false);
               }}
               onKeyDown={onKeyDown}
               loading={loading}
               suggestion={shown?.suggestion}
               kind={kind}
+              quickOpen={quickOpen}
+              onToggleQuick={hasQuickFiles ? () => setQuickOpen((isOpen) => !isOpen) : undefined}
             />
             <AnimatePresence initial={false}>
               {hasBody && (
@@ -239,7 +281,14 @@ export default function SpotlightPage() {
                   className="border-t border-separator"
                 >
                   {hasList && (
-                    <ResultList sections={sections} items={items} selected={selected} onSelect={setSelected} onOpen={open} />
+                    <ResultList
+                      sections={sections}
+                      items={items}
+                      selected={selected}
+                      onSelect={setSelected}
+                      onOpen={open}
+                      reserve={quickOpen ? QUICK_PANEL_RESERVE : 0}
+                    />
                   )}
                   {noResults && (
                     <div className="flex items-center gap-3 px-5 py-4 text-secondary">
@@ -256,12 +305,13 @@ export default function SpotlightPage() {
                       <span className="truncate">{launchError || errorMessage(error)}</span>
                     </div>
                   )}
-                  {hasList && (
+                  {hasList && !conversion && (
                     <SpotlightFooter index={shown?.index} />
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
+            <AnimatePresence initial={false}>{quickOpen && <QuickPanel key="quick" onError={setLaunchError} />}</AnimatePresence>
           </div>
         </motion.div>
       </motion.div>

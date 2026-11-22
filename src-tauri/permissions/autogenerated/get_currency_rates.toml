@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-currency-rates"
+description = "Enables the get_currency_rates command without any pre-configured scope."
+commands.allow = ["get_currency_rates"]
+
+[[permission]]
+identifier = "deny-get-currency-rates"
+description = "Denies the get_currency_rates command without any pre-configured scope."
+commands.deny = ["get_currency_rates"]
