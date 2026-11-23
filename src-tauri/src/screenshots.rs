@@ -14,9 +14,9 @@ use crate::search::hex_key;
 /// How many of the newest screenshots Spotlight lists.
 const MAX_LISTED: usize = 30;
 /// Thumbnails are twice the size they are drawn at (`QuickPanel.jsx`), for sharp HiDPI.
-#[cfg(target_os = "linux")]
-const THUMB_WIDTH: i32 = 384;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) const THUMB_WIDTH: i32 = 384;
+#[cfg(any(target_os = "linux", windows))]
 const THUMB_HEIGHT: i32 = 240;
 
 #[derive(Debug, Serialize)]
@@ -58,9 +58,13 @@ fn newest_in(dir: &Path, limit: usize) -> Vec<Screenshot> {
 }
 
 /// `name` inside `dir`, if it is a bare file name of an image that is a real file there.
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
 fn resolve(dir: &Path, name: &str) -> Option<PathBuf> {
     if !is_image(name) || Path::new(name).file_name()?.to_str()? != name {
+        return None;
+    }
+    // on Windows `a:b.png` is a hidden stream of the file `a`, not a file in this folder
+    if cfg!(windows) && name.contains(':') {
         return None;
     }
     let path = dir.join(name);
@@ -71,12 +75,12 @@ pub fn list(app: &AppHandle) -> Vec<Screenshot> {
     folder(app).map(|dir| newest_in(&dir, MAX_LISTED)).unwrap_or_default()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn path_of(app: &AppHandle, name: &str) -> Option<PathBuf> {
     resolve(&folder(app)?, name)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn thumbnail(app: &AppHandle, key: &str) -> Option<Vec<u8>> {
     let name = crate::search::unhex_key(key)?;
     thumbnail_png(&path_of(app, &name)?)
@@ -89,8 +93,15 @@ pub(crate) fn thumbnail_png(path: &Path) -> Option<Vec<u8>> {
     pixbuf.save_to_bufferv("png", &[]).ok()
 }
 
-/// Quick files is Linux's stand-in for the Windows notch.
-#[cfg(not(target_os = "linux"))]
+/// A small PNG of an image file.
+#[cfg(windows)]
+pub(crate) fn thumbnail_png(path: &Path) -> Option<Vec<u8>> {
+    let fit = (THUMB_WIDTH as u32, THUMB_HEIGHT as u32);
+    let (width, height, rgba) = crate::clips::decode_image(path, Some(fit))?;
+    crate::clips::encode_png(width, height, &rgba)
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 fn thumbnail(_app: &AppHandle, _key: &str) -> Option<Vec<u8>> {
     None
 }
@@ -113,9 +124,17 @@ pub fn copy(app: &AppHandle, name: &str) -> Result<(), String> {
     result.recv().map_err(|e| e.to_string())?
 }
 
-#[cfg(not(target_os = "linux"))]
+/// Puts the full-size screenshot on the clipboard; it is already listed, so it
+/// does not join the clipboard history too.
+#[cfg(windows)]
+pub fn copy(app: &AppHandle, name: &str) -> Result<(), String> {
+    let path = path_of(app, name).ok_or("That screenshot is no longer there.")?;
+    crate::clips::copy_image_file(app, &path)
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 pub fn copy(_app: &AppHandle, _name: &str) -> Result<(), String> {
-    Err("Quick files is only available on Linux.".into())
+    Err("Quick files is only available on Linux and Windows.".into())
 }
 
 /// `lummo-icon://localhost/screenshot/<hex name>`. The page adds the file's
@@ -181,6 +200,19 @@ mod tests {
         assert_eq!(resolve(&dir, "shot.png"), Some(dir.join("shot.png")));
         for name in ["notes.txt", "missing.png", "../secret.png", "sub/shot.png", "/etc/shot.png", ".."] {
             assert_eq!(resolve(&dir, name), None, "{name}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn hidden_streams_and_other_paths_are_not_resolved() {
+        let dir = tempfile::tempdir().unwrap();
+        touch(dir.path(), "shot.png", 1);
+        std::fs::write(dir.path().join("shot.png:hidden.png"), b"x").unwrap();
+
+        assert_eq!(resolve(dir.path(), "shot.png"), Some(dir.path().join("shot.png")));
+        for name in ["shot.png:hidden.png", "..\\secret.png", "C:\\shot.png", "C:shot.png"] {
+            assert_eq!(resolve(dir.path(), name), None, "{name}");
         }
     }
 

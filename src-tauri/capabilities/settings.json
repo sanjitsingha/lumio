@@ -18,6 +18,7 @@
     "allow-clear-search-history",
     "allow-get-index-status",
     "allow-rebuild-index",
+    "allow-get-commands",
     "allow-open-settings-window",
     "allow-get-shortcut-status",
     "allow-begin-shortcut-recording",

@@ -70,6 +70,11 @@ fn resolve(id: &str) -> Option<(gio::AppInfo, Vec<gio::File>)> {
     }
 }
 
+/// Windows has a catalog of system commands; there is none here yet.
+pub fn system_commands() -> impl Iterator<Item = &'static crate::search::actions::QuickAction> {
+    std::iter::empty()
+}
+
 pub fn is_available(id: &str) -> bool {
     resolve(id).is_some()
 }

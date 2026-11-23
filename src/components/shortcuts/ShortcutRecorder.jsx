@@ -5,9 +5,10 @@ import { liveModifierKeys, shortcutFromEvent, shortcutKeys } from "../../utils/k
 
 /**
  * Captures one key combination from the keyboard. Calls `onCapture(text)`
- * with canonical text (e.g. `Ctrl+Alt+K`) or `onCancel()` on a bare Escape.
+ * with canonical text (e.g. `Ctrl+Alt+K`) or `onCancel()` on a bare Escape,
+ * and returns the modifiers held right now.
  */
-export function ShortcutRecorder({ os, onCapture, onCancel, busy }) {
+export function useKeyCapture({ onCapture, onCancel, busy }) {
   const [mods, setMods] = useState({ ctrl: false, alt: false, shift: false, super: false });
 
   useEffect(() => {
@@ -37,6 +38,11 @@ export function ShortcutRecorder({ os, onCapture, onCancel, busy }) {
     };
   }, [onCapture, onCancel, busy]);
 
+  return mods;
+}
+
+export function ShortcutRecorder({ os, onCapture, onCancel, busy }) {
+  const mods = useKeyCapture({ onCapture, onCancel, busy });
   const live = liveModifierKeys(mods, os);
   return (
     <motion.div

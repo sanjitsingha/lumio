@@ -6,6 +6,7 @@ import {
   liveModifierKeys,
   shortcutFromEvent,
   shortcutKeys,
+  shortcutText,
 } from "../src/utils/keys";
 
 const event = (code, mods = {}) => ({
@@ -66,6 +67,12 @@ describe("shortcutKeys", () => {
 
   it("lists held modifiers", () => {
     expect(liveModifierKeys({ ctrl: true, alt: false, shift: true, super: false })).toEqual(["Ctrl", "Shift"]);
+  });
+
+  it("writes a shortcut as plain text", () => {
+    expect(shortcutText("Ctrl+K")).toBe("Ctrl + K");
+    expect(shortcutText("Ctrl+Super+Comma", "windows")).toBe("Ctrl + Win + ,");
+    expect(shortcutText(undefined)).toBe("");
   });
 });
 

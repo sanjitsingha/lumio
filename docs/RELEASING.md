@@ -130,7 +130,7 @@ When the workflow finishes, installed copies notice the update (at the next 6-ho
 | `.deb` | asks for your password (system package), installs, restarts Lummo |
 | AppImage | replaces the AppImage file, restarts |
 
-**Settings → General**:
+**Settings → About**:
 
 - Lummo checks for updates shortly after it starts and every few hours, and notifies you when a release appears.
 - *Install updates automatically* installs it without asking.

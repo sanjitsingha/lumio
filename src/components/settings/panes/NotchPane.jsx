@@ -1,4 +1,4 @@
-import { Group, NumberField, Row, Segmented } from "../../common/controls";
+import { Group, NumberField, Row, Select } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 
@@ -35,7 +35,7 @@ export default function NotchPane() {
             max={MAX[n.keepUnit]}
             onCommit={(keepFor) => set({ keepFor })}
           />
-          <Segmented value={n.keepUnit} options={UNITS} onChange={setUnit} size="sm" />
+          <Select label="Unit" value={n.keepUnit} options={UNITS} onChange={setUnit} />
         </Row>
       </Group>
     </>

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use accelerator::Accelerator;
-use actions::{ShortcutAction, SlotInfo, SLOTS};
+use actions::{ShortcutAction, SlotInfo};
 use backend::{BackendKind, RegisterError, ShortcutBackend};
 
 use crate::error::{AppError, AppResult};
@@ -71,7 +71,7 @@ pub struct ShortcutManager {
     active: RwLock<HashMap<Accelerator, &'static str>>,
     /// Serializes operations that talk to the backend.
     op_lock: Mutex<()>,
-    last_fire: Mutex<Option<Instant>>,
+    last_fire: Mutex<Option<(Accelerator, Instant)>>,
 }
 
 fn err(code: &'static str, message: impl Into<String>) -> AppError {
@@ -115,7 +115,7 @@ impl ShortcutManager {
         let accel: Accelerator = text.parse().map_err(|e: accelerator::ParseError| err("invalid-shortcut", e.to_string()))?;
         accel.validate().map_err(|e| err("invalid-shortcut", e.to_string()))?;
         let state = self.state();
-        for other in SLOTS.iter().filter(|s| s.id != slot.id) {
+        for other in actions::all().filter(|s| s.id != slot.id) {
             let taken = state
                 .bindings
                 .get(other.id)
@@ -191,8 +191,8 @@ impl ShortcutManager {
         let slot_id = *self.active.read().unwrap_or_else(|e| e.into_inner()).get(&accel)?;
         let now = Instant::now();
         let mut last = self.last_fire.lock().unwrap_or_else(|e| e.into_inner());
-        let repeated = last.is_some_and(|t| now.duration_since(t) < REPEAT_GUARD);
-        *last = Some(now);
+        let repeated = last.is_some_and(|(held, t)| held == accel && now.duration_since(t) < REPEAT_GUARD);
+        *last = Some((accel, now));
         if repeated {
             return None;
         }
@@ -202,8 +202,8 @@ impl ShortcutManager {
     pub fn report(&self) -> ShortcutReport {
         let state = self.state();
         let active = self.active.read().unwrap_or_else(|e| e.into_inner());
-        let slots = SLOTS
-            .iter()
+        let slots = actions::all()
+            .filter(|slot| slot.action != ShortcutAction::RunCommand || state.bindings.get(slot.id).is_some_and(Option::is_some))
             .map(|slot| {
                 let accelerator = state.bindings.get(slot.id).cloned().flatten();
                 let registered = accelerator
@@ -236,8 +236,7 @@ impl ShortcutManager {
     fn sync_locked(&self) {
         let (desired, suspended) = {
             let state = self.state();
-            let desired: HashMap<Accelerator, &'static str> = SLOTS
-                .iter()
+            let desired: HashMap<Accelerator, &'static str> = actions::all()
                 .filter_map(|slot| {
                     let text = state.bindings.get(slot.id)?.as_deref()?;
                     Some((text.parse::<Accelerator>().ok()?, slot.id))
@@ -422,6 +421,20 @@ mod tests {
         assert_eq!(m.resolve_activation(acc(default_shortcut())).unwrap().id, "spotlight.toggle");
         assert!(m.resolve_activation(acc(default_shortcut())).is_none(), "repeat within guard window");
         assert!(m.resolve_activation(acc("Ctrl+Shift+Q")).is_none(), "not bound");
+    }
+
+    #[test]
+    fn a_command_can_have_its_own_hotkey() {
+        let (m, backend) = manager(&[]);
+        m.apply(&defaults());
+        assert_eq!(m.report().slots.len(), 1, "commands without a hotkey are not listed");
+        m.set_binding("action:calculator", Some("Ctrl+Alt+C")).unwrap();
+        assert!(backend.registered.lock().unwrap().contains(&acc("Ctrl+Alt+C")));
+        assert_eq!(m.resolve_activation(acc("Ctrl+Alt+C")).unwrap().action, ShortcutAction::RunCommand);
+        assert_eq!(m.set_binding("setting:wifi", Some("Ctrl+Alt+C")).unwrap_err().code(), "duplicate");
+        // a different hotkey right after is not mistaken for key repeat
+        m.set_binding("setting:wifi", Some("Ctrl+Alt+W")).unwrap();
+        assert_eq!(m.resolve_activation(acc("Ctrl+Alt+W")).unwrap().id, "setting:wifi");
     }
 
     #[test]

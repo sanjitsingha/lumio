@@ -4,6 +4,13 @@ use std::path::PathBuf;
 
 use super::browser::default_executable as default_browser;
 use super::launch::shell_open;
+use super::system_commands;
+use crate::search::actions::QuickAction;
+
+/// The catalog of Windows commands, on top of the actions every platform has.
+pub fn system_commands() -> impl Iterator<Item = &'static QuickAction> {
+    system_commands::all()
+}
 
 fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
@@ -19,7 +26,7 @@ pub fn is_available(id: &str) -> bool {
     match id {
         "system-settings" | "calculator" | "file-manager" | "terminal" => true,
         "browser" => default_browser().is_some(),
-        _ => false,
+        other => system_commands::is_available(other),
     }
 }
 
@@ -35,7 +42,8 @@ pub fn app(id: &str) -> Option<(String, String)> {
         "terminal" if windows_terminal().is_some() => app("Microsoft.WindowsTerminal_8wekyb3d8bbwe!App", "Terminal"),
         // {1AC14E77-…} is the System32 folder
         "terminal" => app(r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe", "Windows PowerShell"),
-        _ => None,
+        // found by name, when it is an app the index knows
+        other => system_commands::title(other).map(|title| (String::new(), title.to_string())),
     }
 }
 
@@ -52,7 +60,7 @@ pub fn run(id: &str) -> Result<(), String> {
             Some(wt) => shell_open(&wt.to_string_lossy(), home().as_deref()),
             None => shell_open("powershell.exe", home().as_deref()),
         },
-        other => Err(format!("unknown action {other}")),
+        other => system_commands::run(other),
     }
 }
 

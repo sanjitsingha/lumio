@@ -4,7 +4,7 @@ use crate::analytics;
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
 use crate::events;
-use crate::search::types::{ExecuteMode, IndexStatus, SearchResponse, SearchResult};
+use crate::search::types::{CommandEntry, ExecuteMode, IndexStatus, SearchResponse, SearchResult};
 use crate::window_manager;
 
 const MAX_QUERY_CHARS: usize = 256;
@@ -16,10 +16,19 @@ pub async fn search(state: State<'_, AppState>, query: String, request_id: u64) 
         return Err(AppError::Invalid("Search text is too long.".into()));
     }
     let engine = state.engine.clone();
-    let settings = state.settings().spotlight;
-    tauri::async_runtime::spawn_blocking(move || engine.search(&query, &settings, request_id))
+    let settings = state.settings();
+    tauri::async_runtime::spawn_blocking(move || engine.search(&query, &settings.spotlight, &settings.commands, request_id))
         .await
         .map_err(|e| AppError::Platform(format!("search task failed: {e}")))
+}
+
+/// The quick actions and settings pages listed on the Shortcut page.
+#[tauri::command]
+pub async fn get_commands(state: State<'_, AppState>) -> AppResult<Vec<CommandEntry>> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || engine.commands())
+        .await
+        .map_err(|e| AppError::Platform(e.to_string()))
 }
 
 #[tauri::command]
@@ -55,12 +64,13 @@ pub async fn execute_result(
 
 #[tauri::command]
 pub async fn get_recent_items(state: State<'_, AppState>, limit: Option<usize>) -> AppResult<Vec<SearchResult>> {
-    if !state.settings().spotlight.keep_history {
+    let settings = state.settings();
+    if !settings.spotlight.keep_history {
         return Ok(Vec::new());
     }
     let engine = state.engine.clone();
     let limit = limit.unwrap_or(6).clamp(1, 20);
-    tauri::async_runtime::spawn_blocking(move || engine.recent(limit))
+    tauri::async_runtime::spawn_blocking(move || engine.recent(limit, &settings.commands))
         .await
         .map_err(|e| AppError::Platform(e.to_string()))
 }

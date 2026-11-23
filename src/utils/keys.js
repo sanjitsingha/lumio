@@ -107,6 +107,11 @@ export function shortcutKeys(text, os = "linux") {
   });
 }
 
+/** A shortcut as plain text: `Ctrl + K`. */
+export function shortcutText(text, os = "linux") {
+  return shortcutKeys(text, os).join(" + ");
+}
+
 export function liveModifierKeys(mods, os = "linux") {
   return shortcutKeys(
     [mods.ctrl && "Ctrl", mods.alt && "Alt", mods.shift && "Shift", mods.super && "Super"].filter(Boolean).join("+"),

@@ -17,7 +17,8 @@ pub struct PlatformPayload {
     pub authors: String,
     pub license: String,
     pub description: String,
-    /// This build has the notch (Windows), so Settings shows its pane.
+    /// Whether Settings shows the notch's pane: no build runs the notch now, as
+    /// Spotlight's Quick files took its place.
     pub notch_available: bool,
 }
 
@@ -37,7 +38,7 @@ pub fn get_platform_info(app: AppHandle, state: State<'_, AppState>) -> Platform
         authors: env!("CARGO_PKG_AUTHORS").replace(':', ", "),
         license: env!("CARGO_PKG_LICENSE").to_string(),
         description: env!("CARGO_PKG_DESCRIPTION").to_string(),
-        notch_available: cfg!(windows),
+        notch_available: false,
     }
 }
 

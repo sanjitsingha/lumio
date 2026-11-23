@@ -1,20 +1,22 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::actions::ActionsProvider;
+use super::actions::{self, ActionsProvider};
 use super::apps::{AppIndex, AppsProvider};
 use super::files::{FileIndex, FilesProvider};
-use super::fuzzy::Query;
-use super::system_settings::SystemSettingsProvider;
-use super::types::{ExecuteMode, ResultKind, SearchResponse, SearchResult, Section};
+use super::fuzzy::{fold, Query};
+use super::system_settings::{SystemSettingsProvider, PAGES};
+use super::types::{CommandEntry, ExecuteMode, ResultKind, SearchResponse, SearchResult, Section};
 use super::web::WebSearchProvider;
 use super::{split_id, ExecutedItem, SearchContext, SearchProvider};
 use crate::error::{AppError, AppResult};
 use crate::storage::history::{frecency, now_secs, History};
-use crate::storage::settings::SpotlightSettings;
+use crate::storage::settings::{CommandSettings, SpotlightSettings};
 
 /// A result this strong (after weighting) is promoted to "Top Hit".
 const TOP_HIT_THRESHOLD: f32 = 700.0;
+/// Above any match: typing a command's alias asks for exactly that command.
+const ALIAS_SCORE: f32 = 100_000.0;
 const SECTION_ORDER: [ResultKind; 6] =
     [ResultKind::App, ResultKind::Action, ResultKind::Setting, ResultKind::Folder, ResultKind::File, ResultKind::Web];
 
@@ -53,7 +55,30 @@ impl SearchEngine {
         self.system_settings.refresh_availability();
     }
 
-    pub fn search(&self, raw: &str, settings: &SpotlightSettings, request_id: u64) -> SearchResponse {
+    /// Every quick action and settings page this system can open.
+    pub fn commands(&self) -> Vec<CommandEntry> {
+        let quick = actions::all().filter_map(|a| Some(CommandEntry { result: self.actions.resolve(a.id)?, keywords: a.keywords }));
+        let pages =
+            PAGES.iter().filter_map(|p| Some(CommandEntry { result: self.system_settings.resolve(p.id)?, keywords: p.keywords }));
+        quick.chain(pages).collect()
+    }
+
+    /// Puts the command whose alias was typed in full first.
+    fn add_aliased(&self, raw: &str, settings: &SpotlightSettings, commands: &CommandSettings, results: &mut Vec<SearchResult>) {
+        let typed = fold(raw.trim());
+        let Some((id, _)) = commands.aliases.iter().find(|(id, alias)| **alias == typed && !commands.disabled.contains(id)) else {
+            return;
+        };
+        let Some((provider_id, local)) = split_id(id) else { return };
+        let Some(provider) = self.providers.iter().find(|p| p.id() == provider_id && p.enabled(settings)) else { return };
+        if let Some(mut found) = provider.resolve(local) {
+            results.retain(|r| r.id != found.id);
+            found.score = ALIAS_SCORE;
+            results.push(found);
+        }
+    }
+
+    pub fn search(&self, raw: &str, settings: &SpotlightSettings, commands: &CommandSettings, request_id: u64) -> SearchResponse {
         let started = Instant::now();
         let query = Query::new(raw);
         let mut index = self.files.status();
@@ -71,7 +96,7 @@ impl SearchEngine {
         }
         let limit = settings.max_results as usize;
         let now = now_secs();
-        let results = self.history.with_usage(|usage| {
+        let mut results = self.history.with_usage(|usage| {
             let ctx = SearchContext { raw: raw.trim(), query: &query, settings, limit };
             let mut all = Vec::new();
             for provider in self.providers.iter().filter(|p| p.enabled(settings)) {
@@ -83,6 +108,8 @@ impl SearchEngine {
             }
             all
         });
+        results.retain(|r| !commands.disabled.contains(&r.id));
+        self.add_aliased(raw, settings, commands, &mut results);
         let results = finish(results, limit);
         let total = results.len();
         let sections = group(results);
@@ -122,10 +149,11 @@ impl SearchEngine {
     }
 
     /// Recently opened items that still exist, for the empty-query view.
-    pub fn recent(&self, limit: usize) -> Vec<SearchResult> {
+    pub fn recent(&self, limit: usize, commands: &CommandSettings) -> Vec<SearchResult> {
         self.history
             .recent(limit * 2)
             .into_iter()
+            .filter(|item| !commands.disabled.contains(&item.id))
             .filter_map(|item| {
                 let (provider_id, local) = split_id(&item.id)?;
                 self.providers.iter().find(|p| p.id() == provider_id)?.resolve(local)
@@ -189,6 +217,56 @@ mod tests {
             note: None,
             actions: Vec::new(),
         }
+    }
+
+    fn engine(dir: &std::path::Path) -> SearchEngine {
+        let apps = Arc::new(AppIndex::new());
+        let files = FileIndex::new(dir.join("index"), None);
+        let actions = Arc::new(ActionsProvider::new(apps.clone(), Arc::new(|| {})));
+        let web = Arc::new(WebSearchProvider::new(Arc::new(String::new), apps.clone()));
+        let history = Arc::new(History::load(dir.join("history.json")));
+        SearchEngine::new(apps, files, actions, web, history)
+    }
+
+    fn found(engine: &SearchEngine, raw: &str, commands: &CommandSettings) -> Vec<String> {
+        let settings = SpotlightSettings { web_search: false, ..Default::default() };
+        let response = engine.search(raw, &settings, commands, 1);
+        response.sections.into_iter().flat_map(|s| s.results).map(|r| r.id).collect()
+    }
+
+    #[test]
+    fn an_alias_finds_its_command_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = engine(dir.path());
+        let id = "action:lummo-settings";
+        let commands = CommandSettings { aliases: [(id.to_string(), "zq".to_string())].into(), ..Default::default() };
+        assert_eq!(found(&engine, " ZQ ", &commands), [id]);
+        assert!(found(&engine, "zqx", &commands).is_empty(), "only the whole alias");
+    }
+
+    #[test]
+    fn a_command_turned_off_is_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = engine(dir.path());
+        let id = "action:lummo-settings";
+        assert!(found(&engine, "lummo settings", &CommandSettings::default()).contains(&id.to_string()));
+        let commands = CommandSettings {
+            disabled: vec![id.to_string()],
+            aliases: [(id.to_string(), "zq".to_string())].into(),
+        };
+        assert!(!found(&engine, "lummo settings", &commands).contains(&id.to_string()));
+        assert!(found(&engine, "zq", &commands).is_empty(), "nor by its alias");
+    }
+
+    #[test]
+    fn commands_list_what_this_system_can_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let commands = engine(dir.path()).commands();
+        let lummo = commands.iter().find(|c| c.result.id == "action:lummo-settings").unwrap();
+        // the page reads the result's fields and the keywords side by side
+        let sent = serde_json::to_value(lummo).unwrap();
+        assert_eq!((sent["title"].as_str(), sent["keywords"][0].as_str()), (Some("Lummo Settings"), Some("lummo")));
+        assert!(commands.iter().all(|c| crate::shortcuts::actions::is_command(&c.result.id)));
     }
 
     #[test]

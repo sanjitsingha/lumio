@@ -72,6 +72,15 @@ pub struct SearchResult {
     pub actions: Vec<ResultAction>,
 }
 
+/// A command as the Shortcut page lists it, with the words its search finds it by.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandEntry {
+    #[serde(flatten)]
+    pub result: SearchResult,
+    pub keywords: &'static [&'static str],
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultAction {

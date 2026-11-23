@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { TriangleAlert } from "lucide-react";
-import { Group, Row, Segmented, Select, Slider, ToggleRow } from "../../common/controls";
+import { Group, Row, Select, Slider, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
-import { IndicatorPreview } from "../../capslock/IndicatorPreview";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
@@ -31,7 +30,7 @@ function problem(support) {
   return support.mode === "cursor" ? null : support.summary || null;
 }
 
-export default function CapsLockPane({ appearance }) {
+export default function CapsLockPane() {
   const settings = useSettings();
   const update = useUpdateSettings();
   const [support, setSupport] = useState(null);
@@ -69,17 +68,12 @@ export default function CapsLockPane({ appearance }) {
 
       <Group>
         <ToggleRow label="Show Caps Lock indicator" checked={c.enabled} onChange={(v) => set({ enabled: v })} />
-        <div className="px-3.5 pb-3.5 pt-1">
-          <IndicatorPreview
-            settings={{ ...c, size, opacity: opacity / 100, cornerRadius: radius }}
-            dark={appearance.theme === "dark"}
-          />
-        </div>
       </Group>
 
       <Group title="Placement">
         <Row label="Position" disabled={!atCursor}>
-          <Segmented
+          <Select
+            label="Position"
             value={c.position}
             disabled={!atCursor}
             onChange={(v) => set({ position: v })}
@@ -112,10 +106,11 @@ export default function CapsLockPane({ appearance }) {
 
       <Group title="Timing">
         <Row label="Display duration">
-          <Select value={duration} options={durationOptions} onChange={setDuration} />
+          <Select label="Display duration" value={duration} options={durationOptions} onChange={setDuration} />
         </Row>
         <Row label="Animation">
-          <Segmented
+          <Select
+            label="Animation"
             value={c.animation}
             onChange={(v) => set({ animation: v })}
             options={[

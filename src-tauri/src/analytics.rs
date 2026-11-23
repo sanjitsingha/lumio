@@ -1,5 +1,5 @@
 //! Anonymous usage statistics, sent to Aptabase (aptabase.com) unless
-//! "Share usage statistics" is turned off in Settings → General.
+//! "Share usage statistics" is turned off in Settings → About.
 //!
 //! Only coarse categories and counts leave the machine: never search text,
 //! result titles, file names or paths. The plugin adds the app version, the

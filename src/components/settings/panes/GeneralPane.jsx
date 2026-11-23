@@ -1,10 +1,24 @@
 import { useCallback, useState } from "react";
 import { Power, RotateCcw, Trash2 } from "lucide-react";
-import { Button, Group, Row, ToggleRow } from "../../common/controls";
+import { Button, Group, Row, Select, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
+
+/** Lummo is dark only, so the theme is shown but cannot be changed. */
+const THEMES = [{ value: "dark", label: "Dark" }];
+const ANIMATIONS = [
+  { value: "system", label: "Automatic" },
+  { value: "reduced", label: "Reduced" },
+  { value: "full", label: "Full" },
+];
+
+const TEXT_SIZES = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
+];
 
 function useAction() {
   const [busy, setBusy] = useState(null);
@@ -22,43 +36,42 @@ function useAction() {
   return [busy, run];
 }
 
-export default function GeneralPane({ onCheckUpdates }) {
+export default function GeneralPane() {
   const settings = useSettings();
   const update = useUpdateSettings();
   const [busy, run] = useAction();
   const [confirmReset, setConfirmReset] = useState(false);
   const g = settings.general;
+  const a = settings.appearance;
   const set = (patch) => update({ general: patch });
+  const setAppearance = (patch) => update({ appearance: patch });
 
   return (
     <>
       <PaneHeader pane="general" />
-      <Group title="Startup">
+      <Group title="General">
         <ToggleRow
           label="Launch at startup"
           checked={g.launchAtStartup}
           onChange={(v) => set({ launchAtStartup: v })}
         />
+        <ToggleRow
+          label="Show in system tray"
+          checked={g.showInTray}
+          onChange={(v) => set({ showInTray: v })}
+        />
       </Group>
 
-      <Group title="Updates">
-        <ToggleRow
-          label="Install updates automatically"
-          checked={g.autoInstallUpdates}
-          onChange={(v) => set({ autoInstallUpdates: v })}
-        />
-        <Row label="Check now">
-          <Button onClick={onCheckUpdates}>Check for Updates…</Button>
+      <Group title="Appearance">
+        <Row label="Theme">
+          <Select label="Theme" value="dark" options={THEMES} onChange={() => {}} locked />
         </Row>
-      </Group>
-
-      <Group title="Privacy">
-        <ToggleRow
-          label="Share usage statistics"
-          description="Anonymous counts, never what you type."
-          checked={g.shareUsageStatistics}
-          onChange={(v) => set({ shareUsageStatistics: v })}
-        />
+        <Row label="Text size" description="Adjust the text of the Lummo interface">
+          <Select label="Text size" value={a.textSize} options={TEXT_SIZES} onChange={(v) => setAppearance({ textSize: v })} />
+        </Row>
+        <Row label="Animation">
+          <Select label="Animation" value={a.motion} options={ANIMATIONS} onChange={(v) => setAppearance({ motion: v })} />
+        </Row>
       </Group>
 
       <Group title="Maintenance">

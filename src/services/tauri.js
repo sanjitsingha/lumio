@@ -15,6 +15,7 @@ export const api = {
   clearSearchHistory: () => invoke("clear_search_history"),
   getIndexStatus: () => invoke("get_index_status"),
   rebuildIndex: () => invoke("rebuild_index"),
+  getCommands: () => invoke("get_commands"),
 
   // windows
   hideSpotlight: () => invoke("hide_spotlight"),

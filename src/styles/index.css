@@ -247,57 +247,24 @@ html[data-window="spotlight"] {
     background: color-mix(in srgb, var(--lm-accent) 85%, black);
   }
 
-  .lm-segmented {
-    background: var(--lm-fill-strong);
-    box-shadow: inset 0 0 0 0.5px var(--lm-separator);
-  }
-  .lm-segment {
-    background: var(--lm-button);
-    box-shadow: var(--lm-button-shadow);
-  }
-
   .lm-switch {
     position: relative;
-    width: 30px;
-    height: 16px;
+    width: 26px;
+    height: 14px;
     border-radius: 999px;
     background: var(--lm-fill-strong);
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.12),
-      inset 0 0 0 0.5px var(--lm-separator);
-    transition: background-color 200ms;
+    transition: background-color 150ms;
   }
   .lm-switch[aria-checked="true"] {
-    background: var(--lm-accent) linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 60%);
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.15),
-      inset 0 -1px 1px rgba(255, 255, 255, 0.25);
+    background: var(--lm-accent);
   }
   .lm-switch-knob {
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 16px;
-    height: 12px;
-    border-radius: 999px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     background: #ffffff;
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.22),
-      0 0 0 0.5px rgba(0, 0, 0, 0.06),
-      inset 0 -1px 1px rgba(0, 0, 0, 0.04);
-    transition:
-      background-color 160ms,
-      box-shadow 160ms;
-  }
-  /* Pressed: the knob turns into a clear lens over the track. */
-  .lm-switch-knob[data-glass] {
-    background: rgba(255, 255, 255, 0.1);
-    -webkit-backdrop-filter: saturate(180%) brightness(1.12);
-    backdrop-filter: saturate(180%) brightness(1.12);
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.16),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.9),
-      inset 0 1.5px 1px rgba(255, 255, 255, 0.9),
-      inset 0 -2px 3px rgba(255, 255, 255, 0.45);
   }
 }

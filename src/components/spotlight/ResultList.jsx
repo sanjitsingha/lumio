@@ -2,6 +2,9 @@ import { useEffect, useRef } from "react";
 import { ActionRow, CalculatorRow, ConversionRow, ResultRow } from "./ResultRow";
 import { sectionLines } from "../../utils/navigation";
 
+/** These answers fill their own panel, which says what it is. */
+const UNTITLED = ["conversion", "calculator"];
+
 function Heading({ children }) {
   return <div className="px-[14px] pt-3 pb-1.5 text-[11px] leading-[16px] text-secondary">{children}</div>;
 }
@@ -48,7 +51,7 @@ export function ResultList({ sections, items, selected, onSelect, onOpen, reserv
         const section = sections[sectionIndex];
         return (
           <div key={section.id} role="group" aria-label={section.title}>
-            {section.id !== "conversion" && <Heading>{section.title}</Heading>}
+            {!UNTITLED.includes(section.id) && <Heading>{section.title}</Heading>}
             {sectionLines(rows, section.title).map(({ heading, key, item, index: i }) => {
               if (heading) return <Heading key={key}>{heading}</Heading>;
               const row = {

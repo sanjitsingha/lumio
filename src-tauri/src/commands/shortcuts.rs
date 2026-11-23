@@ -1,7 +1,7 @@
 use tauri::{AppHandle, State};
 
 use crate::app_state::{self, AppState};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::shortcuts::actions::SLOTS;
 use crate::shortcuts::ShortcutReport;
 
@@ -33,10 +33,20 @@ pub fn validate_shortcut(state: State<'_, AppState>, slot: String, accelerator: 
 /// Registers a new shortcut with the OS and saves it. `accelerator: null` clears the slot.
 #[tauri::command]
 pub fn set_shortcut(app: AppHandle, state: State<'_, AppState>, slot: String, accelerator: Option<String>) -> AppResult<ShortcutReport> {
-    let saved = state.shortcuts.set_binding(&slot, accelerator.as_deref())?;
     let mut next = state.settings();
+    if let Some(text) = accelerator.as_deref() {
+        let accel = state.shortcuts.validate(&slot, text)?;
+        // the manager does not see the saved hotkey of a command that is off
+        if let Some(other) = next.shortcuts.assigned_to(accel, &slot) {
+            return Err(AppError::Shortcut { code: "duplicate", message: format!("{accel} is already assigned to “{}”.", other.label) });
+        }
+    }
+    let saved = state.shortcuts.set_binding(&slot, accelerator.as_deref())?;
     next.shortcuts.bindings.insert(slot.clone(), saved.clone());
-    app_state::replace_settings(&app, next)?;
+    next.shortcuts.sanitize();
+    app_state::replace_settings(&app, next.clone())?;
+    // what was just registered may belong to something that is off
+    state.shortcuts.apply(&app_state::effective_bindings(&next));
     log::info!("shortcut {slot} set to {saved:?}");
     Ok(state.shortcuts.report())
 }

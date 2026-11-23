@@ -31,7 +31,7 @@ const QUICK_PANEL_RESERVE = QUICK_PANEL_HEIGHT - 29;
 
 export default function SpotlightPage() {
   const settings = useSettings();
-  // Quick files stands in for the notch, so Windows, which has one, keeps Tab for sections
+  // Quick files is there once the platform has loaded, on builds without the notch
   const platform = usePlatform();
   const hasQuickFiles = platform ? !platform.notchAvailable : false;
   const delay = settings?.spotlight?.searchDelayMs ?? 60;
@@ -120,7 +120,7 @@ export default function SpotlightPage() {
         return related.length ? [answer, { id: "related", title: "Related", results: related }] : [answer];
       }
       if (!calc) return found;
-      // drawn as "2 + 2 = 4" (CalculatorRow); Enter copies the title
+      // the equation beside its result (CalculatorRow); Enter copies the title
       const result = {
         id: "calculator:answer",
         kind: "calculator",

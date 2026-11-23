@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Equal } from "lucide-react";
 import { ResultIcon } from "./ResultIcon";
 import { cx } from "../../utils/cx";
 import { KIND_LABELS } from "../../utils/navigation";
@@ -51,37 +51,71 @@ function amountSize(amount) {
   return amount.length <= 30 ? "text-[14px] leading-[38px]" : "text-[12px] leading-[38px]";
 }
 
-/** One currency of a conversion: its code, the amount, its name and a small note. */
-function ConversionSide({ code, amount, name, note }) {
+/** A long equation also wraps, so more of what was typed stays in view. */
+function equationSize(equation) {
+  if (equation.length <= 23) return cx("truncate", amountSize(equation));
+  return equation.length <= 90
+    ? "line-clamp-3 text-[14px] leading-[20px] break-words"
+    : "line-clamp-4 text-[12px] leading-[16px] break-words";
+}
+
+/** One half of an answer: a small label, the value, and anything below it. */
+function AnswerSide({ label, value, size, children }) {
   return (
     <span className="flex min-w-0 flex-col items-center justify-center px-8 text-center">
-      <span className="text-[11px] leading-[16px] font-medium text-secondary">{code}</span>
-      <span className={cx("mt-0.5 max-w-full truncate font-semibold text-label", amountSize(amount))} title={amount}>
-        {amount}
+      <span className="text-[11px] leading-[16px] font-medium text-secondary">{label}</span>
+      <span className={cx("mt-0.5 max-w-full font-semibold text-label", size)} title={value}>
+        {value}
       </span>
-      <span className="max-w-full truncate text-[12px] leading-[16px] text-secondary">{name}</span>
-      <span className="mt-2 h-[14px] max-w-full truncate text-[10px] leading-[14px] text-tertiary">{note}</span>
+      {children}
     </span>
   );
 }
 
+/** One currency of a conversion: its code, the amount, its name and a small note. */
+function ConversionSide({ code, amount, name, note }) {
+  return (
+    <AnswerSide label={code} value={amount} size={cx("truncate", amountSize(amount))}>
+      <span className="max-w-full truncate text-[12px] leading-[16px] text-secondary">{name}</span>
+      <span className="mt-2 h-[14px] max-w-full truncate text-[10px] leading-[14px] text-tertiary">{note}</span>
+    </AnswerSide>
+  );
+}
+
 /**
- * A currency answer, as tall as Quick files (181 px with the list's border and
- * padding): one currency on each side of a line with the conversion icon on
- * it. A click or Enter copies the answer.
+ * An answer as tall as Quick files (181 px with the list's border and
+ * padding): one side each of a line with an icon on it. A click or Enter
+ * copies the answer.
  */
-export const ConversionRow = forwardRef(function ConversionRow({ result, selected, onHover, onOpen }, ref) {
+const AnswerPanel = forwardRef(function AnswerPanel({ label, Icon, selected, onHover, onOpen, children }, ref) {
   return (
     <div
       ref={ref}
       role="option"
       aria-selected={selected}
-      aria-label={result.title ? `${result.source} equals ${result.title}` : `${result.source} to ${result.to}`}
+      aria-label={label}
       onMouseMove={onHover}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onOpen}
-      className="relative mx-2 mt-2 grid h-[164px] grid-cols-2 rounded-[5px] transition-colors hover:bg-fill"
+      className="relative mx-2 mt-2 grid h-[164px] grid-cols-2 rounded-[5px] bg-fill"
     >
+      {children}
+      <span aria-hidden className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 bg-separator" />
+      <span
+        aria-hidden
+        className="absolute top-1/2 left-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-separator bg-panel text-secondary"
+      >
+        <Icon size={16} strokeWidth={1.75} />
+      </span>
+    </div>
+  );
+});
+
+/** A currency or measurement answer, one unit on each side. */
+export const ConversionRow = forwardRef(function ConversionRow({ result, ...row }, ref) {
+  const label = result.title ? `${result.source} equals ${result.title}` : `${result.source} to ${result.to}`;
+  return (
+    <AnswerPanel ref={ref} label={label} Icon={ArrowLeftRight} {...row}>
       <ConversionSide code={result.from} amount={result.source} name={result.fromName} note={result.updated} />
       <ConversionSide
         code={result.to}
@@ -89,35 +123,16 @@ export const ConversionRow = forwardRef(function ConversionRow({ result, selecte
         name={result.toName}
         note={result.rate ?? "Rates aren't available yet"}
       />
-      <span aria-hidden className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 bg-separator" />
-      <span
-        aria-hidden
-        className="absolute top-1/2 left-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-separator bg-panel text-secondary"
-      >
-        <ArrowLeftRight size={16} strokeWidth={1.75} />
-      </span>
-    </div>
+    </AnswerPanel>
   );
 });
 
-/** The calculator's answer on one line, "2 + 2 = 4"; a long sum shortens, the answer never does. */
-export const CalculatorRow = forwardRef(function CalculatorRow({ result, selected, onHover, onOpen }, ref) {
+/** The calculator's answer: the equation as typed on the left, the result on the right. */
+export const CalculatorRow = forwardRef(function CalculatorRow({ result, ...row }, ref) {
   return (
-    <div
-      ref={ref}
-      role="option"
-      aria-selected={selected}
-      onMouseMove={onHover}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onOpen}
-      className={cx("mx-2 flex h-[52px] items-center gap-3 rounded-[5px] px-3", rowTone(selected))}
-    >
-      <span className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[14px] leading-[20px]">
-        <span className="truncate">{result.subtitle}</span>
-        <span className="shrink-0">
-          = <span className="font-semibold">{result.title}</span>
-        </span>
-      </span>
-    </div>
+    <AnswerPanel ref={ref} label={`${result.subtitle} equals ${result.title}`} Icon={Equal} {...row}>
+      <AnswerSide label="Equation" value={result.subtitle} size={equationSize(result.subtitle)} />
+      <AnswerSide label="Result" value={result.title} size={cx("truncate", amountSize(result.title))} />
+    </AnswerPanel>
   );
 });

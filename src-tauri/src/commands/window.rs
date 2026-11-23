@@ -3,7 +3,7 @@ use tauri::AppHandle;
 use crate::error::{AppError, AppResult};
 use crate::window_manager;
 
-const PANES: &[&str] = &["general", "spotlight", "capslock", "appearance", "about"];
+const PANES: &[&str] = &["general", "spotlight", "capslock", "shortcuts", "about"];
 
 #[tauri::command]
 pub fn hide_spotlight(app: AppHandle) {
@@ -23,8 +23,7 @@ pub fn set_spotlight_height(app: AppHandle, height: f64, viewport_width: f64) ->
 pub fn open_settings_window(app: AppHandle, pane: Option<String>) -> AppResult<()> {
     // panes that were merged into others
     let pane = pane.filter(|p| !p.is_empty()).map(|p| match p.as_str() {
-        "shortcuts" => "spotlight".into(),
-        "advanced" => "general".into(),
+        "advanced" | "appearance" => "general".into(),
         _ => p,
     });
     if let Some(p) = &pane {

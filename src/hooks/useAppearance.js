@@ -35,20 +35,25 @@ export function useSystemAppearance() {
   };
 }
 
-/** Applies the dark theme, accent and motion preference to the document. */
+/** How much each text size scales every font size (see `scaleFontSizes` in vite.config.js). */
+const TEXT_SCALE = { small: 0.92, medium: 1, large: 1.1 };
+
+/** Applies the dark theme, accent, text size and motion preference to the document. */
 export function useAppearance(settings) {
   const system = useSystemAppearance();
-  const appearance = settings?.appearance ?? { accent: "blue", motion: "system" };
+  const appearance = settings?.appearance ?? { accent: "blue", motion: "system", textSize: "medium" };
   const theme = "dark";
   const accent = resolveAccent(appearance.accent, theme === "dark", system.accent);
   const reduceMotion = appearance.motion === "reduced" || (appearance.motion === "system" && system.reduceMotion);
+  const textScale = TEXT_SCALE[appearance.textSize] ?? 1;
 
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
     root.style.setProperty("--lm-accent", accent);
     root.style.setProperty("--lm-accent-contrast", contrastText(accent));
-  }, [theme, accent]);
+    root.style.setProperty("--lm-text-scale", String(textScale));
+  }, [theme, accent, textScale]);
 
   return { theme, accent, reduceMotion, systemDark: system.dark, systemAccent: system.accent };
 }

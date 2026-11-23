@@ -15,8 +15,8 @@ function timeAgo(seconds) {
   return new Date(seconds * 1000).toLocaleDateString();
 }
 
-/** Update status, release notes and the check / download / install flow. */
-export function UpdateCard({ updates }) {
+/** Update status, release notes and the check / download / install flow; `children` are more rows of the group. */
+export function UpdateCard({ updates, children }) {
   const { status, check, download, install, openReleasePage } = updates;
   if (!status) return null;
   const phase = status.phase.state;
@@ -116,6 +116,7 @@ export function UpdateCard({ updates }) {
           <p className="mt-2 text-[11.5px] leading-[15px] text-success">The update was downloaded and its signature verified.</p>
         )}
       </div>
+      {children}
       {status.releasePage && (
         <div className="flex items-center justify-end px-3.5 py-2.5">
           <Button variant="plain" icon={ExternalLink} onClick={openReleasePage}>

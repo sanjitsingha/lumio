@@ -5,10 +5,9 @@ import { PaneHeader } from "../PaneHeader";
 import { ShortcutEditor } from "../../shortcuts/ShortcutEditor";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { usePlatform } from "../../../hooks/usePlatform";
+import { useShortcutRecording } from "../../../hooks/useShortcutRecording";
 import { api, errorMessage } from "../../../services/tauri";
 import { toast } from "../../../stores/toastStore";
-
-const SPOTLIGHT_SHORTCUTS = ["spotlight.toggle"];
 
 function useIndexStatus() {
   const [status, setStatus] = useState(null);
@@ -77,6 +76,8 @@ function ListEditor({ items, placeholder, onChange, validate, mono = false }) {
   );
 }
 
+const OPEN_SPOTLIGHT = ["spotlight.toggle"];
+
 const isAbsolute = (p) => p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith("\\\\");
 
 /** "System default" plus the installed browsers; a saved one that is gone stays listed as such. */
@@ -98,6 +99,13 @@ export default function SpotlightPane() {
   const s = settings.spotlight;
   const browserOptions = useBrowserOptions(s.webBrowser);
   const set = (patch) => update({ spotlight: patch });
+  const shortcuts = useShortcutRecording();
+  // turning Spotlight off or on releases or registers its shortcut
+  const setEnabled = async (enabled) => {
+    if (shortcuts.recordingSlot) await shortcuts.stopRecording();
+    await set({ enabled });
+    shortcuts.refresh();
+  };
   const [maxResults, setMaxResults] = useState(s.maxResults);
   const [delay, setDelay] = useState(s.searchDelayMs);
   useEffect(() => setMaxResults(s.maxResults), [s.maxResults]);
@@ -107,11 +115,14 @@ export default function SpotlightPane() {
     <>
       <PaneHeader pane="spotlight" />
       <Group>
-        <ToggleRow label="Enable Spotlight" checked={s.enabled} onChange={(v) => set({ enabled: v })} />
-      </Group>
-
-      <Group title="Keyboard shortcut">
-        <ShortcutEditor slotIds={SPOTLIGHT_SHORTCUTS} os={platform?.os} />
+        <ToggleRow label="Enable Spotlight" checked={s.enabled} onChange={setEnabled} />
+        <ShortcutEditor
+          slotIds={OPEN_SPOTLIGHT}
+          os={platform?.os}
+          shortcuts={shortcuts}
+          disabled={!s.enabled}
+          saved={settings.shortcuts.bindings}
+        />
       </Group>
 
       <Group title="Search in">
@@ -138,6 +149,7 @@ export default function SpotlightPane() {
         />
         <Row label="Browser for web searches" disabled={!s.enabled || !s.webSearch}>
           <Select
+            label="Browser for web searches"
             value={s.webBrowser}
             options={browserOptions}
             onChange={(v) => set({ webBrowser: v })}

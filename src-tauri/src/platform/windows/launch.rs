@@ -22,6 +22,11 @@ pub fn shell_open(target: &str, directory: Option<&Path>) -> Result<(), String> 
     shell_execute(w!("open"), target, "", directory)
 }
 
+/// Opens a program with fixed arguments.
+pub fn shell_run(target: &str, arguments: &str) -> Result<(), String> {
+    shell_execute(w!("open"), target, arguments, None)
+}
+
 /// `ShellExecuteW` with a verb (`open`, or `runas` to start elevated) and arguments.
 fn shell_execute(verb: PCWSTR, target: &str, arguments: &str, directory: Option<&Path>) -> Result<(), String> {
     ensure_com();

@@ -16,7 +16,10 @@ describe("Spotlight icons", () => {
     );
     expect(actions.length).toBeGreaterThan(3);
     expect(fallbacks).toEqual(expect.arrayContaining(["settings", "globe", "app-window"]));
-    const missing = [...new Set([...actions, ...fallbacks])].filter((name) => !SYMBOLS[name]);
+    // c("lock-screen", "Lock Screen", …, "lock", Native(lock))
+    const commands = names(rust("../platform/windows/system_commands.rs"), /"([a-z0-9-]+)", (?:Open|Program|Keys|Native|Ask)\(/g);
+    expect(commands.length).toBeGreaterThan(100);
+    const missing = [...new Set([...actions, ...fallbacks, ...commands])].filter((name) => !SYMBOLS[name]);
     expect(missing).toEqual([]);
   });
 

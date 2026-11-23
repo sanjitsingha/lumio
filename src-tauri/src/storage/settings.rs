@@ -7,8 +7,9 @@ use serde_json::Value;
 
 use super::json_store;
 use super::migrate::{self, MigrationOutcome};
+use crate::search::fuzzy::fold;
 use crate::shortcuts::accelerator::Accelerator;
-use crate::shortcuts::actions::SLOTS;
+use crate::shortcuts::actions::{self, ShortcutAction, SlotInfo, SLOTS};
 
 /// Current settings schema. Bump together with a new entry in `migrate::MIGRATIONS`.
 pub const SCHEMA_VERSION: u32 = 2;
@@ -20,6 +21,7 @@ pub struct Settings {
     pub general: GeneralSettings,
     pub spotlight: SpotlightSettings,
     pub shortcuts: ShortcutSettings,
+    pub commands: CommandSettings,
     pub caps_lock: CapsLockSettings,
     pub appearance: AppearanceSettings,
     pub notch: NotchSettings,
@@ -31,7 +33,7 @@ pub struct Settings {
 }
 
 /// The sections `Settings` reads; any other top-level key is kept in `unknown`.
-const SECTIONS: &[&str] = &["schemaVersion", "general", "spotlight", "shortcuts", "capsLock", "appearance", "notch"];
+const SECTIONS: &[&str] = &["schemaVersion", "general", "spotlight", "shortcuts", "commands", "capsLock", "appearance", "notch"];
 
 impl Default for Settings {
     fn default() -> Self {
@@ -40,6 +42,7 @@ impl Default for Settings {
             general: GeneralSettings::default(),
             spotlight: SpotlightSettings::default(),
             shortcuts: ShortcutSettings::default(),
+            commands: CommandSettings::default(),
             caps_lock: CapsLockSettings::default(),
             appearance: AppearanceSettings::default(),
             notch: NotchSettings::default(),
@@ -49,12 +52,14 @@ impl Default for Settings {
 }
 
 /// Lummo always runs in the background (started at login it stays hidden,
-/// closing Settings keeps it running), shows its tray icon where the desktop
-/// has a tray, and checks for updates: these are not settings.
+/// closing Settings keeps it running) and checks for updates: these are not
+/// settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GeneralSettings {
     pub launch_at_startup: bool,
+    /// Show the tray icon, where the desktop has a tray.
+    pub show_in_tray: bool,
     /// Download and install found updates without asking, then restart Lummo.
     pub auto_install_updates: bool,
     /// Send anonymous usage counts (see `analytics`).
@@ -63,7 +68,7 @@ pub struct GeneralSettings {
 
 impl Default for GeneralSettings {
     fn default() -> Self {
-        Self { launch_at_startup: false, auto_install_updates: false, share_usage_statistics: true }
+        Self { launch_at_startup: false, show_in_tray: true, auto_install_updates: false, share_usage_statistics: true }
     }
 }
 
@@ -137,6 +142,35 @@ impl Default for ShortcutSettings {
         Self {
             bindings: SLOTS.iter().map(|s| (s.id.to_string(), s.default.map(str::to_string))).collect(),
         }
+    }
+}
+
+/// The commands of the Shortcut page: quick actions and pages of the system's
+/// settings app, by their result id (`action:…`, `setting:…`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CommandSettings {
+    /// Commands left out of Spotlight; their hotkeys are released too.
+    pub disabled: Vec<String>,
+    /// Command -> the word that finds it first in Spotlight.
+    pub aliases: BTreeMap<String, String>,
+}
+
+pub const MAX_ALIAS_CHARS: usize = 24;
+
+impl CommandSettings {
+    fn sanitize(&mut self) {
+        let mut seen = HashSet::new();
+        self.disabled.retain(|id| actions::is_command(id) && seen.insert(id.clone()));
+        let mut taken = HashSet::new();
+        self.aliases = std::mem::take(&mut self.aliases)
+            .into_iter()
+            .filter_map(|(id, alias)| {
+                let alias: String = fold(alias.trim()).chars().take(MAX_ALIAS_CHARS).collect();
+                let alias = alias.trim_end().to_string();
+                (actions::is_command(&id) && !alias.is_empty() && taken.insert(alias.clone())).then_some((id, alias))
+            })
+            .collect();
     }
 }
 
@@ -242,17 +276,27 @@ pub enum MotionPreference {
     Full,
 }
 
+/// How large the text of Lummo's windows is (`TEXT_SCALE` in `useAppearance.js`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TextSize {
+    Small,
+    Medium,
+    Large,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppearanceSettings {
     pub theme: AppearanceMode,
     pub accent: Accent,
     pub motion: MotionPreference,
+    pub text_size: TextSize,
 }
 
 impl Default for AppearanceSettings {
     fn default() -> Self {
-        Self { theme: AppearanceMode::Dark, accent: Accent::Blue, motion: MotionPreference::System }
+        Self { theme: AppearanceMode::Dark, accent: Accent::Blue, motion: MotionPreference::System, text_size: TextSize::Medium }
     }
 }
 
@@ -320,6 +364,7 @@ impl Settings {
         settings.general = section(obj, "general", &mut warnings);
         settings.spotlight = section(obj, "spotlight", &mut warnings);
         settings.shortcuts = section(obj, "shortcuts", &mut warnings);
+        settings.commands = section(obj, "commands", &mut warnings);
         settings.caps_lock = section(obj, "capsLock", &mut warnings);
         settings.appearance = section(obj, "appearance", &mut warnings);
         settings.notch = section(obj, "notch", &mut warnings);
@@ -395,27 +440,49 @@ impl Settings {
         // Lummo is dark only; a light or system value saved earlier is not worth a notice
         self.appearance.theme = AppearanceMode::Dark;
 
+        self.commands.sanitize();
         fixes.extend(self.shortcuts.sanitize());
         self.schema_version = SCHEMA_VERSION;
         fixes
     }
+
+    /// Whether a command can run: Spotlight and its group are on, and so is the command.
+    pub fn command_is_on(&self, id: &str) -> bool {
+        let group = if id.starts_with("action:") { self.spotlight.search_actions } else { self.spotlight.search_settings };
+        self.spotlight.enabled && group && !self.commands.disabled.iter().any(|d| d == id)
+    }
 }
 
 impl ShortcutSettings {
+    /// The other shortcut or command this combination is saved for, even if
+    /// that one is turned off for now.
+    pub fn assigned_to(&self, accel: Accelerator, except: &str) -> Option<&'static SlotInfo> {
+        actions::all().filter(|s| s.id != except).find(|s| {
+            self.bindings.get(s.id).and_then(|b| b.as_deref()).and_then(|b| b.parse::<Accelerator>().ok()) == Some(accel)
+        })
+    }
+
     pub fn sanitize(&mut self) -> Vec<String> {
         let mut fixes = Vec::new();
-        let known: HashSet<&str> = SLOTS.iter().map(|s| s.id).collect();
         self.bindings.retain(|k, v| {
-            let keep = known.contains(k.as_str());
-            // shortcuts that no longer exist go silently unless one was assigned
-            if !keep && v.is_some() {
-                fixes.push(format!("Removed unknown shortcut \"{k}\"."));
-            }
-            keep
+            let Some(slot) = actions::slot(k) else {
+                // shortcuts that no longer exist go silently unless one was assigned
+                if v.is_some() {
+                    fixes.push(format!("Removed unknown shortcut \"{k}\"."));
+                }
+                return false;
+            };
+            // a command is only saved while it has a hotkey
+            slot.action != ShortcutAction::RunCommand || v.is_some()
         });
         let mut used: HashSet<Accelerator> = HashSet::new();
-        for slot in SLOTS {
-            let entry = self.bindings.entry(slot.id.to_string()).or_insert_with(|| slot.default.map(str::to_string));
+        for slot in actions::all() {
+            let entry = if slot.action == ShortcutAction::RunCommand {
+                let Some(entry) = self.bindings.get_mut(slot.id) else { continue };
+                entry
+            } else {
+                self.bindings.entry(slot.id.to_string()).or_insert_with(|| slot.default.map(str::to_string))
+            };
             let Some(text) = entry.clone() else { continue };
             match text.parse::<Accelerator>() {
                 Ok(accel) if used.insert(accel) => *entry = Some(accel.to_string()),
@@ -568,6 +635,67 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(settings, back);
+    }
+
+    #[test]
+    fn text_size_is_medium_unless_chosen() {
+        assert_eq!(Settings::default().appearance.text_size, TextSize::Medium);
+        // saved before this setting existed
+        let saved: AppearanceSettings = serde_json::from_value(json!({ "motion": "full" })).unwrap();
+        assert_eq!((saved.text_size, saved.motion), (TextSize::Medium, MotionPreference::Full));
+        let next = apply_patch(&Settings::default(), &json!({ "appearance": { "textSize": "large" } })).unwrap();
+        assert_eq!(next.appearance.text_size, TextSize::Large);
+    }
+
+    #[test]
+    fn commands_keep_tidy_aliases_and_hotkeys() {
+        let next = apply_patch(
+            &Settings::default(),
+            &json!({ "commands": {
+                "disabled": ["setting:wifi", "setting:wifi", "setting:gone"],
+                "aliases": { "action:calculator": "  CALC ", "setting:wifi": "calc", "setting:gone": "x", "setting:vpn": "" }
+            } }),
+        )
+        .unwrap();
+        assert_eq!(next.commands.disabled, ["setting:wifi"]);
+        assert_eq!(next.commands.aliases.len(), 1, "{:?}", next.commands.aliases);
+        assert_eq!(next.commands.aliases["action:calculator"], "calc");
+
+        // clearing an alias sends an empty one
+        let cleared = apply_patch(&next, &json!({ "commands": { "aliases": { "action:calculator": "" } } })).unwrap();
+        assert!(cleared.commands.aliases.is_empty());
+
+        let mut s = Settings::default();
+        s.shortcuts.bindings.insert("action:calculator".into(), Some("ctrl+alt+c".into()));
+        s.shortcuts.bindings.insert("setting:wifi".into(), None);
+        assert!(s.sanitize().is_empty());
+        assert_eq!(s.shortcuts.bindings["action:calculator"].as_deref(), Some("Ctrl+Alt+C"));
+        assert!(!s.shortcuts.bindings.contains_key("setting:wifi"), "only commands with a hotkey are saved");
+        let accel = "Ctrl+Alt+C".parse().unwrap();
+        assert_eq!(s.shortcuts.assigned_to(accel, "setting:wifi").unwrap().id, "action:calculator");
+        assert!(s.shortcuts.assigned_to(accel, "action:calculator").is_none());
+    }
+
+    #[test]
+    fn a_command_is_on_only_with_spotlight_and_its_group() {
+        let mut s = Settings::default();
+        assert!(s.command_is_on("action:calculator") && s.command_is_on("setting:wifi"));
+        s.commands.disabled = vec!["setting:wifi".into()];
+        assert!(!s.command_is_on("setting:wifi") && s.command_is_on("setting:vpn"));
+        s.spotlight.search_settings = false;
+        assert!(!s.command_is_on("setting:vpn") && s.command_is_on("action:calculator"));
+        s.spotlight.enabled = false;
+        assert!(!s.command_is_on("action:calculator"));
+    }
+
+    #[test]
+    fn the_tray_icon_is_on_unless_turned_off() {
+        assert!(Settings::default().general.show_in_tray);
+        // saved before this setting existed
+        let saved: GeneralSettings = serde_json::from_value(json!({ "launchAtStartup": true })).unwrap();
+        assert!(saved.show_in_tray);
+        let next = apply_patch(&Settings::default(), &json!({ "general": { "showInTray": false } })).unwrap();
+        assert!(!next.general.show_in_tray);
     }
 
     #[test]

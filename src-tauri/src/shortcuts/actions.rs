@@ -1,4 +1,9 @@
+use std::sync::LazyLock;
+
 use serde::Serialize;
+
+use crate::search::actions;
+use crate::search::system_settings::PAGES;
 
 /// Things a global shortcut can do. Add a variant + a slot to expose a new
 /// shortcut-able action in Settings.
@@ -6,6 +11,8 @@ use serde::Serialize;
 #[serde(rename_all = "camelCase")]
 pub enum ShortcutAction {
     ToggleSpotlight,
+    /// Runs the Spotlight command whose result id is the slot's id.
+    RunCommand,
 }
 
 /// A configurable binding position.
@@ -28,8 +35,33 @@ pub const SLOTS: &[SlotInfo] = &[
     },
 ];
 
+/// One optional slot per quick action and settings page. Unlike [`SLOTS`],
+/// these are saved only once a hotkey is assigned.
+static COMMANDS: LazyLock<Vec<SlotInfo>> = LazyLock::new(|| {
+    let quick = actions::all().map(|a| (format!("action:{}", a.id), a.title));
+    let pages = PAGES.iter().map(|p| (format!("setting:{}", p.id), p.title));
+    quick
+        .chain(pages)
+        .map(|(id, label)| SlotInfo {
+            id: Box::leak(id.into_boxed_str()),
+            action: ShortcutAction::RunCommand,
+            label,
+            description: "",
+            default: None,
+        })
+        .collect()
+});
+
+pub fn all() -> impl Iterator<Item = &'static SlotInfo> {
+    SLOTS.iter().chain(COMMANDS.iter())
+}
+
 pub fn slot(id: &str) -> Option<&'static SlotInfo> {
-    SLOTS.iter().find(|s| s.id == id)
+    all().find(|s| s.id == id)
+}
+
+pub fn is_command(id: &str) -> bool {
+    COMMANDS.iter().any(|s| s.id == id)
 }
 
 #[cfg(test)]
@@ -39,10 +71,12 @@ mod tests {
 
     #[test]
     fn slot_ids_are_unique_and_defaults_valid() {
-        let mut ids: Vec<_> = SLOTS.iter().map(|s| s.id).collect();
+        let mut ids: Vec<_> = all().map(|s| s.id).collect();
+        let count = ids.len();
         ids.sort();
         ids.dedup();
-        assert_eq!(ids.len(), SLOTS.len());
+        assert_eq!(ids.len(), count);
+        assert!(is_command("action:calculator") && is_command("setting:wifi") && !is_command("spotlight.toggle"));
         for slot in SLOTS {
             if let Some(d) = slot.default {
                 let accel: Accelerator = d.parse().unwrap();

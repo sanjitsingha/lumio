@@ -13,6 +13,7 @@ pub mod launch;
 pub mod overlay;
 pub mod quick_actions;
 mod registry;
+mod system_commands;
 pub mod system_settings;
 
 use std::os::windows::fs::MetadataExt;

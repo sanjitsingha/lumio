@@ -1,9 +1,14 @@
-import { Group, Row } from "../components/common/controls";
+import { Group, Row, ToggleRow } from "../components/common/controls";
 import { UpdateCard } from "../components/settings/UpdateCard";
 import { usePlatform } from "../hooks/usePlatform";
+import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 
 export default function About({ updates }) {
   const info = usePlatform();
+  const settings = useSettings();
+  const update = useUpdateSettings();
+  const g = settings.general;
+  const set = (patch) => update({ general: patch });
 
   return (
     <>
@@ -13,7 +18,22 @@ export default function About({ updates }) {
         <p className="text-[12.5px] text-secondary">Version {info?.version ?? "…"}</p>
       </div>
 
-      <UpdateCard updates={updates} />
+      <UpdateCard updates={updates}>
+        <ToggleRow
+          label="Install updates automatically"
+          checked={g.autoInstallUpdates}
+          onChange={(v) => set({ autoInstallUpdates: v })}
+        />
+      </UpdateCard>
+
+      <Group title="Privacy">
+        <ToggleRow
+          label="Share usage statistics"
+          description="Anonymous counts, never what you type."
+          checked={g.shareUsageStatistics}
+          onChange={(v) => set({ shareUsageStatistics: v })}
+        />
+      </Group>
 
       <Group>
         <Row label="Developer">

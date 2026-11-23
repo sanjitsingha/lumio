@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { Button, KeyCaps } from "../common/controls";
 import { ShortcutRecorder, CapturedShortcut } from "./ShortcutRecorder";
 import { api, errorMessage } from "../../services/tauri";
 import { toast } from "../../stores/toastStore";
+import { cx } from "../../utils/cx";
 import { shortcutKeys } from "../../utils/keys";
 
-function SlotRow({ slot, os, available, recording, onRecord, onCancel, onSaved }) {
+/** While `disabled` the shortcut is released, so the row shows the `saved` one, dimmed. */
+function SlotRow({ slot, os, available, disabled, saved, recording, onRecord, onCancel, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(null);
 
@@ -38,9 +40,9 @@ function SlotRow({ slot, os, available, recording, onRecord, onCancel, onSaved }
     }
   };
 
-  const failing = !recording && slot.accelerator && !slot.registered && slot.error;
+  const failing = !disabled && !recording && slot.accelerator && !slot.registered && slot.error;
   return (
-    <div className="px-3.5 py-2.5">
+    <div className={cx("px-3.5 py-2.5", disabled && "opacity-50")}>
       <div className="flex min-h-[28px] items-center gap-4">
         <div className="min-w-0 flex-1 text-[13px] text-label">{slot.label}</div>
         {recording ? (
@@ -50,14 +52,15 @@ function SlotRow({ slot, os, available, recording, onRecord, onCancel, onSaved }
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
-            {slot.accelerator &&
+            {!disabled &&
+              slot.accelerator &&
               (slot.registered ? (
                 <CircleCheck size={14} className="text-success" aria-label="Active" />
               ) : (
                 <CircleAlert size={14} className="text-danger" aria-label="Not active" />
               ))}
-            <KeyCaps keys={shortcutKeys(slot.accelerator, os)} />
-            <Button onClick={onRecord} disabled={!available}>
+            <KeyCaps keys={shortcutKeys(disabled ? saved : slot.accelerator, os)} />
+            <Button onClick={onRecord} disabled={!available || disabled}>
               Change
             </Button>
           </div>
@@ -79,7 +82,7 @@ function SlotRow({ slot, os, available, recording, onRecord, onCancel, onSaved }
         </p>
       )}
       {failing && <p className="mt-1.5 text-[11.5px] leading-[15px] text-danger">{slot.error.message}</p>}
-      {!recording && (
+      {!recording && !disabled && (
         <div className="mt-1 flex gap-3 text-[11.5px]">
           {slot.accelerator && (
             <button type="button" className="text-accent hover:underline" onClick={() => run(() => api.setShortcut(slot.id, null), `${slot.label} cleared.`)}>
@@ -102,54 +105,8 @@ function SlotRow({ slot, os, available, recording, onRecord, onCancel, onSaved }
 }
 
 /** Rows to record, clear and reset the global shortcuts with the given slot ids. */
-export function ShortcutEditor({ slotIds, os }) {
-  const [report, setReport] = useState(null);
-  const [recordingSlot, setRecordingSlot] = useState(null);
-
-  useEffect(() => {
-    api.getShortcutStatus().then(setReport).catch((e) => toast.error(errorMessage(e)));
-  }, []);
-
-  const stopRecording = useCallback(async () => {
-    setRecordingSlot(null);
-    try {
-      setReport(await api.endShortcutRecording());
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
-  }, []);
-
-  // never leave shortcuts suspended if the window loses focus or the pane closes mid-recording
-  const recordingRef = useRef(null);
-  recordingRef.current = recordingSlot;
-  useEffect(() => {
-    if (!recordingSlot) return undefined;
-    const onBlur = () => stopRecording();
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [recordingSlot, stopRecording]);
-  useEffect(
-    () => () => {
-      if (recordingRef.current) api.endShortcutRecording().catch(() => {});
-    },
-    [],
-  );
-
-  const startRecording = async (slotId) => {
-    try {
-      setReport(await api.beginShortcutRecording());
-      setRecordingSlot(slotId);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
-  };
-
-  const onSaved = useCallback((next, message) => {
-    setRecordingSlot(null);
-    setReport(next);
-    if (message) toast.success(message);
-  }, []);
-
+export function ShortcutEditor({ slotIds, os, shortcuts, disabled = false, saved = {} }) {
+  const { report, recordingSlot, startRecording, stopRecording, onSaved } = shortcuts;
   if (!report) return null;
   const slots = report.slots.filter((s) => slotIds.includes(s.id));
   return (
@@ -166,6 +123,8 @@ export function ShortcutEditor({ slotIds, os }) {
           slot={slot}
           os={os}
           available={report.available}
+          disabled={disabled}
+          saved={saved[slot.id]}
           recording={recordingSlot === slot.id}
           onRecord={() => startRecording(slot.id)}
           onCancel={stopRecording}

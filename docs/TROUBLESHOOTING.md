@@ -9,7 +9,7 @@ The log records what Lummo detected at startup (session type, shortcut backend, 
 
 ## The shortcut does nothing
 
-1. **Check the shortcut's status.** Open Settings → Spotlight → Keyboard shortcut. A red icon means the system refused the combination, and the message says why (for example, *Alt+Space is already used by the system shortcut “Activate window menu”*). Choose another combination, or free it in your system's keyboard settings.
+1. **Check the shortcut's status.** Open Settings → Spotlight and look at the Open Spotlight row. A red icon means the system refused the combination, and the message says why (for example, *Alt+Space is already used by the system shortcut “Activate window menu”*). Choose another combination, or free it in your system's keyboard settings.
 2. **On a Wayland desktop other than elementary OS,** apps cannot register global shortcuts. Add a custom shortcut in your system settings that runs `lummo --toggle`.
 3. **If Lummo was killed (`kill -9`) on elementary OS,** Gala may still hold its shortcut until Lummo starts again. Start Lummo once and quit it normally.
 
@@ -19,7 +19,7 @@ On Wayland, focus is granted only for shortcut presses that the compositor saw. 
 
 ## No Caps Lock indicator
 
-- Settings → Caps Lock Indicator shows a message at the top when the indicator cannot work normally on this computer (for example *Caps Lock can't be detected*: no keyboard exposes a Caps Lock LED; check `ls /sys/class/leds | grep capslock`). The log lists the details.
+- Settings → Caps Indicator shows a message at the top when the indicator cannot work normally on this computer (for example *Caps Lock can't be detected*: no keyboard exposes a Caps Lock LED; check `ls /sys/class/leds | grep capslock`). The log lists the details.
 - The indicator appears only in text fields. If nothing appears while you type, the app does not report its text cursor (see below).
 - Lummo 0.1.3 and earlier showed the indicator only the first time on elementary OS (Gala treated it as a notification). Update to 0.1.4 or later.
 - On X11 a compositing window manager is required. Gala and Mutter always composite.

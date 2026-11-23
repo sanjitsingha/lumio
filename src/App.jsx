@@ -29,7 +29,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion={appearance.reduceMotion ? "always" : "never"}>
-      {windowLabel === "spotlight" ? <SpotlightPage /> : <SettingsPage appearance={appearance} />}
+      {windowLabel === "spotlight" ? <SpotlightPage /> : <SettingsPage />}
     </MotionConfig>
   );
 }

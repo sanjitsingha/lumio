@@ -4,7 +4,7 @@ use windows::core::{HSTRING, PWSTR};
 use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::System::Registry::{
     RegCloseKey, RegDeleteKeyValueW, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, RegSetKeyValueW, HKEY, KEY_READ,
-    REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+    REG_DWORD, REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
 };
 
 /// Names of `key`'s subkeys (none if the key does not exist).
@@ -68,6 +68,24 @@ pub fn write_string(root: HKEY, key: &str, value: &str, data: &str) -> Result<()
             REG_SZ.0,
             Some(wide.as_ptr().cast()),
             (wide.len() * 2) as u32,
+        )
+    };
+    if status == ERROR_SUCCESS {
+        Ok(())
+    } else {
+        Err(format!("registry write failed ({})", status.0))
+    }
+}
+
+pub fn write_dword(root: HKEY, key: &str, value: &str, data: u32) -> Result<(), String> {
+    let status = unsafe {
+        RegSetKeyValueW(
+            root,
+            &HSTRING::from(key),
+            &HSTRING::from(value),
+            REG_DWORD.0,
+            Some((&data as *const u32).cast()),
+            std::mem::size_of::<u32>() as u32,
         )
     };
     if status == ERROR_SUCCESS {

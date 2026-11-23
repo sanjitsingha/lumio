@@ -1,25 +1,12 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { ChevronDown, LoaderCircle } from "lucide-react";
+import { Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { cx } from "../../utils/cx";
 
-const KNOB_TRAVEL = 10; // .lm-switch width - knob width - 2 * inset
+const KNOB_TRAVEL = 12; // .lm-switch width - knob width - 2 * inset
 
 export function Switch({ checked, onChange, disabled = false, label }) {
-  // While pressed, and for a moment after so the slide plays as glass, the
-  // knob swells into a clear lens over the track.
-  const [glass, setGlass] = useState(false);
-  const settle = useRef();
-  useEffect(() => () => clearTimeout(settle.current), []);
-  const press = () => {
-    clearTimeout(settle.current);
-    setGlass(true);
-  };
-  const release = () => {
-    clearTimeout(settle.current);
-    settle.current = setTimeout(() => setGlass(false), 260);
-  };
-
   return (
     <button
       type="button"
@@ -28,57 +15,35 @@ export function Switch({ checked, onChange, disabled = false, label }) {
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      onPointerDown={press}
-      onPointerUp={release}
-      onPointerLeave={release}
-      onPointerCancel={release}
       className={cx("lm-switch shrink-0", disabled && "opacity-40")}
     >
       <motion.span
         className="lm-switch-knob"
-        data-glass={glass || undefined}
         initial={false}
-        animate={{ x: checked ? KNOB_TRAVEL : 0, scaleX: glass ? 1.4 : 1, scaleY: glass ? 1.3 : 1 }}
-        transition={{ type: "spring", stiffness: 520, damping: 26 }}
+        animate={{ x: checked ? KNOB_TRAVEL : 0 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
       />
     </button>
   );
 }
 
-export function Segmented({ value, options, onChange, disabled = false, size = "md" }) {
-  const id = useId();
+export function Checkbox({ checked, onChange, label, disabled = false }) {
   return (
-    <div
-      role="radiogroup"
-      className={cx("lm-segmented inline-flex rounded-[4px] p-[2px]", disabled && "pointer-events-none opacity-40")}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cx(
+        "flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-[3px] border text-label",
+        checked ? "border-white/45 bg-white/[0.08]" : "border-white/25",
+        disabled && "opacity-40",
+      )}
     >
-      {options.map((opt) => {
-        const active = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.value)}
-            className={cx(
-              "relative rounded-[3px] font-medium",
-              size === "sm" ? "px-2 py-px text-[10.5px]" : "px-2.5 py-[2px] text-[11px]",
-              active ? "text-label" : "text-secondary hover:text-label",
-            )}
-          >
-            {active && (
-              <motion.span
-                layoutId={`seg-${id}`}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className="lm-segment absolute inset-0 rounded-[3px]"
-              />
-            )}
-            <span className="relative">{opt.label}</span>
-          </button>
-        );
-      })}
-    </div>
+      {checked && <Check size={11} strokeWidth={3} aria-hidden />}
+    </button>
   );
 }
 
@@ -138,23 +103,180 @@ export function NumberField({ value, min, max, onCommit, disabled = false, width
   );
 }
 
-export function Select({ value, options, onChange, disabled = false }) {
+/** The space between a dropdown and its button, and kept from the window's edges. */
+const MENU_GAP = 4;
+const MENU_EDGE = 8;
+
+/** Where a floating menu goes: below `anchor`, or above it when there is more room there. */
+export function placeMenu(anchor, menu) {
+  const box = anchor.getBoundingClientRect();
+  const width = Math.max(menu.offsetWidth, box.width);
+  const height = menu.offsetHeight;
+  const below = window.innerHeight - box.bottom - MENU_GAP - MENU_EDGE;
+  const above = box.top - MENU_GAP - MENU_EDGE;
+  const down = height <= below || below >= above;
+  const maxHeight = Math.min(height, down ? below : above);
+  return {
+    left: Math.max(MENU_EDGE, Math.min(box.right - width, window.innerWidth - width - MENU_EDGE)),
+    top: down ? box.bottom + MENU_GAP : box.top - MENU_GAP - maxHeight,
+    minWidth: width,
+    maxHeight,
+  };
+}
+
+/**
+ * A dropdown. Its menu opens in a layer over the window, so a group's rounded
+ * clipping or the page's scrolling cannot cut it off. Focus stays on the
+ * button, which handles the keyboard. `locked` shows the value at full
+ * strength but does not open.
+ */
+export function Select({ value, options, onChange, label, disabled = false, locked = false }) {
+  const id = useId();
+  const button = useRef(null);
+  const menu = useRef(null);
+  const [isOpen, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [place, setPlace] = useState(null);
+  const inert = disabled || locked;
+  const open = isOpen && !inert;
+  const current = options.findIndex((o) => o.value === value);
+  const optionId = (i) => `${id}-option-${i}`;
+
+  const show = () => {
+    setActive(Math.max(current, 0));
+    setPlace(null);
+    setOpen(true);
+  };
+  const choose = (option) => {
+    setOpen(false);
+    if (option.value !== value) onChange(option.value);
+  };
+
+  // below the button, or above it when there is more room there
+  useLayoutEffect(() => {
+    if (open) setPlace(placeMenu(button.current, menu.current));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    const onPress = (e) => {
+      if (!menu.current?.contains(e.target) && !button.current?.contains(e.target)) close();
+    };
+    const onScroll = (e) => {
+      if (!menu.current?.contains(e.target)) close();
+    };
+    document.addEventListener("pointerdown", onPress);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("pointerdown", onPress);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open && place) menu.current?.children[active]?.scrollIntoView?.({ block: "nearest" });
+  }, [open, place, active]);
+
+  const onKeyDown = (e) => {
+    if (!open) {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
+        e.preventDefault();
+        show();
+      }
+      return;
+    }
+    const last = options.length - 1;
+    const moves = {
+      ArrowDown: Math.min(active + 1, last),
+      ArrowUp: Math.max(active - 1, 0),
+      Home: 0,
+      End: last,
+    };
+    if (e.key in moves) {
+      e.preventDefault();
+      setActive(moves[e.key]);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      choose(options[active]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
   return (
-    <div className={cx("relative inline-flex", disabled && "opacity-40")}>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="appearance-none rounded-[4px] bg-surface py-[3px] pr-7 pl-2.5 text-[12.5px] text-label shadow-control outline-none dark:bg-raised"
+    <>
+      <button
+        ref={button}
+        type="button"
+        role="combobox"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? `${id}-menu` : undefined}
+        aria-activedescendant={open ? optionId(active) : undefined}
+        disabled={inert}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={onKeyDown}
+        className={cx(
+          "group inline-flex h-[24px] max-w-[220px] items-center gap-1.5 text-[12.5px] text-label",
+          disabled && "opacity-40",
+        )}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown size={13} className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-secondary" />
-    </div>
+        <span className="truncate">{options[current]?.label ?? value}</span>
+        <ChevronDown
+          size={13}
+          aria-hidden
+          className={cx(
+            "shrink-0 text-secondary transition-transform duration-150",
+            !inert && "group-hover:text-label",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open &&
+        createPortal(
+          <motion.div
+            ref={menu}
+            id={`${id}-menu`}
+            role="listbox"
+            aria-label={label}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.1 }}
+            // keeps the focus, and with it the keyboard, on the button
+            onMouseDown={(e) => e.preventDefault()}
+            style={place ?? { left: 0, top: 0, visibility: "hidden" }}
+            className="fixed z-50 max-w-[280px] overflow-y-auto rounded-[6px] border-[0.5px] border-separator-strong bg-raised p-1 shadow-panel [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {options.map((option, i) => (
+              <div
+                key={option.value}
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === current}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => choose(option)}
+                className={cx(
+                  "flex h-[26px] items-center justify-between gap-4 rounded-[4px] px-2 text-[12.5px] whitespace-nowrap text-label",
+                  i === active && "bg-fill-strong",
+                )}
+              >
+                <span className="min-w-0 truncate">{option.label}</span>
+                <Check size={12} strokeWidth={2.5} aria-hidden className={cx("shrink-0", i !== current && "invisible")} />
+              </div>
+            ))}
+          </motion.div>,
+          document.body,
+        )}
+    </>
   );
 }
 

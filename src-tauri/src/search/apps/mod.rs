@@ -156,6 +156,10 @@ impl AppIndex {
         (!matches!(entry.app.icon, AppIcon::None)).then(|| icon_for(&entry.app))
     }
 
+    pub fn has_app_named(&self, name: &str) -> bool {
+        self.entries.read().unwrap_or_else(|e| e.into_inner()).iter().any(|e| e.app.name.eq_ignore_ascii_case(name))
+    }
+
     #[cfg(test)]
     pub(crate) fn with_apps(apps: Vec<DiscoveredApp>) -> Self {
         let index = Self::new();

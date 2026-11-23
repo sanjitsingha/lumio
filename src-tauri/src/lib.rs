@@ -5,7 +5,8 @@ mod analytics;
 mod app_state;
 mod capslock;
 mod cli;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+#[cfg_attr(windows, path = "clips_windows.rs")]
 mod clips;
 mod commands;
 mod currency;
@@ -15,8 +16,6 @@ mod error;
 mod events;
 #[cfg(test)]
 mod integration_tests;
-#[cfg(windows)]
-mod notch;
 mod platform;
 mod screenshots;
 mod search;
@@ -38,6 +37,7 @@ use search::actions::ActionsProvider;
 use search::apps::AppIndex;
 use search::engine::SearchEngine;
 use search::files::FileIndex;
+use search::types::ExecuteMode;
 use search::web::WebSearchProvider;
 use shortcuts::accelerator::Accelerator;
 use shortcuts::actions::ShortcutAction;
@@ -66,6 +66,16 @@ fn run_shortcut_action(app: &AppHandle, accel: Accelerator, timestamp: Option<u3
     log::debug!("shortcut {accel} -> {}", slot.id);
     match slot.action {
         ShortcutAction::ToggleSpotlight => window_manager::toggle_spotlight(app, timestamp),
+        ShortcutAction::RunCommand => {
+            let engine = state.engine.clone();
+            let id = slot.id;
+            // launching can take a while; the hotkey thread must not wait for it
+            std::thread::spawn(move || {
+                if let Err(e) = engine.execute(id, ExecuteMode::Open, "", false) {
+                    log::warn!("could not run {id}: {e}");
+                }
+            });
+        }
     }
 }
 
@@ -192,11 +202,7 @@ fn setup(app: &mut tauri::App, launch: cli::Launch, plugin_map: PluginShortcutMa
         log::error!("could not create the Spotlight window: {e}");
     }
     tray::sync(&handle, &settings);
-    #[cfg(windows)]
-    if let Err(e) = notch::create(&handle) {
-        log::error!("could not create the notch: {e}");
-    }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     clips::start(&handle);
     currency::start(&handle);
     app_state::start_background_services(&handle);
@@ -275,7 +281,7 @@ pub fn run() {
                     return responder.respond(screenshots::respond(&app, key));
                 }
                 // `/clip/<id>`: the picture of a copy in Spotlight's Quick files
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", windows))]
                 if let Some(id) = path.strip_prefix("/clip/") {
                     return responder.respond(clips::respond(&app, id));
                 }
@@ -293,6 +299,7 @@ pub fn run() {
             commands::search::clear_search_history,
             commands::search::get_index_status,
             commands::search::rebuild_index,
+            commands::search::get_commands,
             commands::window::hide_spotlight,
             commands::window::set_spotlight_height,
             commands::window::open_settings_window,

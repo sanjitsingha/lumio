@@ -12,6 +12,7 @@ const COMMANDS: &[&str] = &[
     "clear_search_history",
     "get_index_status",
     "rebuild_index",
+    "get_commands",
     // spotlight window
     "hide_spotlight",
     "set_spotlight_height",

@@ -103,7 +103,7 @@ function Preview({ item }) {
 /**
  * Quick files, the section that opens below Spotlight with Tab: everything
  * copied (text, links, files, images, videos) and every screenshot, newest
- * first, on Linux in place of the Windows notch. The chips narrow it to one
+ * first. The chips narrow it to one
  * kind, and a click on a card copies it again. A press here must not take
  * focus from the search field, which handles the keyboard.
  */

@@ -3,10 +3,10 @@ import { cx } from "../../utils/cx";
 export const PANES = [
   { id: "general", label: "General", icon: "/settings-icons/general.svg" },
   { id: "spotlight", label: "Spotlight", icon: "/settings-icons/spotlight.svg" },
-  { id: "capslock", label: "Caps Lock Indicator", icon: "/settings-icons/capslock.svg" },
+  { id: "capslock", label: "Caps Indicator", icon: "/settings-icons/capslock.svg" },
+  { id: "shortcuts", label: "Shortcut", icon: "/settings-icons/shortcuts.svg" },
   // only in builds that have the notch (`notchAvailable` from the backend)
   { id: "notch", label: "Notch", icon: "/settings-icons/notch.svg" },
-  { id: "appearance", label: "Appearance", icon: "/settings-icons/appearance.svg" },
   { id: "about", label: "About", icon: "/settings-icons/about.svg" },
 ];
 
@@ -17,7 +17,7 @@ export function PaneIcon({ icon, size = 22, className }) {
 export function Sidebar({ active, onSelect, appName, version, panes = PANES }) {
   return (
     <nav aria-label="Settings sections" className="flex w-[228px] shrink-0 flex-col border-r-[0.5px] border-separator-strong bg-sidebar">
-      <ul className="flex flex-col gap-2.5 px-2.5 pt-4">
+      <ul className="flex flex-col gap-1 px-2.5 pt-4">
         {panes.map((pane) => {
           const selected = pane.id === active;
           return (
@@ -31,7 +31,12 @@ export function Sidebar({ active, onSelect, appName, version, panes = PANES }) {
                   selected ? "bg-fill-strong text-label" : "text-label hover:bg-fill",
                 )}
               >
-                <PaneIcon icon={pane.icon} size={20} className="grayscale" />
+                <PaneIcon
+                  icon={pane.icon}
+                  size={26}
+                  // the ring follows the tile's corners (rx 14 of 81 in the icons)
+                  className={cx("grayscale", selected && "rounded-[4.5px] ring-1 ring-white/35")}
+                />
                 <span className="truncate">{pane.label}</span>
               </button>
             </li>

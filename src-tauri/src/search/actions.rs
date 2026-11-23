@@ -73,6 +73,16 @@ pub const ACTIONS: &[QuickAction] = &[
     },
 ];
 
+/// Every action of this platform: the ones above and its system commands.
+pub fn all() -> impl Iterator<Item = &'static QuickAction> {
+    ACTIONS.iter().chain(platform::quick_actions::system_commands())
+}
+
+/// System commands are many: they need two letters and a real match, and
+/// only the best few are listed so they do not crowd out files.
+const MIN_COMMAND_QUERY_CHARS: usize = 2;
+const MAX_COMMAND_RESULTS: usize = 6;
+
 /// The app an action opens: its key in the app index and its name.
 type TargetApp = Option<(String, String)>;
 
@@ -92,8 +102,7 @@ impl ActionsProvider {
 
     /// Hides actions whose target app is not installed.
     pub fn refresh_availability(&self) {
-        let available = ACTIONS
-            .iter()
+        let available = all()
             .filter(|a| a.id == LUMMO_SETTINGS || platform::quick_actions::is_available(a.id))
             .map(|a| (a.id, platform::quick_actions::app(a.id)))
             .collect();
@@ -155,11 +164,26 @@ impl SearchProvider for ActionsProvider {
                 out.push(self.to_result(action, score as f32));
             }
         }
+        if ctx.raw.chars().count() < MIN_COMMAND_QUERY_CHARS {
+            return;
+        }
+        let mut found: Vec<(u32, &QuickAction)> = platform::quick_actions::system_commands()
+            .filter(|a| self.is_available(a.id))
+            .filter_map(|a| {
+                let title = ctx.query.score_contiguous(&fold(a.title), false);
+                let keyword = a.keywords.iter().filter_map(|k| ctx.query.score_contiguous(&fold(k), false)).max();
+                Some((title.max(keyword.map(|s| s * 9 / 10))?, a))
+            })
+            // an installed app of that name is already listed, under Applications
+            .filter(|(_, a)| !self.apps.has_app_named(a.title))
+            .collect();
+        found.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+        found.truncate(MAX_COMMAND_RESULTS);
+        out.extend(found.into_iter().map(|(score, a)| self.to_result(a, score as f32)));
     }
 
     fn execute(&self, local_id: &str, _mode: ExecuteMode) -> AppResult<ExecutedItem> {
-        let action = ACTIONS
-            .iter()
+        let action = all()
             .find(|a| a.id == local_id)
             .ok_or_else(|| AppError::NotFound(format!("Unknown action \"{local_id}\".")))?;
         if action.id == LUMMO_SETTINGS {
@@ -171,8 +195,7 @@ impl SearchProvider for ActionsProvider {
     }
 
     fn resolve(&self, local_id: &str) -> Option<SearchResult> {
-        ACTIONS
-            .iter()
+        all()
             .find(|a| a.id == local_id && self.is_available(a.id))
             .map(|a| self.to_result(a, 0.0))
     }
@@ -232,6 +255,38 @@ mod tests {
         provider.search(&ctx, &mut out);
         assert_eq!(out[0].id, "action:lummo-settings");
         assert_eq!(out[0].icon, ResultIcon::Lummo, "with Lummo's logo, like the app");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn system_commands_are_found_without_crowding_the_results() {
+        let search = |provider: &ActionsProvider, raw: &str| {
+            let query = super::super::fuzzy::Query::new(raw);
+            let settings = SpotlightSettings::default();
+            let ctx = SearchContext { raw, query: &query, settings: &settings, limit: 24 };
+            let mut out = Vec::new();
+            provider.search(&ctx, &mut out);
+            out.into_iter().map(|r| r.id).collect::<Vec<_>>()
+        };
+        let plain = provider(Vec::new());
+        for (query, id) in [("lock", "lock-screen"), ("shutdown", "shut-down"), ("reboot", "restart"), ("emoji", "emoji-picker"), ("regedit", "registry-editor")] {
+            assert!(search(&plain, query).contains(&format!("action:{id}")), "{query}");
+        }
+        assert!(search(&plain, "s").iter().all(|id| ACTIONS.iter().any(|a| format!("action:{}", a.id) == *id)), "one letter is too little");
+        assert!(search(&plain, "open").len() <= ACTIONS.len() + MAX_COMMAND_RESULTS);
+
+        // an installed app of the same name is not listed twice
+        let notepad = DiscoveredApp {
+            key: "notepad".into(),
+            name: "Notepad".into(),
+            description: String::new(),
+            keywords: Vec::new(),
+            icon: AppIcon::Png(Arc::new(vec![1])),
+            target: String::new(),
+            actions: Vec::new(),
+        };
+        assert!(search(&plain, "notepad").contains(&"action:notepad".to_string()));
+        assert!(!search(&provider(vec![notepad]), "notepad").contains(&"action:notepad".to_string()));
     }
 
     #[test]

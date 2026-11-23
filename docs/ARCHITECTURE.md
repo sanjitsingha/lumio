@@ -9,8 +9,7 @@ lummo/
 │   │   ├── spotlight/           SearchBar, ResultList, ResultRow, ResultIcon, SpotlightFooter
 │   │   ├── settings/            Sidebar, PaneHeader, panes/* (one file per pane)
 │   │   ├── shortcuts/           ShortcutRecorder
-│   │   ├── capslock/            IndicatorPreview (SVG replica of the native artwork)
-│   │   └── common/              controls (Switch, Segmented, Slider, Group/Row, KeyCaps…), Toaster
+│   │   └── common/              controls (Switch, Checkbox, Select, Slider, Group/Row, KeyCaps…), Toaster
 │   ├── hooks/                   useSearch, useAutoHeight, useSettings, useAppearance, usePlatform
 │   ├── services/                tauri.js (command wrappers), events.js, updates.js
 │   ├── stores/                  settingsStore (mirror of backend settings), toastStore

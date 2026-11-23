@@ -18,27 +18,35 @@ pub struct TrayState {
     caps_item: Mutex<Option<CheckMenuItem<Wry>>>,
 }
 
+/// Makes the tray icon match "Show in system tray".
 pub fn sync(app: &AppHandle, settings: &Settings) {
-    let exists = app.tray_by_id(TRAY_ID).is_some();
+    let show = settings.general.show_in_tray;
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        if let Err(e) = tray.set_visible(show) {
+            log::error!("could not change the tray icon: {e}");
+        }
+        return;
+    }
+    if !show {
+        return;
+    }
     // Without a StatusNotifier host (stock elementary OS) the icon would be
     // invisible, and libappindicator logs GTK assertions while creating it.
     #[cfg(target_os = "linux")]
-    if !exists && !crate::platform::linux::tray_host_available() {
+    if !crate::platform::linux::tray_host_available() {
         log::info!("no system tray host is running; the tray icon is not created");
         return;
     }
-    if !exists {
-        if let Err(e) = create(app, settings.caps_lock.enabled) {
-            log::error!("could not create the tray icon: {e}");
-            let _ = app.emit(events::NOTICE, format!("The tray icon could not be created: {e}"));
-        }
+    if let Err(e) = create(app, settings.caps_lock.enabled) {
+        log::error!("could not create the tray icon: {e}");
+        let _ = app.emit(events::NOTICE, format!("The tray icon could not be created: {e}"));
     }
 }
 
 fn create(app: &AppHandle, caps_enabled: bool) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open-spotlight", "Open Spotlight", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let caps = CheckMenuItem::with_id(app, "toggle-caps", "Caps Lock Indicator", true, caps_enabled, None::<&str>)?;
+    let caps = CheckMenuItem::with_id(app, "toggle-caps", "Caps Indicator", true, caps_enabled, None::<&str>)?;
     let updates = MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Lummo", true, None::<&str>)?;
     let menu = Menu::with_items(

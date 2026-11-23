@@ -12,7 +12,7 @@ use crate::events;
 use crate::platform::{self, PlatformInfo};
 use crate::search::engine::SearchEngine;
 use crate::search::files::FileIndex;
-use crate::shortcuts::actions::{ShortcutAction, SLOTS};
+use crate::shortcuts::actions::{self, ShortcutAction};
 use crate::shortcuts::ShortcutManager;
 use crate::storage::settings::{self, Settings};
 use crate::storage::StoragePaths;
@@ -40,13 +40,17 @@ impl AppState {
     }
 }
 
-/// Bindings that should actually be registered (Spotlight shortcuts are
-/// released while Spotlight is disabled, but stay saved).
+/// Bindings that should actually be registered (shortcuts of Spotlight or of
+/// a command are released while it is off, but stay saved).
 pub fn effective_bindings(s: &Settings) -> BTreeMap<String, Option<String>> {
     let mut bindings = s.shortcuts.bindings.clone();
-    if !s.spotlight.enabled {
-        for slot in SLOTS.iter().filter(|slot| slot.action == ShortcutAction::ToggleSpotlight) {
-            bindings.insert(slot.id.to_string(), None);
+    for slot in actions::all() {
+        let on = match slot.action {
+            ShortcutAction::ToggleSpotlight => s.spotlight.enabled,
+            ShortcutAction::RunCommand => s.command_is_on(slot.id),
+        };
+        if let (false, Some(binding)) = (on, bindings.get_mut(slot.id)) {
+            *binding = None;
         }
     }
     bindings
@@ -128,6 +132,9 @@ fn apply_side_effects(app: &AppHandle, state: &AppState, old: &Settings, new: &S
     }
     if old.caps_lock.enabled != new.caps_lock.enabled {
         crate::tray::set_caps_checked(app, new.caps_lock.enabled);
+    }
+    if old.general.show_in_tray != new.general.show_in_tray {
+        crate::tray::sync(app, new);
     }
     if old.general.share_usage_statistics != new.general.share_usage_statistics {
         crate::analytics::set_enabled(new.general.share_usage_statistics);

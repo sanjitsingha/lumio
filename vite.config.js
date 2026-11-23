@@ -4,9 +4,20 @@ import tailwindcss from "@tailwindcss/vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
+/** Makes every px font size follow Settings → Text size (`--lm-text-scale`, set in useAppearance). */
+const scaleFontSizes = {
+  postcssPlugin: "lummo-text-scale",
+  Declaration: {
+    "font-size"(decl) {
+      if (/^\d*\.?\d+px$/.test(decl.value)) decl.value = `calc(${decl.value} * var(--lm-text-scale, 1))`;
+    },
+  },
+};
+
 // https://v2.tauri.app/start/frontend/vite/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  css: { postcss: { plugins: [scaleFontSizes] } },
   clearScreen: false,
   server: {
     port: 1420,

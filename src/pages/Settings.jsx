@@ -5,8 +5,8 @@ import { Sidebar, PANES } from "../components/settings/Sidebar";
 import GeneralPane from "../components/settings/panes/GeneralPane";
 import SpotlightPane from "../components/settings/panes/SpotlightPane";
 import CapsLockPane from "../components/settings/panes/CapsLockPane";
+import ShortcutsPane from "../components/settings/panes/ShortcutsPane";
 import NotchPane from "../components/settings/panes/NotchPane";
-import AppearancePane from "../components/settings/panes/AppearancePane";
 import About from "./About";
 import { Toaster } from "../components/common/Toaster";
 import { useSettingsState } from "../hooks/useSettings";
@@ -18,7 +18,7 @@ import { toast } from "../stores/toastStore";
 
 const validPane = (id) => (PANES.some((p) => p.id === id) ? id : "general");
 
-export default function SettingsPage({ appearance }) {
+export default function SettingsPage() {
   const { settings, notices } = useSettingsState();
   const platform = usePlatform();
   const [pane, setPane] = useState(() => validPane(window.location.hash.slice(1)));
@@ -33,19 +33,14 @@ export default function SettingsPage({ appearance }) {
     };
   }, []);
 
-  const onCheckUpdates = () => {
-    setPane("about");
-    updates.check(false);
-  };
-
   if (!settings) return null;
 
   const content = {
-    general: <GeneralPane onCheckUpdates={onCheckUpdates} />,
+    general: <GeneralPane />,
     spotlight: <SpotlightPane />,
-    capslock: <CapsLockPane appearance={appearance} />,
+    capslock: <CapsLockPane />,
+    shortcuts: <ShortcutsPane />,
     notch: <NotchPane />,
-    appearance: <AppearancePane appearance={appearance} />,
     about: <About updates={updates} />,
   }[pane];
   // the notch exists only in some builds
