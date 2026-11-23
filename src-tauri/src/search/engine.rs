@@ -60,7 +60,11 @@ impl SearchEngine {
         let quick = actions::all().filter_map(|a| Some(CommandEntry { result: self.actions.resolve(a.id)?, keywords: a.keywords }));
         let pages =
             PAGES.iter().filter_map(|p| Some(CommandEntry { result: self.system_settings.resolve(p.id)?, keywords: p.keywords }));
-        quick.chain(pages).collect()
+        let apps = self.apps.command_results().into_iter().map(|result| {
+            crate::shortcuts::actions::register_app_slot(&result.id, &result.title);
+            CommandEntry { result, keywords: &[] }
+        });
+        quick.chain(pages).chain(apps).collect()
     }
 
     /// Puts the command whose alias was typed in full first.
@@ -182,13 +186,41 @@ fn rank(results: &mut [SearchResult]) {
     });
 }
 
-/// Top Hit first, then one section per kind in a fixed order so Tab
+/// What the best result is, which is the title of its section: "Application",
+/// "Image", "Video", "Document", "Setting", "Search"…
+fn top_title(result: &SearchResult) -> &'static str {
+    match result.kind {
+        ResultKind::App => "Application",
+        ResultKind::Action => "Action",
+        ResultKind::Setting => "Setting",
+        ResultKind::Folder => "Folder",
+        ResultKind::Web => "Search",
+        ResultKind::File => {
+            let extension = result.title.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+            match extension.as_str() {
+                "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" | "heic" | "avif" | "tif" | "tiff" | "ico" | "raw" => "Image",
+                "mp4" | "mkv" | "mov" | "avi" | "webm" | "wmv" | "flv" | "m4v" => "Video",
+                "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "opus" | "wma" => "Audio",
+                "pdf" | "doc" | "docx" | "odt" | "txt" | "md" | "rtf" | "epub" | "pages" => "Document",
+                "xls" | "xlsx" | "ods" | "csv" | "numbers" => "Spreadsheet",
+                "ppt" | "pptx" | "odp" | "key" => "Presentation",
+                "zip" | "tar" | "gz" | "xz" | "7z" | "rar" | "bz2" | "zst" | "deb" | "rpm" | "iso" => "Archive",
+                "exe" | "msi" | "appimage" | "sh" | "bat" => "Program",
+                "rs" | "js" | "jsx" | "ts" | "tsx" | "py" | "c" | "h" | "cpp" | "java" | "go" | "html" | "css" | "json" | "toml"
+                | "yaml" | "yml" | "xml" | "sql" => "Code",
+                _ => "File",
+            }
+        }
+    }
+}
+
+/// The best result first, then one section per kind in a fixed order so Tab
 /// navigation is predictable.
 pub fn group(mut ranked: Vec<SearchResult>) -> Vec<Section> {
     let mut sections = Vec::new();
     if ranked.first().is_some_and(|r| r.score >= TOP_HIT_THRESHOLD) && ranked.len() > 1 {
         let top = ranked.remove(0);
-        sections.push(Section { id: "top", title: "Top Hit", results: vec![top] });
+        sections.push(Section { id: "top", title: top_title(&top), results: vec![top] });
     }
     for kind in SECTION_ORDER {
         let (id, title) = kind.section();
@@ -283,6 +315,18 @@ mod tests {
     }
 
     #[test]
+    fn the_best_result_is_titled_by_what_it_is() {
+        let title = |kind, name: &str| top_title(&result("x", kind, name, 900.0));
+        assert_eq!(title(ResultKind::App, "Firefox"), "Application");
+        assert_eq!(title(ResultKind::Web, "Search Google for x"), "Search");
+        assert_eq!(title(ResultKind::Setting, "Toggle dark mode"), "Setting");
+        for (name, kind) in [("a.PNG", "Image"), ("a.mp4", "Video"), ("a.pdf", "Document"), ("a.mp3", "Audio"), ("a.xlsx", "Spreadsheet"),
+            ("a.zip", "Archive"), ("a.rs", "Code"), ("a.xyz", "File"), ("README", "File")] {
+            assert_eq!(title(ResultKind::File, name), kind, "{name}");
+        }
+    }
+
+    #[test]
     fn grouping_promotes_strong_top_hit_and_orders_sections() {
         let ranked = vec![
             result("f", ResultKind::Folder, "Reports", 820.0),
@@ -294,6 +338,7 @@ mod tests {
         let ids: Vec<_> = sections.iter().map(|s| s.id).collect();
         assert_eq!(ids, vec!["top", "apps", "actions", "files"]);
         assert_eq!(sections[0].results[0].title, "Reports");
+        assert_eq!(sections[0].title, "Folder");
     }
 
     #[test]

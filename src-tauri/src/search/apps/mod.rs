@@ -108,6 +108,15 @@ impl AppIndex {
         meta.last_duration = Some(started.elapsed());
     }
 
+    /// Every installed application as a command row (its own actions left out).
+    pub fn command_results(&self) -> Vec<SearchResult> {
+        let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
+        entries
+            .iter()
+            .map(|e| SearchResult { actions: Vec::new(), ..to_result(&e.app, 0.0) })
+            .collect()
+    }
+
     pub fn is_stale(&self, max_age: Duration) -> bool {
         self.meta.lock().unwrap_or_else(|e| e.into_inner()).refreshed_at.is_none_or(|t| t.elapsed() > max_age)
     }

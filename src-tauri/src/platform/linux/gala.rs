@@ -76,6 +76,15 @@ pub fn show_osd(conn: &gio::DBusConnection, icon: &str, label: &str) -> Result<(
     call_shell(conn, "ShowOSD", args, "()").map(|_| ())
 }
 
+/// The on-screen display with a bar filled to `level` (0 to 1).
+pub fn show_level_osd(conn: &gio::DBusConnection, icon: &str, level: f64) -> Result<(), String> {
+    let dict = glib::VariantDict::new(None);
+    dict.insert_value("icon", &icon.to_variant());
+    dict.insert_value("level", &level.to_variant());
+    let args = glib::Variant::tuple_from_iter([dict.end()]);
+    call_shell(conn, "ShowOSD", args, "()").map(|_| ())
+}
+
 /// The window that has keyboard focus, as Gala reports it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FocusedWindow {

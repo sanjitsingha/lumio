@@ -3,7 +3,7 @@ use tauri::{AppHandle, State};
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
 use crate::platform;
-use crate::updater::{self, UpdateStatus};
+use crate::updater::UpdateStatus;
 
 #[tauri::command]
 pub fn get_update_status(state: State<'_, AppState>) -> UpdateStatus {
@@ -29,9 +29,18 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> AppRe
 }
 
 /// Manual update: opens the latest release page to download installers.
+/// The pages of lummo.space that Settings → About links to.
+fn site_page(page: &str) -> Option<&'static str> {
+    match page {
+        "changelog" => Some("https://lummo.space/changelog"),
+        "privacy-policy" => Some("https://lummo.space/privacy-policy"),
+        _ => None,
+    }
+}
+
+/// Opens "changelog" (the default) or "privacy-policy" in the browser.
 #[tauri::command]
-pub fn open_release_page() -> AppResult<()> {
-    let page = updater::release_page()
-        .ok_or_else(|| AppError::Unsupported("No release page is configured for this build.".into()))?;
-    platform::launch::open_url(&page).map_err(AppError::Launch)
+pub fn open_release_page(page: Option<String>) -> AppResult<()> {
+    let url = site_page(page.as_deref().unwrap_or("changelog")).ok_or_else(|| AppError::Invalid("Unknown page.".into()))?;
+    platform::launch::open_url(url).map_err(AppError::Launch)
 }

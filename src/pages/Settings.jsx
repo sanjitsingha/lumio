@@ -51,8 +51,6 @@ export default function SettingsPage() {
       <Sidebar
         active={pane}
         onSelect={setPane}
-        appName={platform?.appName}
-        version={platform?.version}
         panes={panes}
       />
       <main className="scroll-area relative flex-1">

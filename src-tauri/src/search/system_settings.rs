@@ -1,11 +1,13 @@
 //! Pages of the system's settings app ("Turn on dark mode", "Connect to
 //! Wi-Fi"), opened at the right page through the OS's own deep links:
 //! `ms-settings:` on Windows, `settings://` on elementary OS (System
-//! Settings, formerly Switchboard).
+//! Settings, formerly Switchboard). On elementary OS the on/off ones are
+//! real switches instead (`toggle:`, see `platform::linux::toggles`): they
+//! change the setting and open nothing.
 //!
 //! To add a page, add an entry to [`PAGES`] with its link on each platform
 //! that has it. A page with no link for the running platform is not offered
-//! there. Every page shows the settings app's own icon, since it opens there.
+//! there. Every page shows the settings app's own icon.
 
 use std::sync::{Arc, RwLock};
 
@@ -19,10 +21,15 @@ use crate::storage::settings::SpotlightSettings;
 
 /// Where a page is on one platform.
 pub struct Link {
-    /// `ms-settings:…` (Windows) or `settings://…` (elementary OS).
+    /// `ms-settings:…` (Windows), `settings://…` (elementary OS) or
+    /// `toggle:…` (a switch on elementary OS).
     pub uri: &'static str,
     /// Its place in the settings app, shown below the title.
     pub path: &'static str,
+    /// What it is called on this platform, where that differs from the page's title.
+    pub title: Option<&'static str>,
+    /// More words it is found by on this platform.
+    pub keywords: &'static [&'static str],
 }
 
 pub struct SettingPage {
@@ -48,11 +55,29 @@ const fn page(
 }
 
 const fn win(uri: &'static str, path: &'static str) -> Option<Link> {
-    Some(Link { uri, path })
+    Some(Link { uri, path, title: None, keywords: &[] })
 }
 
 const fn eos(uri: &'static str, path: &'static str) -> Option<Link> {
-    Some(Link { uri, path })
+    Some(Link { uri, path, title: None, keywords: &[] })
+}
+
+/// A switch on elementary OS: running it flips the setting. `title` starts
+/// with "Toggle ", and "turn on …", "disable …" and the like find it too.
+const fn switch(
+    title: &'static str,
+    uri: &'static str,
+    path: &'static str,
+    keywords: &'static [&'static str],
+) -> Option<Link> {
+    Some(Link { uri, path, title: Some(title), keywords })
+}
+
+impl SettingPage {
+    /// Its name on the running platform.
+    pub fn title_here(&'static self) -> &'static str {
+        Desktop::current().link(self).and_then(|l| l.title).unwrap_or(self.title)
+    }
 }
 
 #[rustfmt::skip]
@@ -61,11 +86,12 @@ pub const PAGES: &[SettingPage] = &[
     page("dark-mode", "Turn on dark mode",
         &["dark mode", "dark theme", "dark style", "night mode", "black theme", "theme", "appearance", "color mode", "light or dark"],
         win("ms-settings:colors", "Personalization › Colors"),
-        eos("settings://desktop/appearance", "Desktop › Appearance")),
+        switch("Toggle dark mode", "toggle:dark-mode", "Desktop › Appearance",
+            &["light mode", "light theme", "light style", "white theme", "bright theme", "day mode", "turn on light mode", "turn off light mode"])),
     page("light-mode", "Turn on light mode",
         &["light mode", "light theme", "light style", "white theme", "bright theme", "day mode", "color mode"],
         win("ms-settings:colors", "Personalization › Colors"),
-        eos("settings://desktop/appearance", "Desktop › Appearance")),
+        None),
     page("accent-color", "Change accent color",
         &["accent color", "accent colour", "highlight color", "window color", "colors", "colours"],
         win("ms-settings:colors", "Personalization › Colors"),
@@ -116,12 +142,14 @@ pub const PAGES: &[SettingPage] = &[
     page("night-light", "Turn on Night Light",
         &["night light", "blue light", "night mode", "night shift", "warm colors", "color temperature", "eye strain", "redshift"],
         win("ms-settings:nightlight", "System › Display › Night light"),
-        eos("settings://display/night-light", "Displays › Night Light")),
+        switch("Toggle Night Light", "toggle:night-light", "Displays › Night Light",
+            &[])),
     page("color-filters", "Turn on color filters",
         &["color filters", "colour filters", "color blind", "colorblind", "grayscale", "greyscale", "black and white", "monochrome",
           "invert colors"],
         win("ms-settings:easeofaccess-colorfilter", "Accessibility › Color filters"),
-        eos("settings://display/filters", "Displays › Filters")),
+        switch("Toggle grayscale", "toggle:grayscale", "Displays › Filters",
+            &["turn on color filters", "turn off color filters"])),
     page("graphics", "Graphics settings",
         &["graphics", "gpu", "graphics card", "gpu preference", "high performance gpu", "hardware accelerated gpu scheduling"],
         win("ms-settings:display-advancedgraphics", "System › Display › Graphics"),
@@ -149,7 +177,8 @@ pub const PAGES: &[SettingPage] = &[
     page("do-not-disturb", "Turn on Do Not Disturb",
         &["do not disturb", "dnd", "focus", "focus assist", "quiet hours", "silence notifications", "mute notifications"],
         win("ms-settings:notifications", "System › Notifications"),
-        eos("settings://notifications", "Notifications")),
+        switch("Toggle Do Not Disturb", "toggle:do-not-disturb", "Notifications",
+            &[])),
 
     // Power and storage
     page("power", "Power & battery settings",
@@ -164,7 +193,8 @@ pub const PAGES: &[SettingPage] = &[
     page("battery-saver", "Turn on battery saver",
         &["battery saver", "energy saver", "power saver", "low power mode", "save battery"],
         win("ms-settings:batterysaver", "System › Power & battery"),
-        eos("settings://power", "Power")),
+        switch("Toggle battery saver", "toggle:battery-saver", "Power",
+            &[])),
     page("storage", "Free up storage space",
         &["storage", "disk space", "free up space", "free space", "disk cleanup", "drives", "hard drive", "ssd", "disk usage"],
         win("ms-settings:storagesense", "System › Storage"),
@@ -246,7 +276,8 @@ pub const PAGES: &[SettingPage] = &[
     page("bluetooth", "Turn on Bluetooth",
         &["bluetooth", "bt", "bluetooth on", "bluetooth off", "wireless devices"],
         win("ms-settings:bluetooth", "Bluetooth & devices"),
-        eos("settings://network/bluetooth", "Bluetooth")),
+        switch("Toggle Bluetooth", "toggle:bluetooth", "Bluetooth",
+            &[])),
     page("bluetooth-pair", "Pair a Bluetooth device",
         &["pair", "pairing", "add device", "add a device", "connect headphones", "bluetooth headphones", "wireless headphones",
           "earbuds", "airpods", "bluetooth speaker", "wireless mouse", "wireless keyboard", "controller"],
@@ -310,6 +341,11 @@ pub const PAGES: &[SettingPage] = &[
           "hidden network"],
         win("ms-settings:network-wifi", "Network & internet › Wi-Fi"),
         eos("settings://network", "Network")),
+    page("wifi-switch", "Toggle Wi-Fi",
+        &["wifi on", "wifi off", "wi-fi on", "wi-fi off", "wireless on", "wireless off", "toggle wifi", "turn on wifi", "turn off wifi",
+          "enable wifi", "disable wifi"],
+        None,
+        switch("Toggle Wi-Fi", "toggle:wifi", "Network", &[])),
     page("network", "Network settings",
         &["network", "internet", "connection", "connections", "ip address", "dns", "network adapter", "no internet",
           "offline", "metered connection"],
@@ -326,7 +362,8 @@ pub const PAGES: &[SettingPage] = &[
     page("airplane-mode", "Turn on airplane mode",
         &["airplane mode", "aeroplane mode", "flight mode", "plane mode", "offline mode", "wireless off", "radios"],
         win("ms-settings:network-airplanemode", "Network & internet › Airplane mode"),
-        eos("settings://network", "Network")),
+        switch("Toggle airplane mode", "toggle:airplane-mode", "Network",
+            &[])),
     page("hotspot", "Turn on mobile hotspot",
         &["hotspot", "mobile hotspot", "share internet", "share connection", "tethering", "tether"],
         win("ms-settings:network-mobilehotspot", "Network & internet › Mobile hotspot"),
@@ -451,12 +488,14 @@ pub const PAGES: &[SettingPage] = &[
         &["sticky keys", "stickykeys", "filter keys", "toggle keys", "slow keys", "bounce keys", "on-screen keyboard",
           "onscreen keyboard"],
         win("ms-settings:easeofaccess-keyboard", "Accessibility › Keyboard"),
-        eos("settings://universal-access", "Universal Access")),
+        switch("Toggle Sticky Keys", "toggle:sticky-keys", "Universal Access",
+            &[])),
     page("reduce-motion", "Reduce animations",
         &["animations", "animation", "reduce motion", "animation effects", "visual effects", "transparency",
           "transparency effects", "scrollbars", "always show scrollbars"],
         win("ms-settings:easeofaccess-visualeffects", "Accessibility › Visual effects"),
-        eos("settings://desktop/appearance", "Desktop › Appearance")),
+        switch("Toggle animations", "toggle:animations", "Desktop › Appearance",
+            &["reduce animations", "reduce motion", "turn off animations"])),
 
     // Privacy and security
     page("privacy", "Privacy settings",
@@ -503,6 +542,11 @@ const MIN_QUERY_CHARS: usize = 2;
 const TYPO_MIN_CHARS: usize = 5;
 /// Enough to cover "turn on …" without crowding out files.
 const MAX_RESULTS: usize = 5;
+/// How people ask for a switch: "turn off bluetooth", "enable night light".
+const SWITCH_VERBS: &[&str] = &["turn on", "turn off", "switch on", "switch off", "enable", "disable"];
+/// Enter on a search for "wifi" must not cut the connection: this switch is
+/// found only by words that ask to change it, never by its name alone.
+const WIFI_SWITCH: &str = "toggle:wifi";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Desktop {
@@ -568,14 +612,25 @@ struct Match {
 
 impl Entry {
     fn new(page: &'static SettingPage, link: &'static Link) -> Self {
-        let title = without_filler(page.title);
-        let keywords: Vec<String> = page.keywords.iter().map(|k| without_filler(k)).filter(|k| !k.is_empty()).collect();
+        let title = without_filler(link.title.unwrap_or(page.title));
+        let asked_for = link.title.and_then(|t| t.strip_prefix("Toggle ")).into_iter().flat_map(|name| {
+            SWITCH_VERBS.iter().map(move |verb| without_filler(&format!("{verb} {name}")))
+        });
+        let keywords: Vec<String> = page
+            .keywords
+            .iter()
+            .chain(link.keywords)
+            .map(|k| without_filler(k))
+            .chain(asked_for)
+            .filter(|k| !k.is_empty())
+            .collect();
         let compact = std::iter::once(&title).chain(&keywords).map(|t| compact(t)).filter(|t| !t.is_empty()).collect();
         Self { page, link, title, keywords, compact }
     }
 
     fn matches(&self, query: &Query, joined: Option<&Query>, typos: bool) -> Option<Match> {
-        let title = (!self.title.is_empty()).then(|| query.score_contiguous(&self.title, typos)).flatten();
+        let by_title = !self.title.is_empty() && self.link.uri != WIFI_SWITCH;
+        let title = by_title.then(|| query.score_contiguous(&self.title, typos)).flatten();
         let keyword = self.keywords.iter().filter_map(|k| query.score_contiguous(k, typos)).max();
         // a run-together query only counts when it is the whole word or its start
         let compact = joined.and_then(|joined| {
@@ -590,7 +645,7 @@ impl Entry {
         SearchResult {
             id: format!("setting:{}", self.page.id),
             kind: ResultKind::Setting,
-            title: self.page.title.into(),
+            title: self.link.title.unwrap_or(self.page.title).into(),
             subtitle: format!("{} › {}", desktop.app_name(), self.link.path),
             icon,
             score,
@@ -760,7 +815,9 @@ mod tests {
                 assert!(l.uri.starts_with("ms-settings:") && !l.path.is_empty(), "{}", p.id);
             }
             if let Some(l) = &p.elementary {
-                assert!(l.uri.starts_with("settings://") && !l.path.is_empty(), "{}", p.id);
+                assert!(l.uri.starts_with("settings://") || l.uri.starts_with("toggle:"), "{}", p.id);
+                assert!(!l.path.is_empty(), "{}", p.id);
+                assert_eq!(l.uri.starts_with("toggle:"), l.title.is_some_and(|t| t.starts_with("Toggle ")), "{}", p.id);
             }
             for k in p.keywords {
                 assert_eq!(*k, k.to_lowercase(), "{}: keywords are lowercase", p.id);
@@ -795,17 +852,47 @@ mod tests {
             ("airplane mode", "airplane-mode"), ("vpn", "vpn"), ("notifications", "notifications"),
             ("do not disturb", "do-not-disturb"), ("dnd", "do-not-disturb"), ("updates", "updates"),
             ("keyboard layout", "keyboard-layout"), ("text size", "text-size"), ("battery", "power"),
-            ("light mode", "light-mode"), ("accent color", "accent-color"), ("blutooth", "bluetooth"),
+            ("accent color", "accent-color"), ("blutooth", "bluetooth"),
         ];
         for desktop in BOTH {
             for (q, id) in cases {
                 assert_eq!(first(desktop, q), Some(format!("setting:{id}")), "{q:?} on {desktop:?}");
             }
         }
+        assert_eq!(first(Desktop::Windows, "light mode").as_deref(), Some("setting:light-mode"));
+        assert_eq!(first(Desktop::Elementary, "light mode").as_deref(), Some("setting:dark-mode"));
         assert_eq!(first(Desktop::Windows, "uninstall").as_deref(), Some("setting:uninstall"));
         assert_eq!(first(Desktop::Windows, "taskbar").as_deref(), Some("setting:taskbar"));
         assert_eq!(first(Desktop::Elementary, "dock").as_deref(), Some("setting:dock"));
         assert_eq!(first(Desktop::Elementary, "hot corners").as_deref(), Some("setting:multitasking"));
+    }
+
+    #[test]
+    fn on_off_commands_are_switches_on_elementary_only() {
+        let elementary = provider(Desktop::Elementary);
+        let windows = provider(Desktop::Windows);
+        for (id, title) in [("dark-mode", "Toggle dark mode"), ("bluetooth", "Toggle Bluetooth"), ("night-light", "Toggle Night Light")] {
+            assert_eq!(elementary.resolve(id).unwrap().title, title);
+            assert!(windows.resolve(id).unwrap().title.starts_with("Turn on"), "{id}");
+            assert!(windows.entry(id).unwrap().link.uri.starts_with("ms-settings:"), "{id}");
+        }
+        assert!(elementary.resolve("light-mode").is_none(), "one switch for dark and light");
+        assert!(windows.resolve("light-mode").is_some());
+        assert!(windows.resolve("wifi-switch").is_none());
+        for q in ["turn off bluetooth", "turn on bluetooth", "disable bluetooth", "toggle bluetooth"] {
+            assert_eq!(first(Desktop::Elementary, q).as_deref(), Some("setting:bluetooth"), "{q:?}");
+        }
+    }
+
+    #[test]
+    fn typing_wifi_never_puts_the_switch_first() {
+        // Enter on the top result must not cut the connection
+        for q in ["wifi", "wi-fi", "wifi settings", "wireless"] {
+            assert_eq!(first(Desktop::Elementary, q).as_deref(), Some("setting:wifi"), "{q:?}");
+        }
+        for q in ["toggle wifi", "turn off wifi", "wifi off"] {
+            assert_eq!(first(Desktop::Elementary, q).as_deref(), Some("setting:wifi-switch"), "{q:?}");
+        }
     }
 
     #[test]

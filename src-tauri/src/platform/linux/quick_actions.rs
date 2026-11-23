@@ -4,6 +4,7 @@ use gtk::gio;
 use gtk::gio::prelude::*;
 
 use super::launch::launch_app_info;
+use super::system_commands;
 
 const SETTINGS: &[&str] = &[
     "io.elementary.settings.desktop",
@@ -70,13 +71,13 @@ fn resolve(id: &str) -> Option<(gio::AppInfo, Vec<gio::File>)> {
     }
 }
 
-/// Windows has a catalog of system commands; there is none here yet.
+/// The catalog of elementary OS commands, on top of the actions every platform has.
 pub fn system_commands() -> impl Iterator<Item = &'static crate::search::actions::QuickAction> {
-    std::iter::empty()
+    system_commands::all()
 }
 
 pub fn is_available(id: &str) -> bool {
-    resolve(id).is_some()
+    resolve(id).is_some() || system_commands::is_available(id)
 }
 
 /// The app an action opens, as its desktop-file id (its key in the app
@@ -87,7 +88,9 @@ pub fn app(id: &str) -> Option<(String, String)> {
 }
 
 pub fn run(id: &str) -> Result<(), String> {
-    let (app, files) = resolve(id).ok_or_else(|| "No suitable application is installed.".to_string())?;
+    let Some((app, files)) = resolve(id) else {
+        return system_commands::run(id);
+    };
     log::info!("quick action {id} -> {}", app.name());
     launch_app_info(&app, &files)
 }

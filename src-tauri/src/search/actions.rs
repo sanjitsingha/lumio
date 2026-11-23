@@ -86,6 +86,20 @@ const MAX_COMMAND_RESULTS: usize = 6;
 /// The app an action opens: its key in the app index and its name.
 type TargetApp = Option<(String, String)>;
 
+/// On Linux these commands change something the moment they run, and Enter
+/// runs the top result, so a topic ("touchpad", "hot corner") must not list
+/// one: the search has to be one of its names, or most of a longer name
+/// with its last word still being typed ("touchpad speed u", not "touchpad speed").
+fn named(action: &QuickAction, raw: &str) -> bool {
+    let typed = fold(raw);
+    let several_words = typed.split_whitespace().nth(1).is_some();
+    std::iter::once(action.title).chain(action.keywords.iter().copied()).any(|name| {
+        let name = fold(name);
+        let Some(rest) = name.strip_prefix(typed.as_str()) else { return false };
+        rest.is_empty() || (several_words && !rest.starts_with(' ') && typed.chars().count() * 5 >= name.chars().count() * 4)
+    })
+}
+
 pub struct ActionsProvider {
     /// The actions this system can run, with the app each one opens where known.
     available: RwLock<HashMap<&'static str, TargetApp>>,
@@ -168,6 +182,7 @@ impl SearchProvider for ActionsProvider {
             return;
         }
         let mut found: Vec<(u32, &QuickAction)> = platform::quick_actions::system_commands()
+            .filter(|a| !cfg!(target_os = "linux") || named(a, ctx.raw))
             .filter(|a| self.is_available(a.id))
             .filter_map(|a| {
                 let title = ctx.query.score_contiguous(&fold(a.title), false);
@@ -210,6 +225,35 @@ mod tests {
 
     fn provider(apps: Vec<DiscoveredApp>) -> ActionsProvider {
         ActionsProvider::new(Arc::new(AppIndex::with_apps(apps)), Arc::new(|| {}))
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_topic_alone_never_runs_a_system_command() {
+        // Enter runs the top result, and these commands change something at once
+        let topics = [
+            "wifi", "wi-fi", "bluetooth", "display", "sound", "audio", "mouse", "touchpad", "keyboard", "network", "volume",
+            "brightness", "battery", "power", "dock", "panel", "clock", "time", "date", "files", "appearance", "theme",
+            "notifications", "wallpaper", "text", "font", "dark", "light", "night", "accent", "color", "workspace", "window",
+            "windows", "privacy", "updates", "screen", "settings", "microphone", "mic", "camera", "accessibility", "focus",
+            "hot corner", "hot corners", "dock icons", "mouse speed", "touchpad speed", "power mode", "text size", "font hinting",
+            "accent color", "color filter", "touchpad tap", "files view", "pointer size", "key repeat speed", "wallpaper",
+        ];
+        for topic in topics {
+            let named: Vec<_> = platform::quick_actions::system_commands().filter(|a| named(a, topic)).map(|a| a.id).collect();
+            assert!(named.is_empty(), "{topic:?} would run {named:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_command_is_found_by_its_own_name() {
+        let by_id = |id: &str| platform::quick_actions::system_commands().find(|a| a.id == id).unwrap();
+        for (id, typed) in [("sleep", "sleep"), ("toggle-mute", "mute"), ("lock-screen", "lock"), ("shut-down", "shutdown"),
+            ("restart", "Reboot"), ("touchpad-tap", "touchpad tap to click"), ("touchpad-tap", "touchpad tap to cli"), ("touchpad-faster", "touchpad speed u"), ("volume-up", "volume up"),
+            ("keep-awake", "caffeine"), ("accent-mint", "accent mint"), ("dock-size-large", "dock icons large"), ("workspace-3", "workspace 3")] {
+            assert!(named(by_id(id), typed), "{typed:?} should name {id}");
+        }
     }
 
     #[test]

@@ -1,4 +1,5 @@
-use std::sync::LazyLock;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
 
@@ -39,7 +40,7 @@ pub const SLOTS: &[SlotInfo] = &[
 /// these are saved only once a hotkey is assigned.
 static COMMANDS: LazyLock<Vec<SlotInfo>> = LazyLock::new(|| {
     let quick = actions::all().map(|a| (format!("action:{}", a.id), a.title));
-    let pages = PAGES.iter().map(|p| (format!("setting:{}", p.id), p.title));
+    let pages = PAGES.iter().map(|p| (format!("setting:{}", p.id), p.title_here()));
     quick
         .chain(pages)
         .map(|(id, label)| SlotInfo {
@@ -52,16 +53,54 @@ static COMMANDS: LazyLock<Vec<SlotInfo>> = LazyLock::new(|| {
         .collect()
 });
 
+/// One slot per installed application, made when it is first listed or when
+/// a saved hotkey names it (`app:<id>`). They are never removed: there are
+/// only as many as there are applications.
+static APPS: LazyLock<Mutex<HashMap<String, &'static SlotInfo>>> = LazyLock::new(Mutex::default);
+const MAX_APP_ID_CHARS: usize = 300;
+
+fn is_app_id(id: &str) -> bool {
+    id.len() > "app:".len() && id.starts_with("app:") && id.chars().count() <= MAX_APP_ID_CHARS && !id.contains('\0')
+}
+
+/// Makes the slot of an application (named `label`, which Settings shows in messages).
+pub fn register_app_slot(id: &str, label: &str) {
+    if !is_app_id(id) {
+        return;
+    }
+    let mut apps = APPS.lock().unwrap_or_else(|e| e.into_inner());
+    if apps.get(id).is_some_and(|slot| slot.label == label) {
+        return;
+    }
+    let slot = Box::leak(Box::new(SlotInfo {
+        id: Box::leak(id.to_string().into_boxed_str()),
+        action: ShortcutAction::RunCommand,
+        label: Box::leak(label.to_string().into_boxed_str()),
+        description: "",
+        default: None,
+    }));
+    apps.insert(id.to_string(), slot);
+}
+
+fn app_slots() -> Vec<&'static SlotInfo> {
+    APPS.lock().unwrap_or_else(|e| e.into_inner()).values().copied().collect()
+}
+
 pub fn all() -> impl Iterator<Item = &'static SlotInfo> {
-    SLOTS.iter().chain(COMMANDS.iter())
+    SLOTS.iter().chain(COMMANDS.iter()).chain(app_slots())
 }
 
 pub fn slot(id: &str) -> Option<&'static SlotInfo> {
+    if is_app_id(id) {
+        // a saved hotkey can name an app before the apps are listed
+        register_app_slot(id, id.trim_start_matches("app:"));
+        return APPS.lock().unwrap_or_else(|e| e.into_inner()).get(id).copied();
+    }
     all().find(|s| s.id == id)
 }
 
 pub fn is_command(id: &str) -> bool {
-    COMMANDS.iter().any(|s| s.id == id)
+    is_app_id(id) || COMMANDS.iter().any(|s| s.id == id)
 }
 
 #[cfg(test)]

@@ -4,6 +4,9 @@
 //! * `--dev-snapshot <dir>` writes `<dir>/<window>.png` for every Lummo webview
 //!   (only Lummo's own content is captured, never the rest of the desktop).
 //! * `--dev-eval <window> <js>` runs JavaScript in a Lummo window (UI tests).
+//! * `--dev-run <command id>` runs a command the way its hotkey does
+//!   (`setting:bluetooth`), without adding it to the search history.
+//! * `--dev-answer-dialog <yes|no>` answers the question a command is asking.
 //! * `--dev-a11y-drop` closes the Caps Lock indicator's accessibility
 //!   connection, as if the service had restarted, then looks up the text
 //!   cursor: the log shows whether it reconnected.
@@ -28,6 +31,28 @@ pub fn handle(app: &AppHandle, argv: &[String]) -> bool {
                 }
                 None => log::error!("dev-eval: no window named {label}"),
             }
+            true
+        }
+        ["--dev-run", id, ..] => {
+            let engine = app.state::<crate::app_state::AppState>().engine.clone();
+            let id = id.to_string();
+            std::thread::spawn(move || match engine.execute(&id, crate::search::types::ExecuteMode::Open, "", false) {
+                Ok(item) => log::info!("dev-run {id}: {}", item.title),
+                Err(e) => log::error!("dev-run {id} failed: {e}"),
+            });
+            true
+        }
+        #[cfg(target_os = "linux")]
+        ["--dev-answer-dialog", answer, ..] => {
+            let response = if *answer == "yes" { gtk::ResponseType::Accept } else { gtk::ResponseType::Cancel };
+            let _ = app.run_on_main_thread(move || {
+                use gtk::prelude::*;
+                for window in gtk::Window::list_toplevels() {
+                    if let Some(dialog) = window.downcast_ref::<gtk::MessageDialog>() {
+                        dialog.response(response);
+                    }
+                }
+            });
             true
         }
         #[cfg(target_os = "linux")]

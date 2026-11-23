@@ -16,7 +16,9 @@ pub mod launch;
 pub mod overlay;
 pub mod quick_actions;
 pub mod session;
+pub mod system_commands;
 pub mod system_settings;
+pub mod toggles;
 pub mod x11util;
 
 use super::PlatformInfo;

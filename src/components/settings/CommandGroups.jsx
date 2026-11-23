@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Children, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { ChevronRight, Search, X } from "lucide-react";
-import { Checkbox, placeMenu } from "../common/controls";
+import { Checkbox, Select, placeMenu } from "../common/controls";
 import { useKeyCapture } from "../shortcuts/ShortcutRecorder";
 import { ResultIcon } from "../spotlight/ResultIcon";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { api, errorMessage } from "../../services/tauri";
 import { toast } from "../../stores/toastStore";
+import { ALL_CATEGORIES, categoryOptions, commandCategory } from "../../utils/commandCategories";
 import { cx } from "../../utils/cx";
 import { liveModifierKeys, shortcutKeys, shortcutText } from "../../utils/keys";
 
 const COLUMNS = "grid grid-cols-[minmax(0,1fr)_84px_150px_16px] items-center gap-x-3 px-3.5";
 const MAX_ALIAS_CHARS = 24; // MAX_ALIAS_CHARS in `storage/settings.rs`
 const ICON_SIZE = 18;
+/** Linux's long list opens with this many rows and adds the rest a few per frame, so it never freezes. */
+const FIRST_ROWS = 40;
+const ROWS_PER_FRAME = 30;
 
 /** Every word typed must be in the command's name, place, keywords, alias or hotkey. */
 function matches(command, words, alias, hotkey) {
@@ -22,10 +26,10 @@ function matches(command, words, alias, hotkey) {
 }
 
 /** Stays at the top of the page while the long lists scroll under it. */
-function CommandSearch({ value, onChange, onFocus }) {
+function CommandSearch({ value, onChange, onFocus, categories, category, onCategory }) {
   const input = useRef(null);
   return (
-    <div className="sticky top-0 z-10 -mt-3 mb-1 flex bg-bg py-3">
+    <div className="sticky top-0 z-10 -mt-3 mb-1 flex items-center justify-between gap-3 bg-bg py-3">
       <div className="flex h-[28px] w-[260px] items-center gap-1.5 rounded-[5px] bg-fill px-2 text-secondary focus-within:ring-1 focus-within:ring-white/35">
         <Search size={13} aria-hidden className="shrink-0" />
         <input
@@ -54,6 +58,19 @@ function CommandSearch({ value, onChange, onFocus }) {
           </button>
         )}
       </div>
+      {categories && (
+        <Select
+          label="Category"
+          value={category}
+          options={categories}
+          onChange={(next) => {
+            onCategory(next);
+            // the shorter list starts at its first row
+            input.current?.closest(".scroll-area")?.scrollTo({ top: 0 });
+          }}
+          buttonClassName="h-[28px] w-[176px] justify-between rounded-[5px] bg-fill px-2.5"
+        />
+      )}
     </div>
   );
 }
@@ -236,7 +253,14 @@ function CommandRow({ command, groupOn, os, shortcuts, saved, bindings, availabl
   const checked = !saved.disabled.includes(id);
   const on = groupOn && checked;
   return (
-    <div className={cx(COLUMNS, "h-[40px] border-t-[0.5px] border-separator")}>
+    <div
+      className={cx(
+        COLUMNS,
+        "h-[40px] border-t-[0.5px] border-separator",
+        // hundreds of rows on Linux: only the ones on screen are laid out and painted
+        os === "linux" && "[contain-intrinsic-size:auto_40px] [content-visibility:auto]",
+      )}
+    >
       <div className={cx("flex min-w-0 items-center gap-2.5", !on && "opacity-50")}>
         <span className="flex shrink-0 items-center">
           <ResultIcon icon={icon} size={ICON_SIZE} />
@@ -259,10 +283,26 @@ function CommandRow({ command, groupOn, os, shortcuts, saved, bindings, availabl
   );
 }
 
-function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searching, children }) {
+function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searching, gradual, reveal, children }) {
   const [open, setOpen] = useState(false);
+  // once a category was picked the list stays open, also back on All categories
+  useEffect(() => {
+    if (reveal) setOpen(true);
+  }, [reveal]);
   // a search shows its matches whichever way the group was left
   const shown = open || searching;
+  const rows = Children.toArray(children);
+  const [drawn, setDrawn] = useState(FIRST_ROWS);
+  useEffect(() => {
+    if (!gradual) return undefined;
+    if (!shown) {
+      setDrawn(FIRST_ROWS);
+      return undefined;
+    }
+    if (drawn >= rows.length) return undefined;
+    const frame = requestAnimationFrame(() => setDrawn((n) => n + ROWS_PER_FRAME));
+    return () => cancelAnimationFrame(frame);
+  }, [gradual, shown, drawn, rows.length]);
   const toggleOpen = () => {
     // the row being recorded is about to go away
     if (open && shortcuts.recordingSlot) shortcuts.stopRecording();
@@ -298,7 +338,7 @@ function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searchin
             <span>Hotkey</span>
             <span />
           </div>
-          {children}
+          {gradual ? rows.slice(0, drawn) : children}
         </>
       )}
     </section>
@@ -311,6 +351,8 @@ export function CommandGroups({ os, shortcuts }) {
   const update = useUpdateSettings();
   const [commands, setCommands] = useState([]);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [reveal, setReveal] = useState(0);
 
   useEffect(() => {
     api.getCommands().then(setCommands).catch((e) => toast.error(errorMessage(e)));
@@ -326,12 +368,18 @@ export function CommandGroups({ os, shortcuts }) {
   const onToggle = (id, value) =>
     update({ commands: { disabled: value ? saved.disabled.filter((d) => d !== id) : [...saved.disabled, id] } });
   const onAlias = (id, alias) => update({ commands: { aliases: { [id]: alias } } });
-  const ofKind = (kind) => commands.filter((c) => c.kind === kind).sort((a, b) => a.title.localeCompare(b.title));
+  // on Linux, "Volume 25%" comes before "Volume 100%"
+  const collation = os === "linux" ? { numeric: true } : undefined;
+  const ofKind = (kind) =>
+    commands.filter((c) => c.kind === kind).sort((a, b) => a.title.localeCompare(b.title, undefined, collation));
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const searching = words.length > 0;
+  const linux = os === "linux";
+  const filtering = linux && category !== ALL_CATEGORIES;
+  const searching = words.length > 0 || filtering;
 
   const actions = ofKind("action");
   const pages = ofKind("setting");
+  const apps = ofKind("app");
   const settingsApp = os === "windows" ? "Windows Settings" : "System Settings";
   const groups = [
     {
@@ -350,8 +398,21 @@ export function CommandGroups({ os, shortcuts }) {
       on: s.searchSettings,
       setOn: (v) => update({ spotlight: { searchSettings: v } }),
     },
+    {
+      id: "app",
+      items: apps,
+      title: "Applications",
+      icon: <ResultIcon icon={{ type: "symbol", name: "app-window" }} size={ICON_SIZE} />,
+      on: s.searchApplications,
+      setOn: (v) => update({ spotlight: { searchApplications: v } }),
+    },
   ]
-    .map((group) => ({ ...group, items: group.items.filter((c) => matches(c, words, saved.aliases[c.id], bindings[c.id])) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (c) => (!filtering || commandCategory(c) === category) && matches(c, words, saved.aliases[c.id], bindings[c.id]),
+      ),
+    }))
     .filter((group) => group.items.length > 0);
 
   return (
@@ -360,10 +421,16 @@ export function CommandGroups({ os, shortcuts }) {
         value={query}
         onChange={setQuery}
         onFocus={() => shortcuts.recordingSlot && shortcuts.stopRecording()}
+        categories={linux ? categoryOptions(commands) : null}
+        category={category}
+        onCategory={(next) => {
+          setCategory(next);
+          setReveal((n) => n + 1);
+        }}
       />
       {groups.length === 0 && (
         <div className="rounded-[6px] bg-surface px-3.5 py-6 text-center text-[12.5px] text-secondary">
-          Nothing matches “{query.trim()}”.
+          Nothing matches “{query.trim()}”{filtering ? ` in ${category}` : ""}.
         </div>
       )}
       {groups.map((group) => (
@@ -376,6 +443,8 @@ export function CommandGroups({ os, shortcuts }) {
           onToggle={group.setOn}
           shortcuts={shortcuts}
           searching={searching}
+          gradual={linux}
+          reveal={reveal}
         >
           {group.items.map((command) => (
             <CommandRow

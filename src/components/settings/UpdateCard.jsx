@@ -1,5 +1,5 @@
-import { CircleAlert, CircleCheck, Download, ExternalLink, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
-import { Button, Group } from "../common/controls";
+import { CircleAlert, CircleCheck, Download, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
+import { Button, Group, LinkRow } from "../common/controls";
 
 function formatBytes(n) {
   if (!n && n !== 0) return "";
@@ -117,13 +117,7 @@ export function UpdateCard({ updates, children }) {
         )}
       </div>
       {children}
-      {status.releasePage && (
-        <div className="flex items-center justify-end px-3.5 py-2.5">
-          <Button variant="plain" icon={ExternalLink} onClick={openReleasePage}>
-            Release Page
-          </Button>
-        </div>
-      )}
+      <LinkRow label="Changelog" onClick={openReleasePage} />
     </Group>
   );
 }

@@ -1,4 +1,5 @@
-import { Group, Row, ToggleRow } from "../components/common/controls";
+import { Group, LinkRow, Row, ToggleRow } from "../components/common/controls";
+import { api } from "../services/tauri";
 import { UpdateCard } from "../components/settings/UpdateCard";
 import { usePlatform } from "../hooks/usePlatform";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
@@ -33,6 +34,7 @@ export default function About({ updates }) {
           checked={g.shareUsageStatistics}
           onChange={(v) => set({ shareUsageStatistics: v })}
         />
+        <LinkRow label="Privacy Policy" onClick={() => api.openSitePage("privacy-policy")} />
       </Group>
 
       <Group>
@@ -43,7 +45,6 @@ export default function About({ updates }) {
           <span className="text-[12.5px] text-secondary">{info?.license || "—"}</span>
         </Row>
       </Group>
-      <p className="mt-6 text-center text-[11px] text-tertiary">Inspired by macOS. Not affiliated with Apple Inc.</p>
     </>
   );
 }

@@ -14,7 +14,7 @@ export function PaneIcon({ icon, size = 22, className }) {
   return <img src={icon} alt="" width={size} height={size} draggable={false} className={cx("shrink-0", className)} />;
 }
 
-export function Sidebar({ active, onSelect, appName, version, panes = PANES }) {
+export function Sidebar({ active, onSelect, panes = PANES }) {
   return (
     <nav aria-label="Settings sections" className="flex w-[228px] shrink-0 flex-col border-r-[0.5px] border-separator-strong bg-sidebar">
       <ul className="flex flex-col gap-1 px-2.5 pt-4">
@@ -43,13 +43,6 @@ export function Sidebar({ active, onSelect, appName, version, panes = PANES }) {
           );
         })}
       </ul>
-      <div className="mt-auto flex items-center gap-2.5 px-4 pt-4 pb-5">
-        <img src="/app-icon.png" alt="" width={26} height={26} draggable={false} className="grayscale" />
-        <div className="min-w-0">
-          <div className="truncate text-[14px] font-semibold text-label">{appName || "Lummo"}</div>
-          <div className="text-[11px] text-secondary">{version ? `Version ${version}` : " "}</div>
-        </div>
-      </div>
     </nav>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { Check, ChevronDown, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { cx } from "../../utils/cx";
 
 const KNOB_TRAVEL = 12; // .lm-switch width - knob width - 2 * inset
@@ -130,7 +130,7 @@ export function placeMenu(anchor, menu) {
  * button, which handles the keyboard. `locked` shows the value at full
  * strength but does not open.
  */
-export function Select({ value, options, onChange, label, disabled = false, locked = false }) {
+export function Select({ value, options, onChange, label, disabled = false, locked = false, buttonClassName = "h-[24px]" }) {
   const id = useId();
   const button = useRef(null);
   const menu = useRef(null);
@@ -226,7 +226,8 @@ export function Select({ value, options, onChange, label, disabled = false, lock
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKeyDown}
         className={cx(
-          "group inline-flex h-[24px] max-w-[220px] items-center gap-1.5 text-[12.5px] text-label",
+          "group inline-flex max-w-[220px] items-center gap-1.5 text-[12.5px] text-label",
+          buttonClassName,
           disabled && "opacity-40",
         )}
       >
@@ -325,6 +326,20 @@ export function Row({ label, description, children, disabled = false, align = "c
       </div>
       {children !== undefined && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </div>
+  );
+}
+
+/** A row that opens a page: its name on the left in the normal text colour, an arrow on the right. */
+export function LinkRow({ label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[44px] w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left hover:bg-fill"
+    >
+      <span className="text-[13px] text-label">{label}</span>
+      <ArrowUpRight size={18} aria-hidden className="shrink-0 text-label" />
+    </button>
   );
 }
 

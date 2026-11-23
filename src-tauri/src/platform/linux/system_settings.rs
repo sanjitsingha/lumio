@@ -5,6 +5,7 @@ use gtk::gio;
 use gtk::gio::prelude::*;
 
 use super::launch::launch_uri_with;
+use super::toggles;
 
 /// The app that handles `settings://` links, if it is elementary's System
 /// Settings (`io.elementary.settings`, or `io.elementary.switchboard` before
@@ -19,7 +20,11 @@ pub fn app_key() -> Option<String> {
     handler().and_then(|app| app.id()).map(|id| id.to_string())
 }
 
+/// Opens a page, or flips a switch (`toggle:…`) without opening anything.
 pub fn open(uri: &str) -> Result<(), String> {
+    if let Some(id) = uri.strip_prefix("toggle:") {
+        return toggles::toggle(id);
+    }
     if !uri.starts_with("settings://") {
         return Err("only System Settings pages can be opened".into());
     }

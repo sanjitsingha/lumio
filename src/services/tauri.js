@@ -51,6 +51,7 @@ export const api = {
   checkForUpdates: () => invoke("check_for_updates"),
   downloadUpdate: () => invoke("download_update"),
   installUpdate: () => invoke("install_update"),
+  openSitePage: (page) => invoke("open_release_page", { page }),
   openReleasePage: () => invoke("open_release_page"),
 };
 
