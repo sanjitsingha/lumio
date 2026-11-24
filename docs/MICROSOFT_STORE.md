@@ -119,7 +119,17 @@ At least one, up to ten: PNG, 1366×768 or larger (1920×1080 is best). Good one
 > • Your searches, files and clipboard stay on your PC
 > • Optional anonymous usage statistics that never include what you search or open
 
-**What's new in this version**: use the release notes of that version (the tag message).
+**What's new in this version**: the release notes of that version. They are the text at the top of its GitHub release (`https://github.com/sanjitsingha/lumio/releases/tag/v<version>`), or run `git tag -l v<version> -n99`. For the first Store release (0.1.36), whose notes only matter to existing users, use this instead:
+
+```
+First release on the Microsoft Store.
+• Spotlight-style search for apps, files, folders and Settings pages
+• More than 300 system commands: Wi-Fi, Bluetooth, volume and microphone, keep awake, power mode, taskbar and File Explorer options, dark mode, window snapping and more
+• An alias and a keyboard shortcut for any command or app
+• Quick files: clipboard history and recent screenshots
+• A Caps Lock indicator right at your text cursor
+• A fresh look with the new Lummo logo
+```
 
 **Product features** (one per line, up to 20)
 
@@ -151,6 +161,8 @@ caps lock
 ```
 
 **Copyright**: © 2026 Nebkern Technology
+
+**Developed by**: optional, and best left empty. *Published by* already shows Nebkern Technology, the account's publisher name. Enter Nebkern Technology to show the line anyway, or Sanjit Singha for personal credit.
 
 ---
 
