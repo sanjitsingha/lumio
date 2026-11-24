@@ -17,6 +17,7 @@
     "build:app": "tauri build --config src-tauri/tauri.unsigned.conf.json",
     "build:msix": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-msix.ps1",
     "release": "node scripts/release.mjs",
+    "prepare": "git config core.hooksPath .githooks || true",
     "update:local": "node scripts/update-server.mjs"
   },
   "dependencies": {

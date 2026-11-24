@@ -4,7 +4,12 @@
 //
 //   npm run release -- 0.2.0 --notes "What changed"      # or: patch | minor | major
 //   npm run release -- patch --notes "Fix…" --push       # also pushes commit + tag
+//   npm run release -- patch --dry-run                   # shows the version it would publish, changes nothing
+//
+// Publishing needs a person: the script asks you to type "publish <version>" in a terminal
+// and does nothing without one. Pushing commits to GitHub never publishes; only a tag does.
 import { execFileSync } from "node:child_process";
+import { createInterface } from "node:readline";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,8 +26,35 @@ function fail(message) {
   process.exit(1);
 }
 
+// `.githooks/pre-push` refuses to push a version tag unless this script is the one pushing it.
 function git(...args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", env: { ...process.env, LUMMO_RELEASING: "1" } }).trim();
+}
+
+/**
+ * Publishing reaches every user, the Microsoft Store listing included, so it
+ * needs a person: this asks at a terminal and only the exact phrase goes on.
+ * Without a terminal (a script, an assistant, CI) it stops.
+ */
+async function confirmPublish(version, notes) {
+  console.log(`\nYou are about to PUBLISH Lummo ${version}:`);
+  console.log(`  • the version changes to ${version} in package.json, Cargo.toml and Cargo.lock`);
+  console.log(`  • the tag v${version} is created, and pushing it builds and publishes installers on GitHub`);
+  console.log("  • every installed Lummo is then offered this update");
+  console.log(`  • release notes: ${notes || `Lummo ${version}`}`);
+  console.log("\nIf Microsoft Store certification is still running for another version, stop now.\n");
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    fail("Publishing needs a person at a terminal. Run `npm run release` yourself; nothing was changed.");
+  }
+  const phrase = `publish ${version}`;
+  const answer = await new Promise((resolve) => {
+    const prompt = createInterface({ input: process.stdin, output: process.stdout });
+    prompt.question(`To go on, type exactly "${phrase}" (anything else cancels): `, (text) => {
+      prompt.close();
+      resolve(text.trim());
+    });
+  });
+  if (answer !== phrase) fail("Cancelled. Nothing was changed, nothing was published.");
 }
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
@@ -65,6 +97,11 @@ try {
 }
 if (git("status", "--porcelain")) fail("Commit or stash your changes before releasing (git status is not clean).");
 if (git("tag", "--list", `v${next}`)) fail(`Tag v${next} already exists.`);
+if (args.includes("--dry-run")) {
+  console.log(`\nDry run: would publish ${next}. Nothing was changed.\n`);
+  process.exit(0);
+}
+await confirmPublish(next, notes);
 
 pkg.version = next;
 writeFileSync(files.pkg, `${JSON.stringify(pkg, null, 2)}\n`);

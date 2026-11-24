@@ -111,6 +111,31 @@ const AnswerPanel = forwardRef(function AnswerPanel({ label, Icon, selected, onH
   );
 });
 
+/** The time somewhere, as tall as the conversions: its place, zone and gap on the left, only the time, big, on the right. Enter copies it. */
+export const TimeRow = forwardRef(function TimeRow({ result, selected, onHover, onOpen }, ref) {
+  return (
+    <div
+      ref={ref}
+      role="option"
+      aria-selected={selected}
+      aria-label={`The time in ${result.to} is ${result.title}`}
+      onMouseMove={onHover}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onOpen}
+      className="mx-2 mt-2 flex h-[164px] items-center justify-between gap-6 rounded-[5px] bg-fill px-8"
+    >
+      <span className="flex min-w-0 flex-col items-start text-left">
+        <span className="max-w-full truncate text-[22px] leading-[28px] font-semibold text-label">{result.to}</span>
+        <span className="mt-1 max-w-full truncate text-[12px] leading-[16px] text-secondary">{result.toName}</span>
+        <span className="mt-0.5 max-w-full truncate text-[12px] leading-[16px] text-tertiary">{result.rate}</span>
+      </span>
+      <span className="shrink-0 text-[56px] leading-[64px] font-semibold tracking-tight whitespace-nowrap text-label" title={result.title}>
+        {result.title}
+      </span>
+    </div>
+  );
+});
+
 /** A currency or measurement answer, one unit on each side. */
 export const ConversionRow = forwardRef(function ConversionRow({ result, ...row }, ref) {
   const label = result.title ? `${result.source} equals ${result.title}` : `${result.source} to ${result.to}`;

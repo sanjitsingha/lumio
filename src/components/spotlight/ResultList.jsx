@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ActionRow, CalculatorRow, ConversionRow, ResultRow } from "./ResultRow";
+import { ActionRow, CalculatorRow, ConversionRow, ResultRow, TimeRow } from "./ResultRow";
 import { sectionLines } from "../../utils/navigation";
 
 /** These answers fill their own panel, which says what it is. */
@@ -63,7 +63,7 @@ export function ResultList({ sections, items, selected, onSelect, onOpen, reserv
               if (item.action) {
                 return <ActionRow key={item.key} action={item.action} app={item.result} {...row} />;
               }
-              const Row = { calculator: CalculatorRow, conversion: ConversionRow, measurement: ConversionRow }[item.result.kind] ?? ResultRow;
+              const Row = { calculator: CalculatorRow, conversion: ConversionRow, measurement: ConversionRow, time: TimeRow }[item.result.kind] ?? ResultRow;
               return <Row key={item.key} result={item.result} {...row} />;
             })}
           </div>

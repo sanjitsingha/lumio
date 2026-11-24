@@ -4,6 +4,7 @@
 // pakistan", "dollar shave club") is left alone.
 
 import { CURRENCIES, LOOSE_UNITS, WORD_CODES } from "./currencyData";
+import { inCaseOf } from "./suggestCase";
 
 /** Where a lone amount converts to; this currency itself converts to `AWAY`. */
 const HOME = "INR";
@@ -603,4 +604,56 @@ export function relevantResults(responses, from, to) {
     }
   }
   return [...found.values()].sort((a, b) => b.score - a.score).slice(0, MAX_RELATED);
+}
+
+// Suggestions while typing an amount of money ("100 u" → "100 usd", "100 usd" → "100 usd to inr").
+
+/** Codes that are also everyday words ("1 pen", "5 all"), so never taken for money here. */
+const WORD_LIKE_CODES = new Set("all top pen cup sos gel try mad cop mop bam lak bob ron".split(" "));
+const CODE_SET = new Set(ALL_CODES.map((code) => code.toLowerCase()).filter((code) => !WORD_LIKE_CODES.has(code)));
+/** Currency names people type, most used currency first: codes, then the names it goes by. */
+const SUGGESTIBLE = CURRENCIES.flatMap(([code, names]) => [...(WORD_LIKE_CODES.has(code.toLowerCase()) ? [] : [code.toLowerCase()]), ...names]);
+
+/** The code a typed word names exactly (a code, or a name like "dollars"), if any. */
+function codeNamed(word) {
+  if (CODE_SET.has(word)) return word.toUpperCase();
+  const unit = UNIT_OF.get(word);
+  return unit?.clear ? unit.code : null;
+}
+
+/** A currency name that goes on from the start typed: its code, or a name like "dollar". */
+function finishCurrency(start) {
+  return SUGGESTIBLE.find((name) => name.startsWith(start) && name.length > start.length) ?? null;
+}
+
+/** A code in the case being typed: "usd" for lowercase, "USD" otherwise. */
+const codeLike = (typed, code) => (typed === typed.toLowerCase() ? code.toLowerCase() : code);
+
+/**
+ * How an amount of money being typed would most likely go on, to show after
+ * the typed text: "100 u" as "100 usd", "100 usd" as "100 usd to inr". `null`
+ * for anything else, and for a lone number.
+ */
+export function suggestCurrency(text) {
+  const match = /^(\s*\d[\d.,]*)(\s*)([A-Za-z]+)(.*)$/.exec(text);
+  if (!match) return null;
+  const [, , , word, tail] = match;
+  const start = word.toLowerCase();
+  const code = codeNamed(start);
+  if (!tail && !code) {
+    const name = finishCurrency(start);
+    return name ? text + inCaseOf(word, name.slice(start.length)) : null;
+  }
+  if (!code) return null;
+  const target = code === HOME ? AWAY : HOME;
+  const lower = tail.toLowerCase();
+  const asking = " to ";
+  if (asking.startsWith(lower)) return text + asking.slice(lower.length) + codeLike(word, target);
+  if (!lower.startsWith(asking)) return null;
+  const typed = tail.slice(asking.length);
+  const wanted = typed.toLowerCase();
+  if (!wanted) return text + codeLike(word, target);
+  if (!/^[a-z]+$/.test(wanted) || codeNamed(wanted)) return null;
+  const name = finishCurrency(wanted);
+  return name ? text + inCaseOf(typed, name.slice(wanted.length)) : null;
 }

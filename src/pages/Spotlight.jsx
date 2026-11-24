@@ -13,9 +13,11 @@ import { usePlatform } from "../hooks/usePlatform";
 import { api, errorMessage } from "../services/tauri";
 import { EVENTS, subscribe } from "../services/events";
 import { calculate } from "../utils/calc";
+import { suggestFromResults } from "../utils/suggestResults";
 import { copyText } from "../utils/clipboard";
-import { answerConversion } from "../utils/currency";
-import { answerMeasurement } from "../utils/units";
+import { answerConversion, suggestCurrency } from "../utils/currency";
+import { answerMeasurement, suggestMeasurement } from "../utils/units";
+import { answerTime, loadPlaces, suggestTime } from "../utils/worldTime";
 import { deletePreviousSegment } from "../utils/keys";
 import { expansionFor, flatten, jumpSection, kindLabel, moveSelection, selectItem } from "../utils/navigation";
 
@@ -104,19 +106,31 @@ export default function SpotlightPage() {
   // computed here rather than in the backend, so it follows every keystroke
   const calc = useMemo(() => calculate(query), [query]);
   // money first, so that "1 pound to inr" is currency and "1 pound to kg" a measurement
+  const [placesLoaded, setPlacesLoaded] = useState(false);
+  // when Spotlight opens, and again while typing if that did not work
+  useEffect(() => {
+    if (!placesLoaded) loadPlaces().then(() => setPlacesLoaded(true), () => {});
+  }, [placesLoaded, query]);
   const conversion = useMemo(
-    () => (calc ? null : (answerConversion(query, rates) ?? answerMeasurement(query))),
-    [query, calc, rates],
+    () => (calc ? null : (answerConversion(query, rates) ?? answerMeasurement(query) ?? answerTime(query))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- answerTime reads the places once they are loaded
+    [query, calc, rates, placesLoaded],
   );
   const related = useConversionResults(conversion);
+  // "time" goes on as "time in New York", "5 f" as "5 feet", "calc" as "calculator"; otherwise what the search history suggests
+  const suggested = useMemo(
+    () => (query.trim() ? (suggestTime(query) ?? suggestMeasurement(query) ?? suggestCurrency(query) ?? suggestFromResults(query, shown?.sections) ?? shown?.suggestion ?? null) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- suggestTime reads the places once they are loaded
+    [query, shown?.suggestion, shown?.sections, placesLoaded],
+  );
   const sections = useMemo(() => {
     if (query.trim()) {
       const found = shown?.sections ?? [];
       if (conversion) {
         // as tall as Quick files (ConversionRow), with only what relates to it below; Enter copies the title
-        const kind = conversion.measure ? "measurement" : "conversion";
+        const kind = conversion.time ? "time" : conversion.measure ? "measurement" : "conversion";
         const result = { ...conversion, id: "conversion:answer", kind, title: conversion.answer, reveal: false, actions: [] };
-        const answer = { id: "conversion", title: conversion.measure ? "Measurement" : "Currency", results: [result] };
+        const answer = { id: "conversion", title: conversion.section ?? (conversion.measure ? "Measurement" : "Currency"), results: [result] };
         return related.length ? [answer, { id: "related", title: "Related", results: related }] : [answer];
       }
       if (!calc) return found;
@@ -157,7 +171,7 @@ export default function SpotlightPage() {
     async (result, mode) => {
       if (!result) return;
       setLaunchError(null);
-      if (result.kind === "calculator" || result.kind === "conversion" || result.kind === "measurement") {
+      if (result.kind === "calculator" || result.kind === "conversion" || result.kind === "measurement" || result.kind === "time") {
         // a conversion has nothing to copy until rates are saved
         if (!result.title) return;
         try {
@@ -207,7 +221,7 @@ export default function SpotlightPage() {
         break;
       case "ArrowRight":
       case "End": {
-        const suggestion = shown?.suggestion;
+        const suggestion = suggested;
         const atEnd = input.selectionStart === query.length && input.selectionEnd === query.length;
         if (suggestion && atEnd && suggestion.length > query.length) {
           e.preventDefault();
@@ -241,7 +255,8 @@ export default function SpotlightPage() {
     >
       <motion.div
         key={showKey}
-        initial={{ opacity: 0, scale: 0.985, y: -6 }}
+        // no opening animation: the panel is there as soon as the window is
+        initial={false}
         animate={closing ? { opacity: 0, scale: 0.985, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
         // the fade-out must end before the window hides (FADE_OUT, 120 ms, in window_manager.rs)
         transition={{ duration: closing ? 0.1 : 0.16, ease: EASE }}
@@ -265,7 +280,7 @@ export default function SpotlightPage() {
               }}
               onKeyDown={onKeyDown}
               loading={loading}
-              suggestion={shown?.suggestion}
+              suggestion={suggested}
               kind={kind}
               quickOpen={quickOpen}
               onToggleQuick={hasQuickFiles ? () => setQuickOpen((isOpen) => !isOpen) : undefined}

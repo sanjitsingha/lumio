@@ -29,6 +29,7 @@ export const KIND_LABELS = {
   calculator: "Calculator",
   conversion: "Currency",
   measurement: "Measurement",
+  time: "Time",
 };
 
 /** What an item of `flatten` is; an app's own actions are "Action". */

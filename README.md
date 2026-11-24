@@ -69,6 +69,10 @@ Lummo sends anonymous usage statistics to [Aptabase](https://aptabase.com) unles
 
 The clipboard history never leaves your device either: it is saved in Lummo's data folder (on Windows, `%APPDATA%\com.lumio.desktop\notch clipboard`) and each copy is deleted once it passes its retention time.
 
+## Credits
+
+The world clock's places (every country, state and city of 15,000 people or more, with its time zone) come from [GeoNames](https://www.geonames.org), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). `scripts/build-places.py` rebuilds `src/data/places.json` from their files. The times themselves are computed on your computer; nothing goes to the network.
+
 ## Tests
 
 ```bash

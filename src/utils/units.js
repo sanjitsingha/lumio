@@ -5,6 +5,7 @@
 // "8 gb ram", "10 minute timer") alone. Everything is computed on this computer.
 
 import { editDistance, MAGNITUDES, NUMBER_WORDS, readNumber } from "./currency";
+import { inCaseOf } from "./suggestCase";
 
 const weak = { clear: false };
 const u = (id, category, factor, short, name, plural, words, to, options = {}) => ({
@@ -616,4 +617,78 @@ export function answerMeasurement(text) {
     updated: from.category,
     webQuery: `${source} to ${shortFor(to, value)}`,
   };
+}
+
+// Suggestions while typing a measurement ("5 f" → "5 feet", "1 inch" → "1 inch to cm").
+
+/** How a unit is written in a suggestion, for the ones people ask for most; the first that fits a start wins. */
+const LABELS = [
+  ["cm", "cm"], ["m", "meters"], ["km", "km"], ["mm", "mm"], ["in", "inches"], ["ft", "feet"], ["yd", "yards"], ["mi", "miles"],
+  ["kg", "kg"], ["g", "grams"], ["mg", "mg"], ["lb", "pounds"], ["oz", "ounces"],
+  ["c", "celsius"], ["f", "fahrenheit"], ["k", "kelvin"],
+  ["l", "liters"], ["ml", "ml"], ["gal", "gallons"],
+  ["kmh", "km/h"], ["mph", "mph"],
+  ["s", "seconds"], ["min", "minutes"], ["h", "hours"], ["day", "days"], ["week", "weeks"], ["month", "months"], ["year", "years"],
+  ["kb", "kb"], ["mb", "mb"], ["gb", "gb"], ["tb", "tb"],
+];
+const LABEL_OF = new Map(LABELS);
+const labelOf = (unit) => LABEL_OF.get(unit.id) ?? unit.short;
+
+/** The unit a typed word names exactly. */
+function unitNamed(word) {
+  return UNITS.find((unit) => unit.words.includes(word) || unit.short.toLowerCase() === word);
+}
+
+/** A name that goes on from the start typed, in the units asked for most, then in all of them. */
+function finishUnitName(start, category) {
+  const inCategory = (unit) => !category || unit.category === category;
+  const popular = LABELS.find(([id, label]) => label.startsWith(start) && inCategory(BY_ID.get(id)));
+  if (popular) return popular[1];
+  if (start.length < 2) return null;
+  for (const unit of UNITS) {
+    if (!inCategory(unit)) continue;
+    const name = [unit.plural.toLowerCase(), unit.name.toLowerCase(), ...unit.words].find((word) => word.startsWith(start));
+    if (name) return name;
+  }
+  return null;
+}
+
+/**
+ * How a measurement being typed would most likely go on, to show after the
+ * typed text: "5 f" goes on as "5 feet", "1 inch" as "1 inch to
+ * cm". `null` when this is not a lone amount and unit being typed.
+ */
+export function suggestMeasurement(text) {
+  const match = /^(\s*-?\d[\d.,]*)(\s*)(\S*)(.*)$/.exec(text);
+  if (!match) return null;
+  const [, , , word, tail] = match;
+  // a lone number gets nothing: the unit is the person's to start
+  if (!word) return null;
+  const start = word.toLowerCase();
+  // the unit is still being typed: "5 f", "1 inc"
+  if (!tail) {
+    const popular = LABELS.find(([, label]) => label.startsWith(start));
+    const finish = start.length <= 2 && popular ? popular[1] : null;
+    if (finish && finish !== start) return text + inCaseOf(word, finish.slice(start.length));
+    const unit = unitNamed(start);
+    if (!unit) {
+      const name = finishUnitName(start);
+      return name && name !== start ? text + inCaseOf(word, name.slice(start.length)) : null;
+    }
+    return `${text} to ${labelOf(BY_ID.get(unit.to))}`;
+  }
+  // "1 inch ", "1 inch t", "1 inch to ", "1 inch to c"
+  const unit = unitNamed(start);
+  if (!unit) return null;
+  const lower = tail.toLowerCase();
+  const asking = " to ";
+  if (asking.startsWith(lower)) return text + asking.slice(lower.length) + labelOf(BY_ID.get(unit.to));
+  if (!lower.startsWith(asking)) return null;
+  const target = tail.slice(asking.length);
+  const wanted = target.toLowerCase();
+  if (!wanted) return text + labelOf(BY_ID.get(unit.to));
+  // a short start ("m") can still be going on to "meters"; a longer whole name is finished
+  if (/\s/.test(wanted) || (wanted.length > 2 && unitNamed(wanted))) return null;
+  const name = finishUnitName(wanted, unit.category);
+  return name && name !== wanted ? text + inCaseOf(target, name.slice(wanted.length)) : null;
 }

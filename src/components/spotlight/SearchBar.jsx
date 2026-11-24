@@ -3,8 +3,7 @@ import { ChevronDown, LoaderCircle, Search } from "lucide-react";
 import { cx } from "../../utils/cx";
 
 /**
- * The input row. The typed text sits on a soft rounded highlight, and
- * `suggestion` (from search history) is drawn as ghost text after it,
+ * The input row. `suggestion` (from search history) is drawn as ghost text after it,
  * accepted with → or End. Both are drawn by a copy of the text behind the
  * transparent input, kept in step with the input's horizontal scrolling.
  * `kind` names what the selected result is ("Application"), at the right end.
@@ -29,16 +28,17 @@ export const SearchBar = forwardRef(function SearchBar(
       <Search size={18} strokeWidth={2} className="shrink-0 text-secondary" aria-hidden />
       <div className="relative min-w-0 flex-1 font-search">
         {value && (
-          // starts 8 px left of the text (pl-2 puts the text back) so the highlight's
-          // left padding is not clipped
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 -left-2 flex items-center overflow-hidden pl-2 whitespace-pre text-[18px]"
-          >
+          <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre text-[18px]">
             <span className="flex items-center" style={{ transform: `translateX(${-scroll}px)` }}>
-              {/* padding and equal negative margin: the highlight grows around the text without moving it */}
-              <span className="-mx-2 rounded-[4px] bg-fill-strong px-2 py-[3px] text-transparent">{value}</span>
-              {ghost && <span className="text-tertiary">{ghost}</span>}
+              <span className="text-transparent">{value}</span>
+              {ghost && (
+                <>
+                  {/* the space joining it to the text stays outside the grey; the grey's left padding is
+                      taken back by an equal negative margin, so the first letter sits right at the cursor */}
+                  {ghost.startsWith(" ") && <span className="text-tertiary"> </span>}
+                  <span className="-ml-1.5 rounded-[4px] bg-fill-strong py-[1px] pr-1.5 pl-1.5 text-tertiary">{ghost.trimStart()}</span>
+                </>
+              )}
             </span>
           </div>
         )}

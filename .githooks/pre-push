@@ -1,0 +1,17 @@
+#!/bin/sh
+# Pushing a version tag (v1.2.3) publishes a release to every user and starts the
+# Microsoft Store flow, so only `npm run release` may do it. Pushing commits is always fine.
+# Switched on by `npm install` (the "prepare" script sets core.hooksPath to .githooks).
+[ "$LUMMO_RELEASING" = "1" ] && exit 0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v[0-9]*)
+      echo "" >&2
+      echo "STOPPED: pushing the tag ${remote_ref#refs/tags/} would PUBLISH a release to every user." >&2
+      echo "Publish only with \`npm run release\` (it asks you to confirm). Nothing was pushed." >&2
+      echo "" >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0

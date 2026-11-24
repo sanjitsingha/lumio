@@ -19,6 +19,8 @@ installed Lummo (every 6 h, or Settings → About → Check Now)
         ▼  installs it and restarts itself
 ```
 
+> **Pushing is not publishing.** `git push` of your commits to `main` only runs the check build; nothing is released and no installed copy changes. Only pushing a version tag (`v0.1.x`) publishes, and only `npm run release` should do that. It shows what it will do, then asks you to type `publish <version>` in the terminal, and does nothing without a person at a terminal. A git hook (`.githooks/pre-push`, switched on by `npm install`) also refuses any other push of a version tag. `npm run release -- patch --dry-run` shows the next version and changes nothing. Do not publish while Microsoft Store certification is still running for another version. The same rules are in `CLAUDE.md`, which assistants read first.
+
 Updates are **signed**. Installed copies accept only files signed with *your* private key, so nobody else can push an update, even with access to the download URL.
 
 ---
