@@ -59,8 +59,8 @@ pub fn quiet(program: &str, arguments: &[&str]) -> Result<(), String> {
     }
 }
 
-/// Runs `f` on a thread of its own with COM set up, as the audio and radio APIs need.
-fn with_com<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+/// Runs `f` on a thread of its own with COM set up, as the audio, radio and other WinRT APIs need.
+pub(super) fn with_com<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
     std::thread::spawn(move || {
         let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
         let result = f();

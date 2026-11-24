@@ -15,13 +15,36 @@ function timeAgo(seconds) {
   return new Date(seconds * 1000).toLocaleDateString();
 }
 
-/** Update status, release notes and the check / download / install flow; `children` are more rows of the group. */
+/**
+ * Update status, release notes and the check / download / install flow;
+ * `children` are more rows of the group, about Lummo's own updates, so the
+ * Microsoft Store's copy (which the Store updates) leaves them out.
+ */
 export function UpdateCard({ updates, children }) {
   const { status, check, download, install, openReleasePage } = updates;
   if (!status) return null;
   const phase = status.phase.state;
   const latest = status.latest;
   const busy = ["checking", "downloading", "installing"].includes(phase);
+
+  if (status.store) {
+    return (
+      <Group title="Updates">
+        <div className="flex items-start gap-3 px-3.5 py-3">
+          <span className="mt-[1px]">
+            <CircleCheck size={16} className="text-success" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] text-label">Lummo {status.currentVersion}</div>
+            <div className="text-[11.5px] leading-[15px] text-secondary">
+              The Microsoft Store keeps Lummo up to date.
+            </div>
+          </div>
+        </div>
+        <LinkRow label="Changelog" onClick={openReleasePage} />
+      </Group>
+    );
+  }
 
   if (!status.configured) {
     return (

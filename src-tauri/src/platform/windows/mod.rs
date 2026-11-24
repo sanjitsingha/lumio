@@ -47,6 +47,19 @@ fn is_windows_11() -> bool {
     build() >= FIRST_WINDOWS_11_BUILD
 }
 
+/// Running from an MSIX package, as the Microsoft Store installs it.
+pub fn is_packaged() -> bool {
+    use windows::Win32::Foundation::APPMODEL_ERROR_NO_PACKAGE;
+    use windows::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+    static PACKAGED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *PACKAGED.get_or_init(|| {
+        let mut length = 0u32;
+        // without a package this fails at once; with one it asks for a buffer
+        let status = unsafe { GetCurrentPackageFullName(&mut length, None) };
+        status != APPMODEL_ERROR_NO_PACKAGE
+    })
+}
+
 pub fn info() -> PlatformInfo {
     let build = build();
     let os_name = if build >= FIRST_WINDOWS_11_BUILD { "Windows 11" } else { "Windows 10" }.to_string();

@@ -54,7 +54,9 @@ pub struct Release {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateStatus {
     pub current_version: String,
-    /// A release feed is known (repository set or override given).
+    /// Installed from the Microsoft Store, which updates it; Lummo never checks for updates then.
+    pub store: bool,
+    /// A release feed is known (repository set or override given), and Lummo updates itself.
     pub configured: bool,
     pub feed: Option<String>,
     pub release_page: Option<String>,
@@ -146,11 +148,14 @@ impl Drop for BusyGuard<'_> {
 
 impl UpdateService {
     pub fn new(current_version: String) -> Self {
-        let (can_install, install_note) = install_support();
-        let feed = feed_url();
+        let store = crate::platform::from_store();
+        let (can_install, install_note) = if store { (false, None) } else { install_support() };
+        // the Store's copy must not replace itself
+        let feed = if store { None } else { feed_url() };
         Self {
             status: Mutex::new(UpdateStatus {
                 current_version,
+                store,
                 configured: feed.is_some(),
                 feed: feed.map(|u| u.to_string()),
                 release_page: release_page(),
@@ -195,6 +200,9 @@ impl UpdateService {
 
     /// Asks the release feed whether a newer version exists.
     pub async fn check(&self, app: &AppHandle) -> AppResult<UpdateStatus> {
+        if self.status().store {
+            return Err(AppError::Unsupported("The Microsoft Store keeps this copy of Lummo up to date.".into()));
+        }
         let url = feed_url().ok_or_else(|| {
             AppError::Unsupported(
                 "Updates are not configured for this build: set `repository` in src-tauri/Cargo.toml.".into(),
@@ -286,7 +294,7 @@ impl UpdateService {
     /// Installs the downloaded update and restarts Lummo.
     pub async fn install(&self, app: &AppHandle) -> AppResult<()> {
         let (can_install, note) = install_support();
-        if !can_install {
+        if self.status().store || !can_install {
             return Err(AppError::Unsupported(note.unwrap_or_default()));
         }
         if self.downloaded.lock().unwrap_or_else(|e| e.into_inner()).is_none() {

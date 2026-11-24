@@ -58,6 +58,15 @@ pub fn info() -> PlatformInfo {
     imp::info()
 }
 
+/// Installed from the Microsoft Store (an MSIX package), which updates Lummo
+/// and starts it at sign-in in its own way.
+pub fn from_store() -> bool {
+    #[cfg(windows)]
+    return imp::is_packaged();
+    #[cfg(not(windows))]
+    return false;
+}
+
 /// Receives Caps Lock readings (initial state first, then each change).
 pub type StateCallback = std::sync::Arc<dyn Fn(bool) + Send + Sync>;
 
