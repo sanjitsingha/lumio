@@ -79,6 +79,9 @@ pub struct CommandEntry {
     #[serde(flatten)]
     pub result: SearchResult,
     pub keywords: &'static [&'static str],
+    /// Its group on the Shortcut page, for a System command; the page files the rest itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

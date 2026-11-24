@@ -86,10 +86,11 @@ const MAX_COMMAND_RESULTS: usize = 6;
 /// The app an action opens: its key in the app index and its name.
 type TargetApp = Option<(String, String)>;
 
-/// On Linux these commands change something the moment they run, and Enter
-/// runs the top result, so a topic ("touchpad", "hot corner") must not list
-/// one: the search has to be one of its names, or most of a longer name
-/// with its last word still being typed ("touchpad speed u", not "touchpad speed").
+/// Commands that change something the moment they run (all of them on Linux,
+/// the switches on Windows) must not be listed for a topic ("touchpad",
+/// "hot corner"), as Enter runs the top result: the search has to be one of
+/// its names, or most of a longer name with its last word still being typed
+/// ("touchpad speed u", not "touchpad speed").
 fn named(action: &QuickAction, raw: &str) -> bool {
     let typed = fold(raw);
     let several_words = typed.split_whitespace().nth(1).is_some();
@@ -182,7 +183,7 @@ impl SearchProvider for ActionsProvider {
             return;
         }
         let mut found: Vec<(u32, &QuickAction)> = platform::quick_actions::system_commands()
-            .filter(|a| !cfg!(target_os = "linux") || named(a, ctx.raw))
+            .filter(|a| !platform::quick_actions::needs_its_name(a.id) || named(a, ctx.raw))
             .filter(|a| self.is_available(a.id))
             .filter_map(|a| {
                 let title = ctx.query.score_contiguous(&fold(a.title), false);
@@ -252,6 +253,36 @@ mod tests {
         for (id, typed) in [("sleep", "sleep"), ("toggle-mute", "mute"), ("lock-screen", "lock"), ("shut-down", "shutdown"),
             ("restart", "Reboot"), ("touchpad-tap", "touchpad tap to click"), ("touchpad-tap", "touchpad tap to cli"), ("touchpad-faster", "touchpad speed u"), ("volume-up", "volume up"),
             ("keep-awake", "caffeine"), ("accent-mint", "accent mint"), ("dock-size-large", "dock icons large"), ("workspace-3", "workspace 3")] {
+            assert!(named(by_id(id), typed), "{typed:?} should name {id}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_topic_alone_never_runs_a_windows_switch() {
+        let topics = [
+            "wifi", "wi-fi", "bluetooth", "display", "sound", "audio", "mouse", "keyboard", "network", "volume", "power",
+            "battery", "taskbar", "clock", "time", "date", "files", "file explorer", "appearance", "theme", "dark", "light",
+            "notifications", "window", "windows", "privacy", "screen", "settings", "microphone", "mic", "camera",
+            "accessibility", "mouse speed", "power mode", "power plan", "search", "transparency", "scroll", "pointer",
+            "hidden files", "location", "game", "magnifier", "narrator", "sleep after", "screen timeout",
+        ];
+        for topic in topics {
+            let found: Vec<_> = platform::quick_actions::system_commands()
+                .filter(|a| platform::quick_actions::needs_its_name(a.id) && named(a, topic))
+                .map(|a| a.id)
+                .collect();
+            assert!(found.is_empty(), "{topic:?} would run {found:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_switch_is_found_by_its_own_name() {
+        let by_id = |id: &str| platform::quick_actions::system_commands().find(|a| a.id == id).unwrap();
+        for (id, typed) in [("wifi-toggle", "toggle wifi"), ("wifi-toggle", "turn off wifi"), ("bluetooth-toggle", "bluetooth off"),
+            ("keep-awake", "caffeine"), ("volume-50", "volume 50"), ("mic-mute", "mute mic"), ("hidden-files", "show hidden files"),
+            ("toggle-dark-mode", "dark mode"), ("taskbar-left", "align taskbar left"), ("window-maximize", "maximize")] {
             assert!(named(by_id(id), typed), "{typed:?} should name {id}");
         }
     }

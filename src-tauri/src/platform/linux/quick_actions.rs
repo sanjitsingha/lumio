@@ -76,6 +76,16 @@ pub fn system_commands() -> impl Iterator<Item = &'static crate::search::actions
     system_commands::all()
 }
 
+/// Its group on the Shortcut page, which is its subtitle here; the actions every platform has have none.
+pub fn category(id: &str) -> Option<&'static str> {
+    system_commands::all().find(|a| a.id == id).map(|a| a.subtitle)
+}
+
+/// Every command here changes something the moment it runs, so all are listed only by name.
+pub fn needs_its_name(_id: &str) -> bool {
+    true
+}
+
 pub fn is_available(id: &str) -> bool {
     resolve(id).is_some() || system_commands::is_available(id)
 }

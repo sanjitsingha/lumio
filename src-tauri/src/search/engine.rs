@@ -57,12 +57,16 @@ impl SearchEngine {
 
     /// Every quick action and settings page this system can open.
     pub fn commands(&self) -> Vec<CommandEntry> {
-        let quick = actions::all().filter_map(|a| Some(CommandEntry { result: self.actions.resolve(a.id)?, keywords: a.keywords }));
-        let pages =
-            PAGES.iter().filter_map(|p| Some(CommandEntry { result: self.system_settings.resolve(p.id)?, keywords: p.keywords }));
+        let quick = actions::all().filter_map(|a| {
+            let category = crate::platform::quick_actions::category(a.id);
+            Some(CommandEntry { result: self.actions.resolve(a.id)?, keywords: a.keywords, category })
+        });
+        let pages = PAGES.iter().filter_map(|p| {
+            Some(CommandEntry { result: self.system_settings.resolve(p.id)?, keywords: p.keywords, category: None })
+        });
         let apps = self.apps.command_results().into_iter().map(|result| {
             crate::shortcuts::actions::register_app_slot(&result.id, &result.title);
-            CommandEntry { result, keywords: &[] }
+            CommandEntry { result, keywords: &[], category: None }
         });
         quick.chain(pages).chain(apps).collect()
     }

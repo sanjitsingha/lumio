@@ -12,6 +12,16 @@ pub fn system_commands() -> impl Iterator<Item = &'static QuickAction> {
     system_commands::all()
 }
 
+/// Its group on the Shortcut page; the actions every platform has have none.
+pub fn category(id: &str) -> Option<&'static str> {
+    system_commands::category(id)
+}
+
+/// Commands that change a setting the moment they run are listed only by name.
+pub fn needs_its_name(id: &str) -> bool {
+    system_commands::needs_its_name(id)
+}
+
 fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
 }

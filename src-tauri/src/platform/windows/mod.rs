@@ -15,6 +15,7 @@ pub mod quick_actions;
 mod registry;
 mod system_commands;
 pub mod system_settings;
+mod toggles;
 
 use std::os::windows::fs::MetadataExt;
 
@@ -35,13 +36,20 @@ pub fn is_hidden(entry: &std::fs::DirEntry, name: &str) -> bool {
 }
 
 const CURRENT_VERSION: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+const FIRST_WINDOWS_11_BUILD: u32 = 22000;
+
+fn build() -> u32 {
+    registry::read_string(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "CurrentBuild").and_then(|b| b.parse().ok()).unwrap_or(0)
+}
+
+/// ProductName still says "Windows 10" on Windows 11; the build number tells them apart.
+fn is_windows_11() -> bool {
+    build() >= FIRST_WINDOWS_11_BUILD
+}
 
 pub fn info() -> PlatformInfo {
-    let build: u32 = registry::read_string(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "CurrentBuild")
-        .and_then(|b| b.parse().ok())
-        .unwrap_or(0);
-    // ProductName still says "Windows 10" on Windows 11; the build number tells them apart.
-    let os_name = if build >= 22000 { "Windows 11" } else { "Windows 10" }.to_string();
+    let build = build();
+    let os_name = if build >= FIRST_WINDOWS_11_BUILD { "Windows 11" } else { "Windows 10" }.to_string();
     let display = registry::read_string(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "DisplayVersion").unwrap_or_default();
     PlatformInfo {
         os: "windows",

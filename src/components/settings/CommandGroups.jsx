@@ -15,7 +15,7 @@ import { liveModifierKeys, shortcutKeys, shortcutText } from "../../utils/keys";
 const COLUMNS = "grid grid-cols-[minmax(0,1fr)_84px_150px_16px] items-center gap-x-3 px-3.5";
 const MAX_ALIAS_CHARS = 24; // MAX_ALIAS_CHARS in `storage/settings.rs`
 const ICON_SIZE = 18;
-/** Linux's long list opens with this many rows and adds the rest a few per frame, so it never freezes. */
+/** The long lists open with this many rows and add the rest a few per frame, so they never freeze. */
 const FIRST_ROWS = 40;
 const ROWS_PER_FRAME = 30;
 
@@ -257,8 +257,8 @@ function CommandRow({ command, groupOn, os, shortcuts, saved, bindings, availabl
       className={cx(
         COLUMNS,
         "h-[40px] border-t-[0.5px] border-separator",
-        // hundreds of rows on Linux: only the ones on screen are laid out and painted
-        os === "linux" && "[contain-intrinsic-size:auto_40px] [content-visibility:auto]",
+        // hundreds of rows: only the ones on screen are laid out and painted
+        "[contain-intrinsic-size:auto_40px] [content-visibility:auto]",
       )}
     >
       <div className={cx("flex min-w-0 items-center gap-2.5", !on && "opacity-50")}>
@@ -283,7 +283,7 @@ function CommandRow({ command, groupOn, os, shortcuts, saved, bindings, availabl
   );
 }
 
-function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searching, gradual, reveal, children }) {
+function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searching, reveal, children }) {
   const [open, setOpen] = useState(false);
   // once a category was picked the list stays open, also back on All categories
   useEffect(() => {
@@ -294,7 +294,6 @@ function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searchin
   const rows = Children.toArray(children);
   const [drawn, setDrawn] = useState(FIRST_ROWS);
   useEffect(() => {
-    if (!gradual) return undefined;
     if (!shown) {
       setDrawn(FIRST_ROWS);
       return undefined;
@@ -302,7 +301,7 @@ function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searchin
     if (drawn >= rows.length) return undefined;
     const frame = requestAnimationFrame(() => setDrawn((n) => n + ROWS_PER_FRAME));
     return () => cancelAnimationFrame(frame);
-  }, [gradual, shown, drawn, rows.length]);
+  }, [shown, drawn, rows.length]);
   const toggleOpen = () => {
     // the row being recorded is about to go away
     if (open && shortcuts.recordingSlot) shortcuts.stopRecording();
@@ -338,7 +337,7 @@ function CommandGroup({ title, icon, on, disabled, onToggle, shortcuts, searchin
             <span>Hotkey</span>
             <span />
           </div>
-          {gradual ? rows.slice(0, drawn) : children}
+          {rows.slice(0, drawn)}
         </>
       )}
     </section>
@@ -368,13 +367,11 @@ export function CommandGroups({ os, shortcuts }) {
   const onToggle = (id, value) =>
     update({ commands: { disabled: value ? saved.disabled.filter((d) => d !== id) : [...saved.disabled, id] } });
   const onAlias = (id, alias) => update({ commands: { aliases: { [id]: alias } } });
-  // on Linux, "Volume 25%" comes before "Volume 100%"
-  const collation = os === "linux" ? { numeric: true } : undefined;
+  // "Set Volume to 25%" comes before "Set Volume to 100%"
   const ofKind = (kind) =>
-    commands.filter((c) => c.kind === kind).sort((a, b) => a.title.localeCompare(b.title, undefined, collation));
+    commands.filter((c) => c.kind === kind).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const linux = os === "linux";
-  const filtering = linux && category !== ALL_CATEGORIES;
+  const filtering = category !== ALL_CATEGORIES;
   const searching = words.length > 0 || filtering;
 
   const actions = ofKind("action");
@@ -410,7 +407,7 @@ export function CommandGroups({ os, shortcuts }) {
     .map((group) => ({
       ...group,
       items: group.items.filter(
-        (c) => (!filtering || commandCategory(c) === category) && matches(c, words, saved.aliases[c.id], bindings[c.id]),
+        (c) => (!filtering || commandCategory(c, os) === category) && matches(c, words, saved.aliases[c.id], bindings[c.id]),
       ),
     }))
     .filter((group) => group.items.length > 0);
@@ -421,7 +418,7 @@ export function CommandGroups({ os, shortcuts }) {
         value={query}
         onChange={setQuery}
         onFocus={() => shortcuts.recordingSlot && shortcuts.stopRecording()}
-        categories={linux ? categoryOptions(commands) : null}
+        categories={categoryOptions(commands, os)}
         category={category}
         onCategory={(next) => {
           setCategory(next);
@@ -443,7 +440,6 @@ export function CommandGroups({ os, shortcuts }) {
           onToggle={group.setOn}
           shortcuts={shortcuts}
           searching={searching}
-          gradual={linux}
           reveal={reveal}
         >
           {group.items.map((command) => (
