@@ -13,13 +13,13 @@ The Store's copy notices it runs from a package (`platform::from_store`) and beh
 The package is described by [`src-tauri/msix/AppxManifest.xml`](../src-tauri/msix/AppxManifest.xml) and built by [`scripts/build-msix.ps1`](../scripts/build-msix.ps1).
 
 ---
-
+  
 ## One-time setup
 
 ### 1. Reserve the name and copy the package identity
 
 1. [Partner Center](https://partner.microsoft.com/dashboard/apps-and-games/overview) → **Apps and games** → **New product** → **MSIX or PWA app**, and reserve **Lummo**. If it is taken, reserve another name (for example *Lummo Search*) and change `DisplayName` in the manifest to match.
-2. Open the product → **Product management** → **Product identity**. Copy its three values into [`src-tauri/msix/identity.json`](../src-tauri/msix/identity.json):
+2. Open the product → **Product management** → **Product identity**. Copy its three values into [`src-tauri/msix/identity.json`](../src-tauri/msix/identity.json) (done: Lummo is reserved as `NebkernTechnology.Lummo`, published by Nebkern Technology):
 
    ```json
    {
@@ -150,7 +150,7 @@ clipboard
 caps lock
 ```
 
-**Copyright**: © 2026 Sanjit Singha
+**Copyright**: © 2026 Nebkern Technology
 
 ---
 
