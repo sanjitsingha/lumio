@@ -6,7 +6,7 @@
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::sync::mpsc::{self, Sender};
-use std::sync::Mutex;
+use std::sync::{Mutex, Once};
 use std::time::{Duration, Instant, SystemTime};
 
 use windows::core::{s, w, GUID, PCWSTR};
@@ -15,7 +15,9 @@ use windows::Win32::Foundation::{ERROR_SUCCESS, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{eCapture, eConsole, eRender, EDataFlow, IMMDeviceEnumerator, MMDeviceEnumerator};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoIncrementMTAUsage, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32};
 use windows::Win32::System::Power::{
     GetSystemPowerStatus, PowerEnumerate, PowerGetActiveScheme, PowerSetActiveScheme, SetThreadExecutionState, ACCESS_SCHEME,
@@ -59,8 +61,25 @@ pub fn quiet(program: &str, arguments: &[&str]) -> Result<(), String> {
     }
 }
 
+/// Keeps COM's multithreaded apartment open until Lummo exits. Without this, a
+/// [`with_com`] thread is usually the only one in it, so finishing that thread
+/// closes the apartment and Windows unloads the WinRT DLLs it used
+/// (Windows.Devices.Radios, WlanRadioManager). The `windows` crate still holds
+/// their activation factories, and the radio stack still has callbacks due: the
+/// next Toggle Wi-Fi or Toggle Bluetooth, or a late callback, then crashed Lummo.
+fn keep_com_open() {
+    static OPEN: Once = Once::new();
+    OPEN.call_once(|| {
+        // the cookie is never handed back: the apartment lasts as long as the process
+        if let Err(e) = unsafe { CoIncrementMTAUsage() } {
+            log::warn!("could not keep COM open: {e}");
+        }
+    });
+}
+
 /// Runs `f` on a thread of its own with COM set up, as the audio, radio and other WinRT APIs need.
 pub(super) fn with_com<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    keep_com_open();
     std::thread::spawn(move || {
         let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
         let result = f();
@@ -820,6 +839,18 @@ mod tests {
             .and_then(|g| u128::from_str_radix(&g.replace('-', ""), 16).ok())
             .unwrap_or(0);
         set_power_mode(current).unwrap();
+    }
+
+    #[test]
+    #[ignore = "asks the radio stack, as Toggle Wi-Fi does first; turns nothing on or off"]
+    fn radio_calls_survive_com_shutting_down_between_them() {
+        // each with_com thread is the only one in COM's multithreaded apartment, so
+        // finishing it used to tear the apartment down and unload the radio DLLs
+        for _ in 0..5 {
+            with_com(|| find_radio(RadioType::WiFi).map(|_| ())).unwrap();
+            let access = with_com(|| Radio::RequestAccessAsync().and_then(|op| op.join()).map_err(message)).unwrap();
+            assert_eq!(access, RadioAccessStatus::Allowed);
+        }
     }
 
     #[test]

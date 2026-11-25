@@ -13,7 +13,7 @@ import { usePlatform } from "../hooks/usePlatform";
 import { api, errorMessage } from "../services/tauri";
 import { EVENTS, subscribe } from "../services/events";
 import { calculate } from "../utils/calc";
-import { suggestFromResults } from "../utils/suggestResults";
+import { suggestFromResults, suggestFullName } from "../utils/suggestResults";
 import { copyText } from "../utils/clipboard";
 import { answerConversion, suggestCurrency } from "../utils/currency";
 import { answerMeasurement, suggestMeasurement } from "../utils/units";
@@ -123,6 +123,11 @@ export default function SpotlightPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- suggestTime reads the places once they are loaded
     [query, shown?.suggestion, shown?.sections, placesLoaded],
   );
+  // otherwise "photoshop" names Adobe Photoshop 2027 without starting it: its whole name follows a dash
+  const named = useMemo(
+    () => (suggested || !query.trim() ? null : suggestFullName(query, shown?.sections)),
+    [query, suggested, shown?.sections],
+  );
   const sections = useMemo(() => {
     if (query.trim()) {
       const found = shown?.sections ?? [];
@@ -221,11 +226,12 @@ export default function SpotlightPage() {
         break;
       case "ArrowRight":
       case "End": {
-        const suggestion = suggested;
+        // a completion is put in after the text; a whole name replaces it
+        const accepted = suggested && suggested.length > query.length ? suggested : named;
         const atEnd = input.selectionStart === query.length && input.selectionEnd === query.length;
-        if (suggestion && atEnd && suggestion.length > query.length) {
+        if (accepted && atEnd) {
           e.preventDefault();
-          setQuery(suggestion);
+          setQuery(accepted);
         }
         break;
       }
@@ -281,6 +287,7 @@ export default function SpotlightPage() {
               onKeyDown={onKeyDown}
               loading={loading}
               suggestion={suggested}
+              name={named}
               kind={kind}
               quickOpen={quickOpen}
               onToggleQuick={hasQuickFiles ? () => setQuickOpen((isOpen) => !isOpen) : undefined}

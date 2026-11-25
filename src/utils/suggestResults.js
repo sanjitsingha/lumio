@@ -23,3 +23,30 @@ export function suggestFromResults(query, sections) {
   }
   return null;
 }
+
+/** "Adobe Photoshop 2027" → ["adobe", "photoshop", "2027"] */
+const wordsOf = (text) => text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * The whole name of the best application, setting or command when the search
+ * names it without starting it: from the middle ("photoshop" → "Adobe
+ * Photoshop 2027") or out of order ("photoshop adobe"), every typed word being
+ * the start of a word in the name. Shown after a dash, and put in the field
+ * when accepted. `null` when the best match starts with the search (that is
+ * {@link suggestFromResults}' job) or nothing matches.
+ */
+export function suggestFullName(query, sections) {
+  const wanted = query.trim().toLowerCase();
+  const typed = wordsOf(wanted);
+  if (wanted.length < 2 || typed.length === 0) return null;
+  for (const section of sections ?? []) {
+    for (const result of section.results) {
+      if (!COMPLETABLE.has(result.kind)) continue;
+      // the best match is already being typed in order
+      if (result.title.toLowerCase().startsWith(wanted)) return null;
+      const words = wordsOf(result.title);
+      if (typed.every((w) => words.some((word) => word.startsWith(w)))) return result.title;
+    }
+  }
+  return null;
+}

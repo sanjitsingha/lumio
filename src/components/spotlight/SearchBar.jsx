@@ -3,14 +3,17 @@ import { ChevronDown, LoaderCircle, Search } from "lucide-react";
 import { cx } from "../../utils/cx";
 
 /**
- * The input row. `suggestion` (from search history) is drawn as ghost text after it,
- * accepted with → or End. Both are drawn by a copy of the text behind the
- * transparent input, kept in step with the input's horizontal scrolling.
+ * The input row. `suggestion`, which goes on from the typed text ("calc" →
+ * "calculator"), is drawn as ghost text after it; `name`, the whole name of a
+ * result the text names without starting it ("photoshop" → "Adobe Photoshop
+ * 2027"), after a dash. Either is accepted with → or End. Both are drawn by a
+ * copy of the text behind the transparent input, kept in step with the
+ * input's horizontal scrolling.
  * `kind` names what the selected result is ("Application"), at the right end.
  * With an empty field that end holds the Tab hint, which opens the quick panel.
  */
 export const SearchBar = forwardRef(function SearchBar(
-  { value, onChange, onKeyDown, loading, suggestion, kind, quickOpen, onToggleQuick },
+  { value, onChange, onKeyDown, loading, suggestion, name, kind, quickOpen, onToggleQuick },
   ref,
 ) {
   const input = useRef(null);
@@ -37,6 +40,12 @@ export const SearchBar = forwardRef(function SearchBar(
                       taken back by an equal negative margin, so the first letter sits right at the cursor */}
                   {ghost.startsWith(" ") && <span className="text-tertiary"> </span>}
                   <span className="-ml-1.5 rounded-[4px] bg-fill-strong py-[1px] pr-1.5 pl-1.5 text-tertiary">{ghost.trimStart()}</span>
+                </>
+              )}
+              {!ghost && name && (
+                <>
+                  <span className="text-tertiary"> — </span>
+                  <span className="rounded-[4px] bg-fill-strong px-1.5 py-[1px] text-tertiary">{name}</span>
                 </>
               )}
             </span>

@@ -391,7 +391,8 @@ export function CommandGroups({ os, shortcuts }) {
       id: "setting",
       items: pages,
       title: settingsApp,
-      icon: pages[0] ? <ResultIcon icon={pages[0].icon} size={ICON_SIZE} /> : null,
+      // each page has its own glyph; the group shows the settings app as a whole
+      icon: <ResultIcon icon={{ type: "symbol", name: "settings" }} size={ICON_SIZE} />,
       on: s.searchSettings,
       setOn: (v) => update({ spotlight: { searchSettings: v } }),
     },

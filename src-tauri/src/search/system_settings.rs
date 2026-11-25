@@ -1,17 +1,17 @@
-//! Pages of the system's settings app ("Turn on dark mode", "Connect to
+//! Pages of the system's settings app ("Open dark mode settings", "Connect to
 //! Wi-Fi"), opened at the right page through the OS's own deep links:
 //! `ms-settings:` on Windows, `settings://` on elementary OS (System
 //! Settings, formerly Switchboard). On elementary OS the on/off ones are
 //! real switches instead (`toggle:`, see `platform::linux::toggles`): they
 //! change the setting and open nothing.
 //!
-//! To add a page, add an entry to [`PAGES`] with its link on each platform
-//! that has it. A page with no link for the running platform is not offered
-//! there. Every page shows the settings app's own icon.
+//! To add a page, add an entry to [`PAGES`] with its icon and its link on
+//! each platform that has it. A page with no link for the running platform is
+//! not offered there. Each page shows its own Lucide icon, drawn bare in white
+//! (the frontend's `SYMBOLS` must have it).
 
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
-use super::apps::AppIndex;
 use super::fuzzy::{fold, Query, CONTIGUOUS_MATCH, PREFIX_MATCH};
 use super::types::{ExecuteMode, ResultIcon, ResultKind, SearchResult};
 use super::{ExecutedItem, SearchContext, SearchProvider};
@@ -34,7 +34,12 @@ pub struct Link {
 
 pub struct SettingPage {
     pub id: &'static str,
-    /// What the page lets you do, phrased the way people search for it.
+    /// The Lucide icon it shows ("moon"), the same on every platform.
+    pub icon: &'static str,
+    /// What the page lets you do, phrased the way people search for it. A page
+    /// for an on/off setting says it opens Settings ("Open dark mode settings"),
+    /// never "Turn on …": that would read like the quick action next to it that
+    /// changes the setting at once. Keep "turn on …" as a keyword instead.
     pub title: &'static str,
     pub keywords: &'static [&'static str],
     pub windows: Option<Link>,
@@ -46,12 +51,13 @@ pub struct SettingPage {
 
 const fn page(
     id: &'static str,
+    icon: &'static str,
     title: &'static str,
     keywords: &'static [&'static str],
     windows: Option<Link>,
     elementary: Option<Link>,
 ) -> SettingPage {
-    SettingPage { id, title, keywords, windows, elementary }
+    SettingPage { id, icon, title, keywords, windows, elementary }
 }
 
 const fn win(uri: &'static str, path: &'static str) -> Option<Link> {
@@ -83,414 +89,414 @@ impl SettingPage {
 #[rustfmt::skip]
 pub const PAGES: &[SettingPage] = &[
     // Appearance
-    page("dark-mode", "Turn on dark mode",
-        &["dark mode", "dark theme", "dark style", "night mode", "black theme", "theme", "appearance", "color mode", "light or dark"],
+    page("dark-mode", "moon", "Open dark mode settings",
+        &["dark mode", "turn on dark mode", "dark theme", "dark style", "night mode", "black theme", "theme", "appearance", "color mode", "light or dark"],
         win("ms-settings:colors", "Personalization › Colors"),
         switch("Toggle dark mode", "toggle:dark-mode", "Desktop › Appearance",
             &["light mode", "light theme", "light style", "white theme", "bright theme", "day mode", "turn on light mode", "turn off light mode"])),
-    page("light-mode", "Turn on light mode",
-        &["light mode", "light theme", "light style", "white theme", "bright theme", "day mode", "color mode"],
+    page("light-mode", "sun", "Open light mode settings",
+        &["light mode", "turn on light mode", "light theme", "light style", "white theme", "bright theme", "day mode", "color mode"],
         win("ms-settings:colors", "Personalization › Colors"),
         None),
-    page("accent-color", "Change accent color",
+    page("accent-color", "palette", "Change accent color",
         &["accent color", "accent colour", "highlight color", "window color", "colors", "colours"],
         win("ms-settings:colors", "Personalization › Colors"),
         eos("settings://desktop/appearance", "Desktop › Appearance")),
-    page("wallpaper", "Change wallpaper",
+    page("wallpaper", "image", "Change wallpaper",
         &["wallpaper", "background", "desktop background", "desktop picture", "backdrop", "slideshow", "dim wallpaper"],
         win("ms-settings:personalization-background", "Personalization › Background"),
         eos("settings://desktop/appearance/wallpaper", "Desktop › Wallpaper")),
-    page("themes", "Change theme",
+    page("themes", "paintbrush", "Change theme",
         &["themes", "theme", "personalize", "personalization", "desktop icons", "sounds theme"],
         win("ms-settings:themes", "Personalization › Themes"),
         None),
-    page("lock-screen", "Lock screen settings",
+    page("lock-screen", "lock", "Lock screen settings",
         &["lock screen", "lockscreen", "screen lock", "lock automatically", "auto lock", "lock on suspend", "screen saver", "screensaver"],
         win("ms-settings:lockscreen", "Personalization › Lock screen"),
         eos("settings://security/locking", "Security & Privacy › Locking")),
-    page("start-menu", "Start menu settings",
+    page("start-menu", "layout-grid", "Start menu settings",
         &["start menu", "start", "pinned apps", "recommended", "recently added apps"],
         win("ms-settings:personalization-start", "Personalization › Start"),
         None),
-    page("taskbar", "Taskbar settings",
+    page("taskbar", "panel-bottom", "Taskbar settings",
         &["taskbar", "task bar", "system tray", "tray icons", "hide taskbar", "auto hide taskbar", "taskbar alignment", "widgets"],
         win("ms-settings:taskbar", "Personalization › Taskbar"),
         None),
-    page("dock", "Dock & panel settings",
+    page("dock", "panel-bottom", "Dock & panel settings",
         &["dock", "panel", "top bar", "hide dock", "auto hide dock", "dock icon size", "panel translucency"],
         None,
         eos("settings://desktop/dock", "Desktop › Dock & Panel")),
-    page("fonts", "Manage fonts",
+    page("fonts", "type", "Manage fonts",
         &["fonts", "font", "typeface", "install font", "font family"],
         win("ms-settings:fonts", "Personalization › Fonts"),
         None),
-    page("text-size", "Change text size",
+    page("text-size", "a-large-small", "Change text size",
         &["text size", "font size", "bigger text", "larger text", "smaller text", "make text bigger", "text scaling", "dyslexia"],
         win("ms-settings:easeofaccess-display", "Accessibility › Text size"),
         eos("settings://desktop/text", "Desktop › Text")),
 
     // Display
-    page("display", "Display settings",
+    page("display", "monitor", "Display settings",
         &["display", "monitor", "screen", "resolution", "screen resolution", "scale", "scaling", "rotation", "rotate screen",
           "orientation", "second monitor", "external monitor", "multiple displays", "mirror", "refresh rate", "hdr"],
         win("ms-settings:display", "System › Display"),
         eos("settings://display", "Displays")),
-    page("brightness", "Change brightness",
+    page("brightness", "sun-medium", "Change brightness",
         &["brightness", "screen brightness", "dim screen", "dimmer", "brighter", "adaptive brightness", "backlight"],
         win("ms-settings:display", "System › Display"),
         eos("settings://power", "Power")),
-    page("night-light", "Turn on Night Light",
-        &["night light", "blue light", "night mode", "night shift", "warm colors", "color temperature", "eye strain", "redshift"],
+    page("night-light", "sunset", "Open Night Light settings",
+        &["night light", "turn on night light", "blue light", "night mode", "night shift", "warm colors", "color temperature", "eye strain", "redshift"],
         win("ms-settings:nightlight", "System › Display › Night light"),
         switch("Toggle Night Light", "toggle:night-light", "Displays › Night Light",
             &[])),
-    page("color-filters", "Turn on color filters",
-        &["color filters", "colour filters", "color blind", "colorblind", "grayscale", "greyscale", "black and white", "monochrome",
+    page("color-filters", "blend", "Open color filter settings",
+        &["color filters", "turn on color filters", "colour filters", "color blind", "colorblind", "grayscale", "greyscale", "black and white", "monochrome",
           "invert colors"],
         win("ms-settings:easeofaccess-colorfilter", "Accessibility › Color filters"),
         switch("Toggle grayscale", "toggle:grayscale", "Displays › Filters",
             &["turn on color filters", "turn off color filters"])),
-    page("graphics", "Graphics settings",
+    page("graphics", "monitor-cog", "Graphics settings",
         &["graphics", "gpu", "graphics card", "gpu preference", "high performance gpu", "hardware accelerated gpu scheduling"],
         win("ms-settings:display-advancedgraphics", "System › Display › Graphics"),
         None),
 
     // Sound
-    page("sound", "Sound settings",
+    page("sound", "volume-2", "Sound settings",
         &["sound", "audio", "volume", "speakers", "headphones", "output device", "audio output", "mono audio", "balance"],
         win("ms-settings:sound", "System › Sound"),
         eos("settings://sound/output", "Sound › Output")),
-    page("microphone", "Microphone settings",
+    page("microphone", "mic", "Microphone settings",
         &["microphone", "mic", "input device", "audio input", "input volume", "recording", "headset mic"],
         win("ms-settings:sound", "System › Sound"),
         eos("settings://sound/input", "Sound › Input")),
-    page("volume-mixer", "Volume mixer",
+    page("volume-mixer", "sliders-horizontal", "Volume mixer",
         &["volume mixer", "mixer", "app volume", "per app volume", "application volume"],
         win("ms-settings:apps-volume", "System › Sound › Volume mixer"),
         eos("settings://sound/applications", "Sound › Applications")),
 
     // Notifications
-    page("notifications", "Notification settings",
+    page("notifications", "bell", "Notification settings",
         &["notifications", "notification", "alerts", "banners", "notification sounds", "badges"],
         win("ms-settings:notifications", "System › Notifications"),
         eos("settings://notifications", "Notifications")),
-    page("do-not-disturb", "Turn on Do Not Disturb",
-        &["do not disturb", "dnd", "focus", "focus assist", "quiet hours", "silence notifications", "mute notifications"],
+    page("do-not-disturb", "bell-off", "Open Do Not Disturb settings",
+        &["do not disturb", "turn on do not disturb", "dnd", "focus", "focus assist", "quiet hours", "silence notifications", "mute notifications"],
         win("ms-settings:notifications", "System › Notifications"),
         switch("Toggle Do Not Disturb", "toggle:do-not-disturb", "Notifications",
             &[])),
 
     // Power and storage
-    page("power", "Power & battery settings",
+    page("power", "battery", "Power & battery settings",
         &["power", "battery", "power mode", "power plan", "power profile", "battery percentage", "battery usage", "lid",
           "power button", "energy"],
         win("ms-settings:powersleep", "System › Power & battery"),
         eos("settings://power", "Power")),
-    page("sleep", "Sleep and screen timeout",
+    page("sleep", "bed", "Sleep and screen timeout",
         &["sleep", "screen timeout", "turn off screen", "screen off", "suspend", "hibernate", "close lid", "idle"],
         win("ms-settings:powersleep", "System › Power & battery"),
         eos("settings://power", "Power")),
-    page("battery-saver", "Turn on battery saver",
-        &["battery saver", "energy saver", "power saver", "low power mode", "save battery"],
+    page("battery-saver", "battery-low", "Open battery saver settings",
+        &["battery saver", "turn on battery saver", "energy saver", "power saver", "low power mode", "save battery"],
         win("ms-settings:batterysaver", "System › Power & battery"),
         switch("Toggle battery saver", "toggle:battery-saver", "Power",
             &[])),
-    page("storage", "Free up storage space",
+    page("storage", "hard-drive", "Free up storage space",
         &["storage", "disk space", "free up space", "free space", "disk cleanup", "drives", "hard drive", "ssd", "disk usage"],
         win("ms-settings:storagesense", "System › Storage"),
         None),
-    page("auto-cleanup", "Clean up files automatically",
+    page("auto-cleanup", "brush-cleaning", "Clean up files automatically",
         &["storage sense", "housekeeping", "empty trash", "empty recycle bin", "delete temporary files", "temp files",
           "auto delete", "clean up", "cleanup"],
         win("ms-settings:storagepolicies", "System › Storage › Storage Sense"),
         eos("settings://privacy/trash", "Security & Privacy › Housekeeping")),
 
     // System
-    page("multitasking", "Multitasking settings",
+    page("multitasking", "layout-dashboard", "Multitasking settings",
         &["multitasking", "snap windows", "snap layouts", "window snapping", "virtual desktops", "workspaces", "hot corners",
           "alt tab", "shake window"],
         win("ms-settings:multitasking", "System › Multitasking"),
         eos("settings://desktop/multitasking", "Desktop › Multitasking")),
-    page("clipboard", "Clipboard history",
+    page("clipboard", "clipboard", "Clipboard history",
         &["clipboard", "clipboard history", "copy paste", "paste history", "sync clipboard"],
         win("ms-settings:clipboard", "System › Clipboard"),
         None),
-    page("remote-desktop", "Remote Desktop settings",
+    page("remote-desktop", "screen-share", "Remote Desktop settings",
         &["remote desktop", "rdp", "remote access", "remote control", "connect remotely"],
         win("ms-settings:remotedesktop", "System › Remote Desktop"),
         None),
-    page("sharing", "Sharing settings",
+    page("sharing", "share-2", "Sharing settings",
         &["sharing", "file sharing", "media sharing", "share files", "network sharing", "dlna", "media library"],
         None,
         eos("settings://network/share", "Sharing")),
-    page("about", "About this computer",
+    page("about", "info", "About this computer",
         &["about", "system information", "system info", "computer name", "device name", "rename pc", "rename computer",
           "hostname", "os version", "windows version", "version", "edition", "product id"],
         win("ms-settings:about", "System › About"),
         eos("settings://about/os", "System › Operating System")),
-    page("hardware", "View hardware specs",
+    page("hardware", "cpu", "View hardware specs",
         &["hardware", "specs", "specifications", "device specifications", "ram", "memory", "processor", "cpu", "graphics card",
           "system type", "64 bit"],
         win("ms-settings:about", "System › About"),
         eos("settings://about/hardware", "System › Hardware")),
-    page("drivers", "Install drivers",
+    page("drivers", "package", "Install drivers",
         &["drivers", "driver", "nvidia", "graphics driver", "proprietary drivers", "additional drivers"],
         None,
         eos("settings://about/drivers", "System › Drivers")),
-    page("firmware", "Update firmware",
+    page("firmware", "circuit-board", "Update firmware",
         &["firmware", "bios", "uefi", "fwupd", "firmware update"],
         None,
         eos("settings://about/firmware", "System › Firmware")),
-    page("updates", "Check for updates",
+    page("updates", "refresh-cw", "Check for updates",
         &["update", "updates", "windows update", "system update", "software update", "os update", "upgrade", "patches",
           "restart to update"],
         win("ms-settings:windowsupdate", "Windows Update"),
         eos("settings://about/os", "System › Operating System")),
-    page("update-history", "View update history",
+    page("update-history", "history", "View update history",
         &["update history", "installed updates", "uninstall updates", "recent updates"],
         win("ms-settings:windowsupdate-history", "Windows Update › Update history"),
         None),
-    page("troubleshoot", "Troubleshoot problems",
+    page("troubleshoot", "wrench", "Troubleshoot problems",
         &["troubleshoot", "troubleshooter", "fix problems", "diagnose", "get help", "repair"],
         win("ms-settings:troubleshoot", "System › Troubleshoot"),
         None),
-    page("recovery", "Recovery options",
+    page("recovery", "life-buoy", "Recovery options",
         &["recovery", "reset pc", "reset this pc", "factory reset", "reinstall windows", "advanced startup", "safe mode",
           "go back", "restore"],
         win("ms-settings:recovery", "System › Recovery"),
         None),
-    page("activation", "Activate Windows",
+    page("activation", "key-round", "Activate Windows",
         &["activation", "activate", "product key", "license", "licence", "windows license", "upgrade edition"],
         win("ms-settings:activation", "System › Activation"),
         None),
-    page("optional-features", "Optional features",
+    page("optional-features", "blocks", "Optional features",
         &["optional features", "windows features", "add a feature", "features on demand", "openssh", "language features"],
         win("ms-settings:optionalfeatures", "System › Optional features"),
         None),
-    page("developers", "Developer settings",
+    page("developers", "code", "Developer settings",
         &["developer mode", "developers", "developer", "dev mode", "sudo", "dev drive", "sideload"],
         win("ms-settings:developers", "System › For developers"),
         None),
 
     // Bluetooth and devices
-    page("bluetooth", "Turn on Bluetooth",
-        &["bluetooth", "bt", "bluetooth on", "bluetooth off", "wireless devices"],
+    page("bluetooth", "bluetooth", "Open Bluetooth settings",
+        &["bluetooth", "turn on bluetooth", "bt", "bluetooth on", "bluetooth off", "wireless devices"],
         win("ms-settings:bluetooth", "Bluetooth & devices"),
         switch("Toggle Bluetooth", "toggle:bluetooth", "Bluetooth",
             &[])),
-    page("bluetooth-pair", "Pair a Bluetooth device",
+    page("bluetooth-pair", "bluetooth-searching", "Pair a Bluetooth device",
         &["pair", "pairing", "add device", "add a device", "connect headphones", "bluetooth headphones", "wireless headphones",
           "earbuds", "airpods", "bluetooth speaker", "wireless mouse", "wireless keyboard", "controller"],
         win("ms-settings:bluetooth", "Bluetooth & devices"),
         eos("settings://network/bluetooth", "Bluetooth")),
-    page("printers", "Add a printer or scanner",
+    page("printers", "printer", "Add a printer or scanner",
         &["printer", "printers", "scanner", "scanners", "print", "add printer", "print queue", "default printer"],
         win("ms-settings:printers", "Bluetooth & devices › Printers & scanners"),
         eos("settings://printer", "Printers")),
-    page("mouse", "Mouse settings",
+    page("mouse", "mouse", "Mouse settings",
         &["mouse", "mouse speed", "pointer speed", "scroll", "scrolling", "scroll direction", "natural scrolling",
           "scroll speed", "left handed", "primary button", "double click", "mouse acceleration"],
         win("ms-settings:mousetouchpad", "Bluetooth & devices › Mouse"),
         eos("settings://input/pointer/mouse", "Mouse & Touchpad › Mouse")),
-    page("touchpad", "Touchpad settings",
+    page("touchpad", "touchpad", "Touchpad settings",
         &["touchpad", "trackpad", "tap to click", "two finger scroll", "disable touchpad", "palm rejection"],
         win("ms-settings:devices-touchpad", "Bluetooth & devices › Touchpad"),
         eos("settings://input/pointer/touch", "Mouse & Touchpad › Touchpad")),
-    page("gestures", "Touchpad gestures",
+    page("gestures", "hand", "Touchpad gestures",
         &["gestures", "swipe", "three finger", "four finger", "multitouch", "pinch to zoom", "multi finger"],
         win("ms-settings:devices-touchpad", "Bluetooth & devices › Touchpad"),
         eos("settings://input/pointer/gestures", "Mouse & Touchpad › Gestures")),
-    page("keyboard", "Keyboard settings",
+    page("keyboard", "keyboard", "Keyboard settings",
         &["keyboard", "typing", "key repeat", "repeat delay", "repeat rate", "autocorrect", "spell check", "spellcheck",
           "touch keyboard", "text suggestions", "cursor blinking", "num lock"],
         win("ms-settings:typing", "Bluetooth & devices › Typing"),
         eos("settings://input/keyboard/behavior", "Keyboard › Behavior")),
-    page("keyboard-layout", "Change keyboard layout",
+    page("keyboard-layout", "languages", "Change keyboard layout",
         &["keyboard layout", "input language", "input method", "input source", "add keyboard", "switch keyboard", "qwerty",
           "azerty", "qwertz", "dvorak", "ime", "ibus"],
         win("ms-settings:regionlanguage", "Time & language › Language & region"),
         eos("settings://input/keyboard/layout", "Keyboard › Layout")),
-    page("shortcuts", "Keyboard shortcuts",
+    page("shortcuts", "command", "Keyboard shortcuts",
         &["keyboard shortcuts", "shortcuts", "hotkeys", "key bindings", "keybindings", "custom shortcut"],
         None,
         eos("settings://input/keyboard/shortcuts", "Keyboard › Shortcuts")),
-    page("pen", "Pen & tablet settings",
+    page("pen", "pen-tool", "Pen & tablet settings",
         &["pen", "stylus", "wacom", "drawing tablet", "graphics tablet", "windows ink", "pen buttons"],
         win("ms-settings:pen", "Bluetooth & devices › Pen & Windows Ink"),
         eos("settings://input/pointing/stylus", "Pen & Drawing")),
-    page("autoplay", "AutoPlay settings",
+    page("autoplay", "circle-play", "AutoPlay settings",
         &["autoplay", "auto play", "usb drive", "memory card", "removable drive", "when i insert"],
         win("ms-settings:autoplay", "Bluetooth & devices › AutoPlay"),
         None),
-    page("usb", "USB settings",
+    page("usb", "usb", "USB settings",
         &["usb", "usb notifications", "usb battery saver", "usb devices"],
         win("ms-settings:usb", "Bluetooth & devices › USB"),
         None),
-    page("camera", "Camera settings",
+    page("camera", "camera", "Camera settings",
         &["camera", "webcam", "web cam", "cameras", "camera brightness"],
         win("ms-settings:camera", "Bluetooth & devices › Cameras"),
         None),
-    page("phone", "Link your phone",
+    page("phone", "smartphone", "Link your phone",
         &["phone", "phone link", "link phone", "mobile", "mobile devices", "android", "iphone"],
         win("ms-settings:mobile-devices", "Bluetooth & devices › Mobile devices"),
         None),
 
     // Network
-    page("wifi", "Connect to Wi-Fi",
+    page("wifi", "wifi", "Connect to Wi-Fi",
         &["wifi", "wi-fi", "wireless", "wireless network", "wlan", "internet", "ssid", "wifi password", "join network",
           "hidden network"],
         win("ms-settings:network-wifi", "Network & internet › Wi-Fi"),
         eos("settings://network", "Network")),
-    page("wifi-switch", "Toggle Wi-Fi",
+    page("wifi-switch", "wifi", "Toggle Wi-Fi",
         &["wifi on", "wifi off", "wi-fi on", "wi-fi off", "wireless on", "wireless off", "toggle wifi", "turn on wifi", "turn off wifi",
           "enable wifi", "disable wifi"],
         None,
         switch("Toggle Wi-Fi", "toggle:wifi", "Network", &[])),
-    page("network", "Network settings",
+    page("network", "network", "Network settings",
         &["network", "internet", "connection", "connections", "ip address", "dns", "network adapter", "no internet",
           "offline", "metered connection"],
         win("ms-settings:network-status", "Network & internet"),
         eos("settings://network", "Network")),
-    page("ethernet", "Ethernet settings",
+    page("ethernet", "ethernet-port", "Ethernet settings",
         &["ethernet", "wired", "wired connection", "lan", "network cable", "cable"],
         win("ms-settings:network-ethernet", "Network & internet › Ethernet"),
         eos("settings://network", "Network")),
-    page("vpn", "Add a VPN connection",
+    page("vpn", "shield", "Add a VPN connection",
         &["vpn", "virtual private network", "openvpn", "wireguard", "vpn connection"],
         win("ms-settings:network-vpn", "Network & internet › VPN"),
         eos("settings://network", "Network")),
-    page("airplane-mode", "Turn on airplane mode",
-        &["airplane mode", "aeroplane mode", "flight mode", "plane mode", "offline mode", "wireless off", "radios"],
+    page("airplane-mode", "plane", "Open airplane mode settings",
+        &["airplane mode", "turn on airplane mode", "aeroplane mode", "flight mode", "plane mode", "offline mode", "wireless off", "radios"],
         win("ms-settings:network-airplanemode", "Network & internet › Airplane mode"),
         switch("Toggle airplane mode", "toggle:airplane-mode", "Network",
             &[])),
-    page("hotspot", "Turn on mobile hotspot",
-        &["hotspot", "mobile hotspot", "share internet", "share connection", "tethering", "tether"],
+    page("hotspot", "radio-tower", "Open mobile hotspot settings",
+        &["hotspot", "mobile hotspot", "turn on mobile hotspot", "share internet", "share connection", "tethering", "tether"],
         win("ms-settings:network-mobilehotspot", "Network & internet › Mobile hotspot"),
         None),
-    page("proxy", "Proxy settings",
+    page("proxy", "route", "Proxy settings",
         &["proxy", "proxy server", "pac", "pac file", "socks"],
         win("ms-settings:network-proxy", "Network & internet › Proxy"),
         eos("settings://network", "Network")),
-    page("data-usage", "Check data usage",
+    page("data-usage", "chart-column", "Check data usage",
         &["data usage", "data limit", "data used", "bandwidth", "mobile data"],
         win("ms-settings:datausage", "Network & internet › Data usage"),
         None),
 
     // Apps
-    page("uninstall", "Uninstall apps",
+    page("uninstall", "trash-2", "Uninstall apps",
         &["uninstall", "remove app", "remove program", "installed apps", "apps and features", "apps & features",
           "add or remove programs", "programs and features", "programs", "app size"],
         win("ms-settings:appsfeatures", "Apps › Installed apps"),
         None),
-    page("default-apps", "Change default apps",
+    page("default-apps", "app-window", "Change default apps",
         &["default apps", "default app", "default browser", "default programs", "default email", "default music player",
           "default video player", "open with", "file associations", "file types"],
         win("ms-settings:defaultapps", "Apps › Default apps"),
         eos("settings://applications/defaults", "Applications › Defaults")),
-    page("startup-apps", "Change startup apps",
+    page("startup-apps", "rocket", "Change startup apps",
         &["startup apps", "startup", "start at login", "autostart", "launch at login", "run at startup", "login items",
           "startup programs", "boot"],
         win("ms-settings:startupapps", "Apps › Startup"),
         eos("settings://applications/startup", "Applications › Startup")),
-    page("app-permissions", "App permissions",
+    page("app-permissions", "lock-open", "App permissions",
         &["app permissions", "permissions", "flatpak permissions", "sandbox", "allow access", "app access"],
         win("ms-settings:privacy", "Privacy & security"),
         eos("settings://applications/permissions", "Applications › Permissions")),
 
     // Accounts
-    page("account", "Your account",
+    page("account", "circle-user", "Your account",
         &["account", "accounts", "user account", "your info", "profile", "profile picture", "account picture", "avatar",
           "user name", "username", "full name", "microsoft account"],
         win("ms-settings:yourinfo", "Accounts › Your info"),
         eos("settings://accounts", "User Accounts")),
-    page("password", "Change your password",
+    page("password", "rectangle-ellipsis", "Change your password",
         &["password", "change password", "pin", "windows hello", "fingerprint", "face recognition", "sign in", "sign-in",
           "login", "log in", "automatic login", "auto login"],
         win("ms-settings:signinoptions", "Accounts › Sign-in options"),
         eos("settings://accounts", "User Accounts")),
-    page("other-users", "Add another user",
+    page("other-users", "users", "Add another user",
         &["add user", "add account", "other users", "new user", "create account", "family", "guest", "guest account",
           "user accounts", "administrator", "admin", "standard user"],
         win("ms-settings:otherusers", "Accounts › Other users"),
         eos("settings://accounts", "User Accounts")),
-    page("online-accounts", "Add an online account",
+    page("online-accounts", "at-sign", "Add an online account",
         &["online accounts", "email accounts", "email", "mail accounts", "google account", "microsoft account", "nextcloud",
           "caldav", "calendar accounts", "sync accounts"],
         win("ms-settings:emailandaccounts", "Accounts › Email & accounts"),
         eos("settings://accounts/online", "Online Accounts")),
-    page("backup", "Back up this PC",
+    page("backup", "cloud-upload", "Back up this PC",
         &["backup", "back up", "windows backup", "sync settings", "onedrive backup", "remember my apps", "restore apps"],
         win("ms-settings:backup", "Accounts › Windows backup"),
         None),
-    page("work-school", "Access work or school",
+    page("work-school", "briefcase", "Access work or school",
         &["work account", "school account", "work or school", "azure ad", "entra", "join domain", "domain", "mdm", "enroll"],
         win("ms-settings:workplace", "Accounts › Access work or school"),
         None),
 
     // Time and language
-    page("date-time", "Change date and time",
+    page("date-time", "clock", "Change date and time",
         &["date", "time", "date and time", "clock", "time zone", "timezone", "set time", "sync time", "24 hour", "24-hour",
           "daylight saving", "automatic time"],
         win("ms-settings:dateandtime", "Time & language › Date & time"),
         eos("settings://time", "Date & Time")),
-    page("language", "Change display language",
+    page("language", "globe", "Change display language",
         &["language", "languages", "display language", "system language", "locale", "add language", "translate"],
         win("ms-settings:regionlanguage", "Time & language › Language & region"),
         eos("settings://language", "Language & Region")),
-    page("region", "Change region and formats",
+    page("region", "earth", "Change region and formats",
         &["region", "country", "formats", "regional format", "date format", "time format", "number format", "currency",
           "units", "measurement", "metric", "first day of week"],
         win("ms-settings:regionformatting", "Time & language › Language & region"),
         eos("settings://language", "Language & Region")),
-    page("speech", "Speech settings",
+    page("speech", "speech", "Speech settings",
         &["speech", "speech recognition", "voice", "voice typing", "voice access", "text to speech", "tts", "dictation"],
         win("ms-settings:speech", "Time & language › Speech"),
         None),
 
     // Gaming
-    page("game-mode", "Turn on Game Mode",
-        &["game mode", "gaming", "games", "gaming performance"],
+    page("game-mode", "gamepad-2", "Open Game Mode settings",
+        &["game mode", "turn on game mode", "gaming", "games", "gaming performance"],
         win("ms-settings:gaming-gamemode", "Gaming › Game Mode"),
         None),
-    page("game-bar", "Game Bar settings",
+    page("game-bar", "joystick", "Game Bar settings",
         &["game bar", "xbox game bar", "record screen", "screen recording", "record gameplay", "captures"],
         win("ms-settings:gaming-gamebar", "Gaming › Game Bar"),
         None),
 
     // Accessibility
-    page("accessibility", "Accessibility settings",
+    page("accessibility", "accessibility", "Accessibility settings",
         &["accessibility", "universal access", "ease of access", "a11y", "assistive"],
         win("ms-settings:easeofaccess", "Accessibility"),
         eos("settings://universal-access", "Universal Access")),
-    page("magnifier", "Turn on Magnifier",
-        &["magnifier", "magnify", "zoom", "zoom in", "screen zoom", "enlarge screen"],
+    page("magnifier", "zoom-in", "Open Magnifier settings",
+        &["magnifier", "turn on magnifier", "magnify", "zoom", "zoom in", "screen zoom", "enlarge screen"],
         win("ms-settings:easeofaccess-magnifier", "Accessibility › Magnifier"),
         eos("settings://universal-access", "Universal Access")),
-    page("high-contrast", "Turn on high contrast",
-        &["high contrast", "contrast", "contrast themes", "increase contrast"],
+    page("high-contrast", "contrast", "Open high contrast settings",
+        &["high contrast", "turn on high contrast", "contrast", "contrast themes", "increase contrast"],
         win("ms-settings:easeofaccess-highcontrast", "Accessibility › Contrast themes"),
         eos("settings://universal-access", "Universal Access")),
-    page("screen-reader", "Turn on screen reader",
-        &["screen reader", "narrator", "orca", "read aloud", "read screen", "voiceover", "blind"],
+    page("screen-reader", "audio-lines", "Open screen reader settings",
+        &["screen reader", "turn on screen reader", "narrator", "orca", "read aloud", "read screen", "voiceover", "blind"],
         win("ms-settings:easeofaccess-narrator", "Accessibility › Narrator"),
         eos("settings://universal-access", "Universal Access")),
-    page("captions", "Caption settings",
+    page("captions", "captions", "Caption settings",
         &["captions", "closed captions", "subtitles", "live captions", "caption style"],
         win("ms-settings:easeofaccess-closedcaptioning", "Accessibility › Captions"),
         None),
-    page("pointer-size", "Change mouse pointer size",
+    page("pointer-size", "mouse-pointer-2", "Change mouse pointer size",
         &["mouse pointer", "pointer size", "cursor size", "bigger cursor", "large cursor", "cursor color", "pointer color",
           "mouse cursor", "reveal pointer", "find pointer"],
         win("ms-settings:easeofaccess-mousepointer", "Accessibility › Mouse pointer and touch"),
         eos("settings://input/pointer/pointing", "Mouse & Touchpad › Pointing")),
-    page("sticky-keys", "Turn on Sticky Keys",
-        &["sticky keys", "stickykeys", "filter keys", "toggle keys", "slow keys", "bounce keys", "on-screen keyboard",
+    page("sticky-keys", "arrow-big-up", "Open Sticky Keys settings",
+        &["sticky keys", "turn on sticky keys", "stickykeys", "filter keys", "toggle keys", "slow keys", "bounce keys", "on-screen keyboard",
           "onscreen keyboard"],
         win("ms-settings:easeofaccess-keyboard", "Accessibility › Keyboard"),
         switch("Toggle Sticky Keys", "toggle:sticky-keys", "Universal Access",
             &[])),
-    page("reduce-motion", "Reduce animations",
+    page("reduce-motion", "sparkles", "Reduce animations",
         &["animations", "animation", "reduce motion", "animation effects", "visual effects", "transparency",
           "transparency effects", "scrollbars", "always show scrollbars"],
         win("ms-settings:easeofaccess-visualeffects", "Accessibility › Visual effects"),
@@ -498,32 +504,32 @@ pub const PAGES: &[SettingPage] = &[
             &["reduce animations", "reduce motion", "turn off animations"])),
 
     // Privacy and security
-    page("privacy", "Privacy settings",
+    page("privacy", "eye-off", "Privacy settings",
         &["privacy", "tracking", "history", "activity history", "recent files", "diagnostics", "telemetry", "advertising id"],
         win("ms-settings:privacy", "Privacy & security"),
         eos("settings://privacy", "Security & Privacy › Privacy")),
-    page("location", "Location settings",
+    page("location", "map-pin", "Location settings",
         &["location", "location services", "gps", "geolocation", "my location"],
         win("ms-settings:privacy-location", "Privacy & security › Location"),
         eos("settings://privacy/location", "Security & Privacy › Location Services")),
-    page("camera-access", "Camera permissions",
+    page("camera-access", "webcam", "Camera permissions",
         &["camera access", "camera permission", "camera privacy", "webcam access", "apps using camera"],
         win("ms-settings:privacy-webcam", "Privacy & security › Camera"),
         None),
-    page("microphone-access", "Microphone permissions",
+    page("microphone-access", "mic-vocal", "Microphone permissions",
         &["microphone access", "microphone permission", "microphone privacy", "mic access", "apps using microphone"],
         win("ms-settings:privacy-microphone", "Privacy & security › Microphone"),
         None),
-    page("virus-protection", "Virus & threat protection",
+    page("virus-protection", "shield-check", "Virus & threat protection",
         &["windows security", "defender", "windows defender", "antivirus", "anti virus", "virus scan", "scan for viruses",
           "malware", "security"],
         win("ms-settings:windowsdefender", "Privacy & security › Windows Security"),
         None),
-    page("firewall", "Firewall settings",
+    page("firewall", "brick-wall", "Firewall settings",
         &["firewall", "ufw", "block connections", "ports", "incoming connections"],
         win("ms-settings:windowsdefender", "Privacy & security › Windows Security"),
         eos("settings://security/firewall", "Security & Privacy › Firewall")),
-    page("find-my-device", "Find my device",
+    page("find-my-device", "locate-fixed", "Find my device",
         &["find my device", "find my pc", "lost laptop", "locate device", "track device"],
         win("ms-settings:findmydevice", "Privacy & security › Find my device"),
         None),
@@ -641,13 +647,13 @@ impl Entry {
         Some(Match { score, close: best >= CONTIGUOUS_MATCH })
     }
 
-    fn to_result(&self, desktop: Desktop, icon: ResultIcon, score: f32) -> SearchResult {
+    fn to_result(&self, desktop: Desktop, score: f32) -> SearchResult {
         SearchResult {
             id: format!("setting:{}", self.page.id),
             kind: ResultKind::Setting,
             title: self.link.title.unwrap_or(self.page.title).into(),
             subtitle: format!("{} › {}", desktop.app_name(), self.link.path),
-            icon,
+            icon: ResultIcon::Glyph { name: self.page.icon },
             score,
             reveal: false,
             note: None,
@@ -662,17 +668,22 @@ pub struct SystemSettingsProvider {
     /// The settings app's key in the app index while it can open its pages
     /// (elementary's System Settings is installed); `None` otherwise.
     app: RwLock<Option<String>>,
-    apps: Arc<AppIndex>,
+}
+
+impl Default for SystemSettingsProvider {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SystemSettingsProvider {
-    pub fn new(apps: Arc<AppIndex>) -> Self {
-        Self::for_desktop(Desktop::current(), platform::system_settings::app_key(), apps)
+    pub fn new() -> Self {
+        Self::for_desktop(Desktop::current(), platform::system_settings::app_key())
     }
 
-    pub fn for_desktop(desktop: Desktop, app: Option<String>, apps: Arc<AppIndex>) -> Self {
+    pub fn for_desktop(desktop: Desktop, app: Option<String>) -> Self {
         let entries = PAGES.iter().filter_map(|p| desktop.link(p).map(|link| Entry::new(p, link))).collect();
-        Self { desktop, entries, app: RwLock::new(app), apps }
+        Self { desktop, entries, app: RwLock::new(app) }
     }
 
     pub fn refresh_availability(&self) {
@@ -681,15 +692,6 @@ impl SystemSettingsProvider {
 
     fn is_available(&self) -> bool {
         self.app.read().unwrap_or_else(|e| e.into_inner()).is_some()
-    }
-
-    /// The settings app's own icon, which every page shows; a gear until
-    /// the apps are indexed.
-    fn icon(&self) -> ResultIcon {
-        let app = self.app.read().unwrap_or_else(|e| e.into_inner());
-        app.as_deref()
-            .and_then(|key| self.apps.result_icon(key, self.desktop.app_name()))
-            .unwrap_or_else(|| ResultIcon::Symbol { name: "settings".into() })
     }
 
     fn entry(&self, local_id: &str) -> Option<&Entry> {
@@ -747,8 +749,7 @@ impl SearchProvider for SystemSettingsProvider {
         if found.is_empty() {
             return;
         }
-        let icon = self.icon();
-        out.extend(found.into_iter().map(|(m, e)| e.to_result(self.desktop, icon.clone(), m.score as f32)));
+        out.extend(found.into_iter().map(|(m, e)| e.to_result(self.desktop, m.score as f32)));
     }
 
     fn execute(&self, local_id: &str, _mode: ExecuteMode) -> AppResult<ExecutedItem> {
@@ -759,28 +760,26 @@ impl SearchProvider for SystemSettingsProvider {
             return Err(AppError::NotFound(format!("{} is not installed.", self.desktop.app_name())));
         }
         platform::system_settings::open(entry.link.uri).map_err(AppError::Launch)?;
-        let result = entry.to_result(self.desktop, self.icon(), 0.0);
+        let result = entry.to_result(self.desktop, 0.0);
         Ok(ExecutedItem { kind: ResultKind::Setting, title: result.title, subtitle: result.subtitle })
     }
 
     fn resolve(&self, local_id: &str) -> Option<SearchResult> {
-        self.entry(local_id).filter(|_| self.is_available()).map(|e| e.to_result(self.desktop, self.icon(), 0.0))
+        self.entry(local_id).filter(|_| self.is_available()).map(|e| e.to_result(self.desktop, 0.0))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::apps::{AppIcon, DiscoveredApp};
-    use crate::search::hex_key;
     use std::collections::HashSet;
 
     const BOTH: [Desktop; 2] = [Desktop::Windows, Desktop::Elementary];
     const SETTINGS_APP: &str = "io.elementary.settings.desktop";
 
-    /// With the settings app installed but the apps not indexed yet.
+    /// With the settings app installed.
     fn provider(desktop: Desktop) -> SystemSettingsProvider {
-        SystemSettingsProvider::for_desktop(desktop, Some(SETTINGS_APP.into()), Arc::new(AppIndex::new()))
+        SystemSettingsProvider::for_desktop(desktop, Some(SETTINGS_APP.into()))
     }
 
     fn search_with(provider: &SystemSettingsProvider, raw: &str) -> Vec<SearchResult> {
@@ -822,6 +821,8 @@ mod tests {
             for k in p.keywords {
                 assert_eq!(*k, k.to_lowercase(), "{}: keywords are lowercase", p.id);
             }
+            // a Lucide name, which tests/spotlight-icons.test.js checks the frontend draws
+            assert!(!p.icon.is_empty() && p.icon.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{}", p.id);
         }
     }
 
@@ -833,7 +834,7 @@ mod tests {
             }
         }
         let windows = &search(Desktop::Windows, "darkmode")[0];
-        assert_eq!(windows.title, "Turn on dark mode");
+        assert_eq!(windows.title, "Open dark mode settings");
         assert_eq!(windows.subtitle, "Settings › Personalization › Colors");
         assert!(windows.score >= 900.0, "strong enough to be the Top Hit: {}", windows.score);
         let elementary = &search(Desktop::Elementary, "darkmode")[0];
@@ -873,7 +874,7 @@ mod tests {
         let windows = provider(Desktop::Windows);
         for (id, title) in [("dark-mode", "Toggle dark mode"), ("bluetooth", "Toggle Bluetooth"), ("night-light", "Toggle Night Light")] {
             assert_eq!(elementary.resolve(id).unwrap().title, title);
-            assert!(windows.resolve(id).unwrap().title.starts_with("Turn on"), "{id}");
+            assert!(windows.resolve(id).unwrap().title.starts_with("Open "), "{id}");
             assert!(windows.entry(id).unwrap().link.uri.starts_with("ms-settings:"), "{id}");
         }
         assert!(elementary.resolve("light-mode").is_none(), "one switch for dark and light");
@@ -881,6 +882,24 @@ mod tests {
         assert!(windows.resolve("wifi-switch").is_none());
         for q in ["turn off bluetooth", "turn on bluetooth", "disable bluetooth", "toggle bluetooth"] {
             assert_eq!(first(Desktop::Elementary, q).as_deref(), Some("setting:bluetooth"), "{q:?}");
+        }
+    }
+
+    #[test]
+    fn pages_that_only_open_settings_say_so() {
+        // next to "Toggle Dark Mode", a page called "Turn on dark mode" reads as a second switch
+        for desktop in BOTH {
+            for page in PAGES {
+                let Some(link) = desktop.link(page).filter(|l| !l.uri.starts_with("toggle:")) else { continue };
+                let title = fold(link.title.unwrap_or(page.title));
+                for verb in SWITCH_VERBS.iter().chain(&["toggle"]) {
+                    assert!(!title.starts_with(verb), "{} on {desktop:?} opens a page but is titled {title:?}", page.id);
+                }
+            }
+        }
+        // and the old wording still finds them
+        for (q, id) in [("turn on dark mode", "dark-mode"), ("turn on bluetooth", "bluetooth"), ("turn on night light", "night-light")] {
+            assert_eq!(first(Desktop::Windows, q), Some(format!("setting:{id}")), "{q:?}");
         }
     }
 
@@ -947,32 +966,20 @@ mod tests {
     }
 
     #[test]
-    fn pages_show_the_settings_app_icon() {
-        let settings_app = DiscoveredApp {
-            key: SETTINGS_APP.into(),
-            name: "System Settings".into(),
-            description: String::new(),
-            keywords: Vec::new(),
-            icon: AppIcon::Png(Arc::new(vec![1])),
-            target: String::new(),
-            actions: Vec::new(),
-        };
-        let apps = Arc::new(AppIndex::with_apps(vec![settings_app]));
-        let provider = SystemSettingsProvider::for_desktop(Desktop::Elementary, Some(SETTINGS_APP.into()), apps);
-        let icon = ResultIcon::App { key: hex_key(SETTINGS_APP) };
-        for q in ["dark mode", "mouse speed", "wifi"] {
-            let found = search_with(&provider, q);
-            assert!(!found.is_empty() && found.iter().all(|r| r.icon == icon), "{q:?}: {found:?}");
+    fn each_page_shows_its_own_glyph() {
+        for desktop in BOTH {
+            let dark = &search(desktop, "dark mode")[0];
+            assert_eq!(dark.icon, ResultIcon::Glyph { name: "moon" }, "{desktop:?}");
+            let wifi = &search(desktop, "wifi")[0];
+            assert_eq!(wifi.icon, ResultIcon::Glyph { name: "wifi" }, "{desktop:?}");
+            assert_eq!(provider(desktop).resolve("dark-mode").unwrap().icon, ResultIcon::Glyph { name: "moon" }, "also in Recent");
         }
-        assert_eq!(provider.resolve("dark-mode").unwrap().icon, icon, "also in Recent");
-        // before the apps are indexed, a gear stands in
-        let gear = ResultIcon::Symbol { name: "settings".into() };
-        assert!(search(Desktop::Windows, "dark mode").iter().all(|r| r.icon == gear));
+        assert_eq!(provider(Desktop::Windows).resolve("bluetooth").unwrap().icon, ResultIcon::Glyph { name: "bluetooth" });
     }
 
     #[test]
     fn nothing_is_offered_without_the_settings_app() {
-        let provider = SystemSettingsProvider::for_desktop(Desktop::Elementary, None, Arc::new(AppIndex::new()));
+        let provider = SystemSettingsProvider::for_desktop(Desktop::Elementary, None);
         assert!(search_with(&provider, "dark mode").is_empty());
         assert!(provider.resolve("dark-mode").is_none());
         assert_eq!(provider.execute("dark-mode", ExecuteMode::Open).unwrap_err().code(), "not-found");

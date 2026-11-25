@@ -80,7 +80,7 @@ pub struct SpotlightSettings {
     pub search_files: bool,
     pub search_folders: bool,
     pub search_actions: bool,
-    /// Pages of the system's settings app ("Turn on dark mode").
+    /// Pages of the system's settings app ("Open dark mode settings").
     pub search_settings: bool,
     pub keep_history: bool,
     pub max_results: u32,

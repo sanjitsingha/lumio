@@ -37,7 +37,7 @@ impl SearchEngine {
         web: Arc<WebSearchProvider>,
         history: Arc<History>,
     ) -> Self {
-        let system_settings = Arc::new(SystemSettingsProvider::new(apps.clone()));
+        let system_settings = Arc::new(SystemSettingsProvider::new());
         let providers: Vec<Arc<dyn SearchProvider>> = vec![
             Arc::new(AppsProvider::new(apps.clone())),
             actions.clone(),
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn settings_pages_follow_quick_actions() {
         let ranked = vec![
-            result("s", ResultKind::Setting, "Turn on dark mode", 864.0),
+            result("s", ResultKind::Setting, "Open dark mode settings", 864.0),
             result("f", ResultKind::File, "dark-mode.css", 705.0),
             result("q", ResultKind::Action, "Open Settings", 500.0),
             result("d", ResultKind::Folder, "Dark", 400.0),
@@ -356,10 +356,10 @@ mod tests {
         let sections = group(ranked);
         let ids: Vec<_> = sections.iter().map(|s| s.id).collect();
         assert_eq!(ids, vec!["top", "actions", "folders", "files"], "a strong page is the Top Hit");
-        assert_eq!(sections[0].results[0].title, "Turn on dark mode");
+        assert_eq!(sections[0].results[0].title, "Open dark mode settings");
         let weaker = group(vec![
             result("a", ResultKind::App, "Darktable", 900.0),
-            result("s", ResultKind::Setting, "Turn on dark mode", 800.0),
+            result("s", ResultKind::Setting, "Open dark mode settings", 800.0),
             result("f", ResultKind::File, "dark.txt", 600.0),
         ]);
         assert_eq!(weaker.iter().map(|s| s.id).collect::<Vec<_>>(), ["top", "settings", "files"]);

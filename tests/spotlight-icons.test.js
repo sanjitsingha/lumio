@@ -11,22 +11,22 @@ describe("Spotlight icons", () => {
   it("draws every icon the backend names", () => {
     // QuickAction { icon: "calculator", … } and fallbacks such as ResultIcon::Symbol { name: "globe".into() }
     const actions = names(rust("actions.rs"), /icon: "([a-z0-9-]+)"/g);
-    const fallbacks = ["system_settings.rs", "web.rs", "apps/mod.rs"].flatMap((file) =>
-      names(rust(file), /Symbol \{ name: "([a-z0-9-]+)"/g),
-    );
+    const fallbacks = ["web.rs", "apps/mod.rs"].flatMap((file) => names(rust(file), /Symbol \{ name: "([a-z0-9-]+)"/g));
     expect(actions.length).toBeGreaterThan(3);
-    expect(fallbacks).toEqual(expect.arrayContaining(["settings", "globe", "app-window"]));
+    expect(fallbacks).toEqual(expect.arrayContaining(["globe", "app-window"]));
+    // page("dark-mode", "moon", "Open dark mode settings", …): each settings page's glyph
+    const pages = names(rust("system_settings.rs"), /^ {4}page\("[a-z0-9-]+", "([a-z0-9-]+)"/gm);
+    expect(pages.length).toBeGreaterThan(90);
     // c("lock-screen", "Lock Screen", …, "lock", Native(lock))
     const commands = names(rust("../platform/windows/system_commands.rs"), /"([a-z0-9-]+)", (?:Open|Program|Keys|Native|Ask)\(/g);
     expect(commands.length).toBeGreaterThan(100);
-    const missing = [...new Set([...actions, ...fallbacks, ...commands])].filter((name) => !SYMBOLS[name]);
+    const missing = [...new Set([...actions, ...fallbacks, ...commands, ...pages])].filter((name) => !SYMBOLS[name]);
     expect(missing).toEqual([]);
   });
 
-  it("gives every symbol a component and a colour", () => {
-    for (const [name, { Icon, tint }] of Object.entries(SYMBOLS)) {
+  it("gives every symbol a component", () => {
+    for (const [name, Icon] of Object.entries(SYMBOLS)) {
       expect(Icon, name).toBeTruthy();
-      expect(tint, name).toMatch(/^#[0-9A-F]{6}$/i);
     }
   });
 });

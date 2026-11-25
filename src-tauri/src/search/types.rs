@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum ResultKind {
     App,
     Action,
-    /// A page of the system's settings app ("Turn on dark mode").
+    /// A page of the system's settings app ("Open dark mode settings").
     Setting,
     Folder,
     File,
@@ -45,8 +45,10 @@ impl ResultKind {
 pub enum ResultIcon {
     /// Served by the `lummo-icon` protocol at `/app/<key>`.
     App { key: String },
-    /// A Lucide icon name rendered by the frontend.
+    /// A Lucide icon name rendered by the frontend on a tile.
     Symbol { name: String },
+    /// A Lucide icon name rendered by the frontend bare, without a tile (settings pages).
+    Glyph { name: &'static str },
     /// Lummo's own logo, bundled with the frontend.
     Lummo,
     /// The system's icon for the file's type, served at `/file/<key>`; the

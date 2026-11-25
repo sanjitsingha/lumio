@@ -251,8 +251,7 @@ pub fn run() {
         }))
         .plugin(log_plugin)
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(analytics::plugin());
+        .plugin(tauri_plugin_notification::init());
 
     if plugin_loaded {
         let map = plugin_map.clone();
