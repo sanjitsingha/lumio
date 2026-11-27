@@ -82,6 +82,8 @@ pub fn all() -> impl Iterator<Item = &'static QuickAction> {
 /// only the best few are listed so they do not crowd out files.
 const MIN_COMMAND_QUERY_CHARS: usize = 2;
 const MAX_COMMAND_RESULTS: usize = 6;
+/// "window" lists every way to place the window in use.
+const MAX_WINDOW_RESULTS: usize = 16;
 
 /// The app an action opens: its key in the app index and its name.
 type TargetApp = Option<(String, String)>;
@@ -182,7 +184,9 @@ impl SearchProvider for ActionsProvider {
         if ctx.raw.chars().count() < MIN_COMMAND_QUERY_CHARS {
             return;
         }
+        let window_manager = |a: &QuickAction| platform::quick_actions::is_window_manager(a.id);
         let mut found: Vec<(u32, &QuickAction)> = platform::quick_actions::system_commands()
+            .filter(|a| ctx.settings.search_windows || !window_manager(a))
             .filter(|a| !platform::quick_actions::needs_its_name(a.id) || named(a, ctx.raw))
             .filter(|a| self.is_available(a.id))
             .filter_map(|a| {
@@ -194,8 +198,10 @@ impl SearchProvider for ActionsProvider {
             .filter(|(_, a)| !self.apps.has_app_named(a.title))
             .collect();
         found.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
-        found.truncate(MAX_COMMAND_RESULTS);
-        out.extend(found.into_iter().map(|(score, a)| self.to_result(a, score as f32)));
+        let (windows, others): (Vec<_>, Vec<_>) = found.into_iter().partition(|(_, a)| window_manager(a));
+        for (group, most) in [(others, MAX_COMMAND_RESULTS), (windows, MAX_WINDOW_RESULTS)] {
+            out.extend(group.into_iter().take(most).map(|(score, a)| self.to_result(a, score as f32)));
+        }
     }
 
     fn execute(&self, local_id: &str, _mode: ExecuteMode) -> AppResult<ExecutedItem> {
@@ -330,6 +336,26 @@ mod tests {
         provider.search(&ctx, &mut out);
         assert_eq!(out[0].id, "action:lummo-settings");
         assert_eq!(out[0].icon, ResultIcon::Lummo, "with Lummo's logo, like the app");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn window_lists_every_way_to_place_the_window() {
+        let search = |raw: &str, search_windows: bool| {
+            let query = super::super::fuzzy::Query::new(raw);
+            let settings = SpotlightSettings { search_windows, ..SpotlightSettings::default() };
+            let ctx = SearchContext { raw, query: &query, settings: &settings, limit: 24 };
+            let mut out = Vec::new();
+            provider(Vec::new()).search(&ctx, &mut out);
+            out.into_iter().map(|r| r.id).collect::<Vec<_>>()
+        };
+        let all = search("window", true);
+        assert_eq!(all.iter().filter(|id| platform::quick_actions::is_window_manager(&id["action:".len()..])).count(), 16, "{all:?}");
+        assert_eq!(search("window top left", true).first().map(String::as_str), Some("action:window-top-left"));
+        assert_eq!(search("snap right", true).first().map(String::as_str), Some("action:window-snap-right"));
+        assert!(search("window", false).iter().all(|id| !platform::quick_actions::is_window_manager(&id["action:".len()..])));
+        // what loses work still needs its name
+        assert!(!all.contains(&"action:window-close".to_string()));
     }
 
     #[cfg(windows)]

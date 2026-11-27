@@ -4,6 +4,7 @@ import { Button, Group, Row, Select, ToggleRow } from "../../common/controls";
 import { PaneHeader } from "../PaneHeader";
 import { useSettings, useUpdateSettings } from "../../../hooks/useSettings";
 import { api, errorMessage } from "../../../services/tauri";
+import { usePlatform } from "../../../hooks/usePlatform";
 import { toast } from "../../../stores/toastStore";
 
 /** Lummo is dark only, so the theme is shown but cannot be changed. */
@@ -45,6 +46,7 @@ export default function GeneralPane() {
   const a = settings.appearance;
   const set = (patch) => update({ general: patch });
   const setAppearance = (patch) => update({ appearance: patch });
+  const platform = usePlatform();
 
   return (
     <>
@@ -60,6 +62,14 @@ export default function GeneralPane() {
           checked={g.showInTray}
           onChange={(v) => set({ showInTray: v })}
         />
+        {platform?.os === "linux" && (
+          <ToggleRow
+            label="Window manager"
+            description="Type “window” in Spotlight to snap, move or center the window you are using"
+            checked={settings.spotlight.searchWindows}
+            onChange={(v) => update({ spotlight: { searchWindows: v } })}
+          />
+        )}
       </Group>
 
       <Group title="Appearance">

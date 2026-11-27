@@ -81,9 +81,16 @@ pub fn category(id: &str) -> Option<&'static str> {
     system_commands::all().find(|a| a.id == id).map(|a| a.subtitle)
 }
 
-/// Every command here changes something the moment it runs, so all are listed only by name.
-pub fn needs_its_name(_id: &str) -> bool {
-    true
+/// Every command here changes something the moment it runs, so all are
+/// listed only by name, except moving the window in use, which loses nothing:
+/// "window" lists all of those.
+pub fn needs_its_name(id: &str) -> bool {
+    !is_window_manager(id)
+}
+
+/// Snapping, moving or centering the window in use.
+pub fn is_window_manager(id: &str) -> bool {
+    category(id) == Some(system_commands::WINDOW_MANAGER)
 }
 
 pub fn is_available(id: &str) -> bool {

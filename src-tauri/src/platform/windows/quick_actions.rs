@@ -22,6 +22,11 @@ pub fn needs_its_name(id: &str) -> bool {
     system_commands::needs_its_name(id)
 }
 
+/// Window snapping commands are Linux only.
+pub fn is_window_manager(_id: &str) -> bool {
+    false
+}
+
 fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
 }

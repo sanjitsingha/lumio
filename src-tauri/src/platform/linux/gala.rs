@@ -12,6 +12,18 @@ const TIMEOUT_MS: i32 = 2000;
 /// `ShellActionMode.NORMAL`: active during normal desktop use, not on the lock screen.
 const ACTION_MODE_NORMAL: u32 = 1;
 
+/// When one of Lummo's shortcuts was last pressed, for commands that must wait
+/// for its keys to be let go.
+static SHORTCUT_PRESSED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+pub fn note_shortcut_pressed() {
+    *SHORTCUT_PRESSED.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now());
+}
+
+pub fn shortcut_pressed_at() -> Option<std::time::Instant> {
+    *SHORTCUT_PRESSED.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub fn session_bus() -> Result<gio::DBusConnection, String> {
     gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).map_err(|e| e.to_string())
 }

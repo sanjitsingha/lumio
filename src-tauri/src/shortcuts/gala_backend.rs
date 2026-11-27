@@ -34,6 +34,7 @@ impl GalaBackend {
                 .iter()
                 .find_map(|(accel, id)| (*id == action).then_some(*accel));
             if let Some(accel) = accel {
+                gala::note_shortcut_pressed();
                 sink(accel, timestamp);
             }
         });

@@ -34,6 +34,10 @@ const INTERFACE: &str = "org.gnome.desktop.interface";
 const SOUND: &str = "org.gnome.desktop.sound";
 const WM_PREFS: &str = "org.gnome.desktop.wm.preferences";
 const MUTTER: &str = "org.gnome.mutter";
+/// The group of the commands that snap, move and center the window in use.
+pub const WINDOW_MANAGER: &str = "Window Manager";
+const MUTTER_KEYS: &str = "org.gnome.mutter.keybindings";
+const WM_KEYS: &str = "org.gnome.desktop.wm.keybindings";
 const KEYBOARD: &str = "org.gnome.desktop.peripherals.keyboard";
 const MOUSE: &str = "org.gnome.desktop.peripherals.mouse";
 const TOUCHPAD: &str = "org.gnome.desktop.peripherals.touchpad";
@@ -93,6 +97,8 @@ const TIMEDATE_PATH: &str = "/org/freedesktop/timedate1";
 const ACCOUNTS: &str = "org.freedesktop.Accounts";
 const PANTHEON_ACCOUNT: &str = "io.elementary.pantheon.AccountsService";
 const GALA_BUS: &str = "org.pantheon.gala";
+const REMOTE_DESKTOP: &str = "org.gnome.Mutter.RemoteDesktop";
+const IDLE_MONITOR: &str = "org.gnome.Mutter.IdleMonitor";
 const GALA_DESKTOP_PATH: &str = "/org/pantheon/gala/DesktopInterface";
 const GALA_DESKTOP: &str = "org.pantheon.gala.DesktopIntegration";
 const WINGPANEL: &str = "org.elementary.wingpanel";
@@ -143,6 +149,9 @@ enum Run {
     Step(&'static str, &'static str, f64, f64, f64),
     /// One of Gala's actions (`ActionType` in its `lib/CommonEnums.vala`).
     Gala(i32),
+    /// One of the window manager's own keyboard actions (snap, center),
+    /// which only its shortcut can start: schema, key.
+    Wm(&'static str, &'static str),
     GoTo(i32),
     MoveTo(i32),
     /// Opens or closes a menu of the panel.
@@ -167,7 +176,7 @@ enum Run {
 }
 use Run::{
     Accent, Ask, AskFlip, Both, BrightnessTo, Flip, FlipOff, Folder, Gala, GoTo, KeyboardLight, Later, Media, Menu, MoveTo, Mute,
-    Native, NextDevice, Profile, Screen, Seek, Set, Step, Swap, Volume, VolumeTo,
+    Native, NextDevice, Profile, Screen, Seek, Set, Step, Swap, Volume, VolumeTo, Wm,
 };
 
 /// What a command needs of this computer, beyond the setting it writes.
@@ -187,6 +196,8 @@ enum Needs {
     KeyboardLight,
     Panel,
     Gala,
+    /// Presses keys for the window manager's own actions.
+    RemoteDesktop,
     Network,
     MobileData,
     Vpn,
@@ -440,11 +451,28 @@ static COMMANDS: &[SystemCommand] = &[
     c("clock-weekday", "Toggle Weekday in Clock", "Clock", &["weekday in clock", "show weekday", "day of week in clock"], "calendar-days", Flip(CLOCK, "clock-show-weekday")),
     c("clock-week-numbers", "Toggle Week Numbers", "Clock", &["week numbers", "show week numbers"], "calendar-days", Flip(CLOCK, "show-weeks")),
 
+    // Window Manager: found by "window" (all of them, in this order) and
+    // listed with a setting of their own; all act on the window in use.
+    n(Needs::RemoteDesktop, "window-snap-left", "Snap Window Left", WINDOW_MANAGER, &["window manager", "window left", "window left half", "snap left", "snap window left", "tile left", "left half"], "panel-left", Wm(MUTTER_KEYS, "toggle-tiled-left")),
+    n(Needs::RemoteDesktop, "window-snap-right", "Snap Window Right", WINDOW_MANAGER, &["window manager", "window right", "window right half", "snap right", "snap window right", "tile right", "right half"], "panel-right", Wm(MUTTER_KEYS, "toggle-tiled-right")),
+    n(Needs::RemoteDesktop, "window-top-left", "Move Window to Top Left", WINDOW_MANAGER, &["window manager", "window top left", "top left", "top left corner", "snap top left"], "arrow-up-left", Wm(WM_KEYS, "move-to-corner-nw")),
+    n(Needs::RemoteDesktop, "window-top-right", "Move Window to Top Right", WINDOW_MANAGER, &["window manager", "window top right", "top right", "top right corner", "snap top right"], "arrow-up-right", Wm(WM_KEYS, "move-to-corner-ne")),
+    n(Needs::RemoteDesktop, "window-bottom-left", "Move Window to Bottom Left", WINDOW_MANAGER, &["window manager", "window bottom left", "bottom left", "bottom left corner", "snap bottom left"], "arrow-down-left", Wm(WM_KEYS, "move-to-corner-sw")),
+    n(Needs::RemoteDesktop, "window-bottom-right", "Move Window to Bottom Right", WINDOW_MANAGER, &["window manager", "window bottom right", "bottom right", "bottom right corner", "snap bottom right"], "arrow-down-right", Wm(WM_KEYS, "move-to-corner-se")),
+    n(Needs::RemoteDesktop, "window-top", "Move Window to Top", WINDOW_MANAGER, &["window manager", "window top", "window to top edge", "snap top"], "arrow-up", Wm(WM_KEYS, "move-to-side-n")),
+    n(Needs::RemoteDesktop, "window-bottom", "Move Window to Bottom", WINDOW_MANAGER, &["window manager", "window bottom", "window to bottom edge", "snap bottom"], "arrow-down", Wm(WM_KEYS, "move-to-side-s")),
+    n(Needs::RemoteDesktop, "window-left-edge", "Move Window to Left Edge", WINDOW_MANAGER, &["window manager", "window left edge", "move window to left edge"], "arrow-left", Wm(WM_KEYS, "move-to-side-w")),
+    n(Needs::RemoteDesktop, "window-right-edge", "Move Window to Right Edge", WINDOW_MANAGER, &["window manager", "window right edge", "move window to right edge"], "arrow-right", Wm(WM_KEYS, "move-to-side-e")),
+    n(Needs::RemoteDesktop, "window-center", "Center Window", WINDOW_MANAGER, &["window manager", "window center", "window centre", "window middle", "center window", "centre window"], "focus", Wm(WM_KEYS, "move-to-center")),
+    n(Needs::Gala, "window-maximize", "Maximize Window", WINDOW_MANAGER, &["window manager", "window maximize", "window full screen", "maximize window", "unmaximize window", "maximize"], "maximize-2", Gala(2)),
+    n(Needs::RemoteDesktop, "window-restore", "Restore Window", WINDOW_MANAGER, &["window manager", "window restore", "restore window", "restore window size", "unsnap window", "untile window"], "shrink", Wm(WM_KEYS, "unmaximize")),
+    n(Needs::RemoteDesktop, "window-fill-height", "Fill Window Height", WINDOW_MANAGER, &["window manager", "window fill height", "window full height", "fill height", "maximize vertically"], "move-vertical", Wm(WM_KEYS, "maximize-vertically")),
+    n(Needs::RemoteDesktop, "window-fill-width", "Fill Window Width", WINDOW_MANAGER, &["window manager", "window fill width", "window full width", "fill width", "maximize horizontally"], "move-horizontal", Wm(WM_KEYS, "maximize-horizontally")),
+    n(Needs::Gala, "window-minimize", "Minimize Window", WINDOW_MANAGER, &["window manager", "window minimize", "window hide", "minimize window", "hide window", "minimize"], "minimize-2", Gala(3)),
+
     // Windows
     n(Needs::Gala, "window-multitasking", "Multitasking View", "Windows", &["multitasking view", "mission control", "task view", "overview"], "layout-grid", Gala(1)),
     n(Needs::Gala, "window-all-windows", "Show All Windows", "Windows", &["show all windows", "window overview", "expose"], "layers", Gala(7)),
-    n(Needs::Gala, "window-maximize", "Maximize Window", "Windows", &["maximize window", "unmaximize window", "maximize"], "maximize-2", Gala(2)),
-    n(Needs::Gala, "window-minimize", "Minimize Window", "Windows", &["minimize window", "hide window", "minimize"], "minimize-2", Gala(3)),
     n(Needs::Gala, "window-close", "Close Window", "Windows", &["close window", "close this window"], "x", Gala(17)),
     n(Needs::Gala, "window-always-on-top", "Toggle Always on Top", "Windows", &["always on top", "pin window", "keep on top"], "pin", Gala(13)),
     n(Needs::Gala, "window-all-workspaces", "Toggle Window on All Workspaces", "Windows", &["window on all workspaces", "sticky window", "show on all workspaces"], "pin", Gala(14)),
@@ -694,7 +722,7 @@ pub fn is_available(id: &str) -> bool {
 pub fn run(id: &str) -> Result<(), String> {
     let command = find(id).ok_or_else(|| format!("Unknown command \"{id}\"."))?;
     log::info!("system command {id}");
-    if matches!(command.run, Gala(_) | GoTo(_) | MoveTo(_) | Menu(_) | Later(_) | Ask(..) | AskFlip(..)) {
+    if matches!(command.run, Gala(_) | Wm(..) | GoTo(_) | MoveTo(_) | Menu(_) | Later(_) | Ask(..) | AskFlip(..)) {
         std::thread::spawn(move || {
             std::thread::sleep(SPOTLIGHT_GONE);
             let _ = finish(command, perform(command.run));
@@ -751,6 +779,7 @@ fn perform(run: Run) -> Done {
             call(&gala::session_bus()?, GALA_BUS, "/org/pantheon/gala", GALA_BUS, "PerformAction", Some((action,).to_variant()))?;
             Ok(None)
         }
+        Wm(schema, key) => press_wm_shortcut(schema, key),
         GoTo(index) => go_to_workspace(index),
         MoveTo(index) => move_window_to_workspace(index),
         Menu(code) => toggle_menu(code),
@@ -857,6 +886,7 @@ fn settings_exist(run: Run) -> bool {
         Set(schema, name, value) => accepts(schema, name, value),
         Both(keys) => keys.iter().all(|(schema, name, value)| accepts(schema, name, *value)),
         Step(schema, name, ..) => key(schema, name).is_some_and(|k| matches!(k.value_type().as_str(), "i" | "u" | "d")),
+        Wm(schema, name) => key(schema, name).is_some_and(|k| k.value_type().as_str() == "as"),
         _ => true,
     }
 }
@@ -993,6 +1023,7 @@ struct Capabilities {
     keyboard_light: bool,
     panel: bool,
     gala: bool,
+    remote_desktop: bool,
     network: bool,
     mobile_data: bool,
     vpn: bool,
@@ -1019,6 +1050,7 @@ impl Capabilities {
             Needs::KeyboardLight => self.keyboard_light,
             Needs::Panel => self.panel,
             Needs::Gala => self.gala,
+            Needs::RemoteDesktop => self.remote_desktop,
             Needs::Network => self.network,
             Needs::MobileData => self.mobile_data,
             Needs::Vpn => self.vpn,
@@ -1100,6 +1132,7 @@ impl Capabilities {
             keyboard_light,
             panel: on_session(WINGPANEL),
             gala: on_session(GALA_BUS),
+            remote_desktop: on_session(REMOTE_DESKTOP),
             network,
             mobile_data,
             vpn,
@@ -1414,6 +1447,139 @@ fn workspace_exists(bus: &gio::DBusConnection, index: i32) -> Result<(), String>
     }
 }
 
+// The window manager's own window actions
+
+/// Lent for a moment to a window action that has no shortcut of its own.
+const BORROWED_SHORTCUT: &str = "<Shift><Control><Alt><Super>F12";
+/// How long the window manager takes to pick up a changed shortcut, and to
+/// handle keys that were pressed.
+const SHORTCUT_SETTLES: Duration = Duration::from_millis(150);
+/// A command started by its own shortcut waits at most this long for its keys
+/// to be let go.
+const KEYS_LET_GO_WITHIN: Duration = Duration::from_secs(2);
+/// The keyboard counts as let go once nothing has happened on it for this long.
+const KEYS_AT_REST: Duration = Duration::from_millis(180);
+
+/// Snapping or centering a window is only offered by the window manager's own
+/// shortcuts (Gala has no call for it), so this presses that shortcut through
+/// Mutter's remote desktop service. An action without one gets
+/// [`BORROWED_SHORTCUT`] for that moment, and its setting is put back after.
+fn press_wm_shortcut(schema: &str, key: &str) -> Done {
+    let settings = required(schema, key)?;
+    let bus = gala::session_bus()?;
+    wait_for_shortcut_keys(&bus);
+    let bound: Vec<String> = settings.strv(key).iter().map(|a| a.to_string()).collect();
+    if let Some(keys) = bound.iter().find_map(|a| keysyms(a)) {
+        press_keys(&bus, &keys)?;
+        return Ok(None);
+    }
+    let keys = keysyms(BORROWED_SHORTCUT).ok_or("the borrowed shortcut has an unknown key")?;
+    let was_set = settings.user_value(key).is_some();
+    let mut lent: Vec<&str> = bound.iter().map(String::as_str).collect();
+    lent.push(BORROWED_SHORTCUT);
+    settings.set_strv(key, lent.as_slice()).map_err(|e| e.to_string())?;
+    gio::Settings::sync();
+    std::thread::sleep(SHORTCUT_SETTLES);
+    let pressed = press_keys(&bus, &keys);
+    std::thread::sleep(SHORTCUT_SETTLES);
+    let put_back = if was_set {
+        settings.set_strv(key, bound.iter().map(String::as_str).collect::<Vec<_>>().as_slice()).map_err(|e| e.to_string())
+    } else {
+        settings.reset(key);
+        Ok(())
+    };
+    gio::Settings::sync();
+    pressed.and(put_back).map(|()| None)
+}
+
+/// A command run by its own shortcut starts while those keys are still down,
+/// and a held Ctrl or Alt would make the pressed shortcut a different one. So
+/// it waits until a key has been let go since and the keyboard has rested.
+fn wait_for_shortcut_keys(bus: &gio::DBusConnection) {
+    let Some(pressed) = gala::shortcut_pressed_at() else { return };
+    while pressed.elapsed() < KEYS_LET_GO_WITHIN {
+        let Ok(reply) = call(bus, IDLE_MONITOR, "/org/gnome/Mutter/IdleMonitor/Core", IDLE_MONITOR, "GetIdletime", None) else {
+            return;
+        };
+        let Some(idle) = reply.child_value(0).get::<u64>().map(Duration::from_millis) else { return };
+        // the last key event came after the shortcut's own press
+        let since_then = idle + Duration::from_millis(30) < pressed.elapsed();
+        if since_then && idle >= KEYS_AT_REST {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+
+/// Presses and lets go of keys as a virtual keyboard: modifiers first.
+fn press_keys(bus: &gio::DBusConnection, keys: &[u32]) -> Result<(), String> {
+    const SESSION: &str = "org.gnome.Mutter.RemoteDesktop.Session";
+    let reply = call(bus, REMOTE_DESKTOP, "/org/gnome/Mutter/RemoteDesktop", REMOTE_DESKTOP, "CreateSession", None)?;
+    let session = reply.child_value(0).str().ok_or("no remote desktop session")?.to_string();
+    let result = call(bus, REMOTE_DESKTOP, &session, SESSION, "Start", None).and_then(|_| {
+        let key = |keysym: u32, down: bool| {
+            call(bus, REMOTE_DESKTOP, &session, SESSION, "NotifyKeyboardKeysym", Some((keysym, down).to_variant())).map(drop)
+        };
+        let pressed = keys.iter().try_for_each(|k| key(*k, true));
+        // let go of every key, even after a failed press
+        let released = keys.iter().rev().map(|k| key(*k, false)).collect::<Result<Vec<_>, _>>();
+        pressed.and(released.map(drop))
+    });
+    let _ = call(bus, REMOTE_DESKTOP, &session, SESSION, "Stop", None);
+    result
+}
+
+/// The keysyms of a shortcut as GSettings writes it ("<Control><Super>Left"),
+/// modifiers first, when every part of it is known.
+fn keysyms(accelerator: &str) -> Option<Vec<u32>> {
+    let mut keys = Vec::new();
+    let mut rest = accelerator.trim();
+    while let Some(after) = rest.strip_prefix('<') {
+        let (modifier, after) = after.split_once('>')?;
+        let keysym = match modifier.to_ascii_lowercase().as_str() {
+            "shift" => 0xffe1,
+            "control" | "ctrl" | "primary" => 0xffe3,
+            "alt" | "mod1" => 0xffe9,
+            "super" | "mod4" => 0xffeb,
+            _ => return None,
+        };
+        if !keys.contains(&keysym) {
+            keys.push(keysym);
+        }
+        rest = after;
+    }
+    keys.push(key_named(rest)?);
+    Some(keys)
+}
+
+fn key_named(name: &str) -> Option<u32> {
+    let mut chars = name.chars();
+    if let (Some(c), None) = (chars.next(), chars.next()) {
+        return c.is_ascii_alphanumeric().then(|| u32::from(c.to_ascii_lowercase()));
+    }
+    if let Some(n) = name.strip_prefix('F').and_then(|n| n.parse::<u32>().ok()).filter(|n| (1..=12).contains(n)) {
+        return Some(0xffbe + n - 1);
+    }
+    Some(match name {
+        "Left" => 0xff51,
+        "Up" => 0xff52,
+        "Right" => 0xff53,
+        "Down" => 0xff54,
+        "Page_Up" => 0xff55,
+        "Page_Down" => 0xff56,
+        "Home" => 0xff50,
+        "End" => 0xff57,
+        "Insert" => 0xff63,
+        "Delete" => 0xffff,
+        "space" => 0x20,
+        "Return" => 0xff0d,
+        "Tab" => 0xff09,
+        "Escape" => 0xff1b,
+        "BackSpace" => 0xff08,
+        _ => return None,
+    })
+}
+
 fn go_to_workspace(index: i32) -> Done {
     let bus = gala::session_bus()?;
     workspace_exists(&bus, index)?;
@@ -1721,6 +1887,34 @@ fn open_screenshot_tool() -> Done {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shortcuts_turn_into_keys() {
+        assert_eq!(keysyms("<Control><Super>Left"), Some(vec![0xffe3, 0xffeb, 0xff51]));
+        assert_eq!(keysyms("<Primary><Shift>a"), Some(vec![0xffe3, 0xffe1, 0x61]));
+        assert_eq!(keysyms("<Alt>F5"), Some(vec![0xffe9, 0xffc2]));
+        assert_eq!(keysyms(BORROWED_SHORTCUT), Some(vec![0xffe1, 0xffe3, 0xffe9, 0xffeb, 0xffc9]));
+        assert_eq!(keysyms("<Hyper>Left"), None);
+        assert_eq!(keysyms("XF86RotateWindows"), None);
+    }
+
+    /// Acts on the focused window: `wm-live.py` opens one to act on.
+    #[test]
+    #[ignore]
+    fn press_live_window_action() {
+        let action = std::env::var("WM_ACTION").unwrap();
+        let (schema, key) = action.split_once(' ').unwrap();
+        press_wm_shortcut(if schema == "mutter" { MUTTER_KEYS } else { WM_KEYS }, key).unwrap();
+    }
+
+    #[test]
+    fn window_manager_commands_are_all_found_by_window() {
+        let ids: Vec<_> = COMMANDS.iter().filter(|c| c.action.subtitle == WINDOW_MANAGER).map(|c| c.action.id).collect();
+        assert_eq!(ids.len(), 16);
+        for c in COMMANDS.iter().filter(|c| c.action.subtitle == WINDOW_MANAGER) {
+            assert!(c.action.title.contains("Window"), "{} is not found by \"window\"", c.action.id);
+        }
+    }
     use crate::search::actions::ACTIONS;
     use std::collections::HashSet;
 

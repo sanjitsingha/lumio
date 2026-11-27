@@ -80,6 +80,8 @@ pub struct SpotlightSettings {
     pub search_files: bool,
     pub search_folders: bool,
     pub search_actions: bool,
+    /// Snapping, moving and centering the window in use, found by "window" (Linux).
+    pub search_windows: bool,
     /// Pages of the system's settings app ("Open dark mode settings").
     pub search_settings: bool,
     pub keep_history: bool,
@@ -107,6 +109,7 @@ impl Default for SpotlightSettings {
             search_files: true,
             search_folders: true,
             search_actions: true,
+            search_windows: true,
             search_settings: true,
             keep_history: true,
             max_results: 24,
